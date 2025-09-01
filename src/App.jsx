@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './index.css';
 import NotamModal from './NotamModal';
 
-// --- Main Application Component ---
+// --- Main Application Component -----
 const App = () => {
   // State Management
   const [icaos, setIcaos] = useState(() => JSON.parse(localStorage.getItem("notamIcaos") || "[]"));
