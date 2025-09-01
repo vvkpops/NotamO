@@ -3,27 +3,14 @@
 
 // === ICAO CLASSIFICATION MAP FOR DISPLAY ===
 const ICAO_CLASSIFICATION_MAP = {
-  AA: "Aerodrome",
-  RW: "Runway",
-  TW: "Taxiway",
-  AB: "Obstacle",
-  AC: "Communications",
-  AD: "Navigation Aid",
-  AE: "Airspace Restriction",
-  AO: "Other",
-  GP: "GPS",
-  NAV: "Navigation",
-  COM: "Communication",
-  SVC: "Service",
-  DOM: "Domestic",
-  INTL: "International",
-  MISC: "Miscellaneous",
-  SEC: "Security",
-  FDC: "Flight Data Center",
-  SAA: "Special Activity Airspace"
+  AA: "Aerodrome", RW: "Runway", TW: "Taxiway", AB: "Obstacle",
+  AC: "Communications", AD: "Navigation Aid", AE: "Airspace Restriction",
+  AO: "Other", GP: "GPS", NAV: "Navigation", COM: "Communication",
+  SVC: "Service", DOM: "Domestic", INTL: "International", MISC: "Miscellaneous",
+  SEC: "Security", FDC: "Flight Data Center", SAA: "Special Activity Airspace"
 };
 
-function getClassificationTitle(classification) {
+export function getClassificationTitle(classification) {
   if (!classification) return "Other";
   const code = classification.trim().toUpperCase();
   return ICAO_CLASSIFICATION_MAP[code] || "Other";
@@ -31,7 +18,7 @@ function getClassificationTitle(classification) {
 
 // === SINGLE ACTIVE SESSION (browser/tab only) ===
 const SESSION_ID = Math.random().toString(36).substr(2, 9);
-let activeSession = true;
+export let activeSession = true;
 const SESSION_CHANNEL = 'notamDashboardSession';
 let bc = null;
 if (window.BroadcastChannel) {
@@ -69,10 +56,10 @@ function claimActiveSession() {
 }
 claimActiveSession();
 
-// === ICAO STATE ===
-let loadedIcaosSet = new Set();
-let icaoQueue = [];
-let loadingIcaosSet = new Set();
+// === ICAO STATE (EXPORTED) ===
+export let loadedIcaosSet = new Set();
+export let icaoQueue = [];
+export let loadingIcaosSet = new Set();
 let icaoBatchLastRun = Date.now();
 let icaoBatchWindowStart = Date.now();
 let icaoBatchCallCount = 0;
@@ -82,26 +69,30 @@ const ICAO_BATCH_CALL_LIMIT = 30;
 let batchingActive = false;
 window.icaoBatchTimer = null;
 
-let icaoSet = [];
-let notamDataByIcao = {};
-let notamFetchStatusByIcao = {};
-let lastNotamIdsByIcao = {};
-let latestNewNotamKey = null;
-let tabMode = "ALL"; // <-- crucial for UI tab logic
+export let icaoSet = [];
+export let notamDataByIcao = {};
+export let notamFetchStatusByIcao = {};
+export let lastNotamIdsByIcao = {};
+export let latestNewNotamKey = null;
+export let tabMode = "ALL";
 
-// ICAO sets
-function getIcaoSets() {
+// --- Mutable exports require setters ---
+export function setIcaoSet(newSet) { icaoSet = newSet; }
+export function setTabMode(newMode) { tabMode = newMode; }
+
+// --- ICAO sets ---
+export function getIcaoSets() {
   return JSON.parse(localStorage.getItem('icaoSets') || '[]');
 }
-function saveIcaoSets(sets) {
+export function saveIcaoSets(sets) {
   localStorage.setItem('icaoSets', JSON.stringify(sets));
 }
-function saveIcaos() {
+export function saveIcaos() {
   localStorage.setItem('notamIcaos', JSON.stringify(icaoSet));
 }
 
-// Batching
-function startBatchingIfNeeded() {
+// --- Batching ---
+export function startBatchingIfNeeded() {
   if (!batchingActive) {
     batchingActive = true;
     scheduleNextBatch(0);
@@ -114,7 +105,6 @@ function scheduleNextBatch(delay = ICAO_BATCH_INTERVAL_MS) {
   window.icaoBatchTimer = setTimeout(processIcaoBatch, delay);
 }
 
-// NEW: Helper function to introduce a delay
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 async function processIcaoBatch() {
@@ -138,12 +128,12 @@ async function processIcaoBatch() {
       loadingIcaosSet.add(icao);
     }
   }
-  if (typeof updateIcaoStatusBar === "function") updateIcaoStatusBar();
+  if (typeof window.updateIcaoStatusBar === "function") window.updateIcaoStatusBar();
   
-  // MODIFIED: Loop through the batch with a delay
   for (const icao of batch) {
     try {
-      const result = await fetchNotamsForIcao(icao, true, true);
+      // Use the imported fetch function
+      const result = await window.fetchNotamsForIcao(icao, true, true);
       if (result && !result.error && Array.isArray(result)) {
         loadedIcaosSet.add(icao);
         icaoBatchCallCount++;
@@ -154,14 +144,13 @@ async function processIcaoBatch() {
       icaoQueue.push(icao);
     }
     loadingIcaosSet.delete(icao);
-    if (typeof updateIcaoStatusBar === "function") updateIcaoStatusBar();
+    if (typeof window.updateIcaoStatusBar === "function") window.updateIcaoStatusBar();
     
-    // Wait for 2.1 seconds before the next call to stay under the rate limit
     await delay(2100); 
   }
 
   if (icaoQueue.length > 0 && icaoBatchCallCount < ICAO_BATCH_CALL_LIMIT) {
-    scheduleNextBatch(100); // Check for more almost immediately
+    scheduleNextBatch(100);
   } else if (icaoQueue.length > 0) {
     const nextDelay = icaoBatchWindowStart + ICAO_BATCH_INTERVAL_MS - Date.now();
     scheduleNextBatch(Math.max(nextDelay, 0));
@@ -169,7 +158,7 @@ async function processIcaoBatch() {
     stopBatching();
   }
 }
-function enqueueIcaos(icaos) {
+export function enqueueIcaos(icaos) {
   let added = false;
   icaos.forEach(icao => {
     if (!loadedIcaosSet.has(icao) && !icaoQueue.includes(icao) && !loadingIcaosSet.has(icao)) {
@@ -180,15 +169,15 @@ function enqueueIcaos(icaos) {
   if (added) startBatchingIfNeeded();
 }
 
-// Helpers
-function parseDate(s) {
+// --- Helpers ---
+export function parseDate(s) {
   if (!s) return null;
   let iso = s.trim().replace(' ', 'T');
   if (!/Z$|[+-]\d{2}:?\d{2}$/.test(iso)) iso += 'Z';
   let d = new Date(iso);
   return isNaN(d) ? null : d;
 }
-function getNotamFlags(n) {
+export function getNotamFlags(n) {
   const s = (n.summary + ' ' + n.body).toUpperCase();
   return {
     isRunwayClosure: /\b(RWY|RUNWAY)[^\n]*\b(CLSD|CLOSED)\b/.test(s),
@@ -200,7 +189,7 @@ function getNotamFlags(n) {
     isCancelled: n.type === "C" || /\b(CANCELLED|CNL)\b/.test(s),
   };
 }
-function extractRunways(text) {
+export function extractRunways(text) {
   const rwyMatches = [];
   const regex = /\bRWY\s*(\d{2,3}(?:[LRC])?(?:\/\d{2,3}(?:[LRC])?)*)/gi;
   let match;
@@ -210,8 +199,7 @@ function extractRunways(text) {
   return [...new Set(rwyMatches)].join(', ');
 }
 
-// --- Ensure these functions are available globally ---
-async function ensureIcaoNotamsLoadedOnDemand(icao) {
+export async function ensureIcaoNotamsLoadedOnDemand(icao) {
   if (notamFetchStatusByIcao[icao]) return;
   if (icaoQueue.includes(icao) || loadingIcaosSet.has(icao)) return;
   const now = Date.now();
@@ -221,9 +209,9 @@ async function ensureIcaoNotamsLoadedOnDemand(icao) {
   }
   if (icaoBatchCallCount < ICAO_BATCH_CALL_LIMIT) {
     loadingIcaosSet.add(icao);
-    if (typeof updateIcaoStatusBar === "function") updateIcaoStatusBar();
+    if (typeof window.updateIcaoStatusBar === "function") window.updateIcaoStatusBar();
     try {
-      await fetchNotamsForIcao(icao, false, false);
+      await window.fetchNotamsForIcao(icao, false, false);
       loadedIcaosSet.add(icao);
       icaoBatchCallCount++;
     } catch {
@@ -231,28 +219,24 @@ async function ensureIcaoNotamsLoadedOnDemand(icao) {
       startBatchingIfNeeded();
     }
     loadingIcaosSet.delete(icao);
-    if (typeof updateIcaoStatusBar === "function") updateIcaoStatusBar();
+    if (typeof window.updateIcaoStatusBar === "function") window.updateIcaoStatusBar();
   } else {
     if (!icaoQueue.includes(icao)) icaoQueue.push(icao);
     startBatchingIfNeeded();
   }
 }
-async function ensureIcaoNotamsLoaded(icao) {
+export async function ensureIcaoNotamsLoaded(icao) {
   if (!notamFetchStatusByIcao[icao]) {
-    await fetchNotamsForIcao(icao, false, false);
+    await window.fetchNotamsForIcao(icao, false, false);
   }
 }
-// Attach to window for UI script
-window.ensureIcaoNotamsLoaded = ensureIcaoNotamsLoaded;
-window.ensureIcaoNotamsLoadedOnDemand = ensureIcaoNotamsLoadedOnDemand;
 
 // === AUTO REFRESH LOGIC ===
-let AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+let AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 let autoRefreshTimer = null;
 let autoRefreshCountdown = AUTO_REFRESH_INTERVAL_MS / 1000;
 let autoRefreshActive = false;
 
-// Timer UI update
 function updateAutoRefreshTimerUI() {
   const timerElem = document.getElementById('icao-progress-timer');
   if (!timerElem) return;
@@ -261,9 +245,8 @@ function updateAutoRefreshTimerUI() {
   timerElem.textContent = `Auto refresh in ${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-// Start/stop/reset logic
 function startAutoRefresh() {
-  stopAutoRefresh(); // clear any existing interval
+  stopAutoRefresh();
   autoRefreshActive = true;
   autoRefreshCountdown = AUTO_REFRESH_INTERVAL_MS / 1000;
   updateAutoRefreshTimerUI();
@@ -272,8 +255,6 @@ function startAutoRefresh() {
     updateAutoRefreshTimerUI();
     if (autoRefreshCountdown <= 0) {
       performAutoRefresh();
-      autoRefreshCountdown = AUTO_REFRESH_INTERVAL_MS / 1000;
-      updateAutoRefreshTimerUI();
     }
   }, 1000);
 }
@@ -284,37 +265,34 @@ function stopAutoRefresh() {
   autoRefreshTimer = null;
 }
 
-function resetAutoRefresh() {
+export function resetAutoRefresh() {
   autoRefreshCountdown = AUTO_REFRESH_INTERVAL_MS / 1000;
   updateAutoRefreshTimerUI();
+  stopAutoRefresh();
+  startAutoRefresh();
 }
 
-// Main auto-refresh logic (runs every 5min or on manual reload)
-async function performAutoRefresh() {
+export async function performAutoRefresh() {
   if (!activeSession) return;
   const icaosToRefresh = Array.isArray(icaoSet) ? icaoSet.slice() : [];
-  if (!icaosToRefresh.length) return;
+  if (!icaosToRefresh.length) {
+    resetAutoRefresh();
+    return;
+  }
 
-  // Store previous NOTAMs for each ICAO
   let previousByIcao = {};
   for (const icao of icaosToRefresh) {
     previousByIcao[icao] = Array.isArray(notamDataByIcao[icao]) ? notamDataByIcao[icao].slice() : [];
   }
 
-  // MODIFIED: Fetch all NOTAMs, with per-ICAO fallback and a delay
   let newDataByIcao = {};
   for (const icao of icaosToRefresh) {
     try {
-      const data = await fetchNotamsForIcao(icao, false, true);
-      if (Array.isArray(data) && !data.error) {
-        newDataByIcao[icao] = data;
-      } else {
-        newDataByIcao[icao] = previousByIcao[icao];
-      }
+      const data = await window.fetchNotamsForIcao(icao, false, true);
+      newDataByIcao[icao] = (Array.isArray(data) && !data.error) ? data : previousByIcao[icao];
     } catch {
       newDataByIcao[icao] = previousByIcao[icao];
     }
-    // Wait for 2.1 seconds before the next call to stay under the rate limit
     await delay(2100);
   }
 
@@ -325,22 +303,18 @@ async function performAutoRefresh() {
     let nextMap = new Map(next.map(n => [(n.id || n.number || n.qLine || n.summary), n]));
 
     let newNotams = next.filter(n => !prevMap.has(n.id || n.number || n.qLine || n.summary));
-    let goneNotams = prev.filter(n => !nextMap.has(n.id || n.number || n.qLine || n.summary));
-
+    
     notamDataByIcao[icao] = next;
     notamFetchStatusByIcao[icao] = true;
     lastNotamIdsByIcao[icao] = new Set(next.map(n => n.id || n.number || n.qLine || n.summary));
 
     if (typeof window.updateNotamCardsForIcao === "function") {
-      window.updateNotamCardsForIcao(icao, next, newNotams, goneNotams);
+      window.updateNotamCardsForIcao(icao, next, newNotams, []);
     }
   }
+  resetAutoRefresh();
 }
 
-// Start auto-refresh on page load
 window.addEventListener('DOMContentLoaded', () => {
   startAutoRefresh();
 });
-
-window.performAutoRefresh = performAutoRefresh;
-window.resetAutoRefresh = resetAutoRefresh;
