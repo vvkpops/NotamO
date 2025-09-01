@@ -790,12 +790,13 @@ body::before {
 /* Next-level NOTAM cards */
 .notam-card {
   position: relative;
-  height: var(--card-height);
+  /* height is now dynamic */
+  /* height: var(--card-height); */
   overflow: hidden;
   display: flex;
   flex-direction: column;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
+  cursor: default; /* No more pointer cursor for expand */
   border-radius: 16px;
   background: rgba(17, 24, 39, 0.8);
   backdrop-filter: blur(20px);
@@ -832,12 +833,6 @@ body::before {
   opacity: 0.05;
 }
 
-.notam-card.expanded-card {
-  height: auto !important;
-  z-index: 100;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-}
-
 .notam-card.time-future {
   border-left: 3px solid var(--accent-orange);
 }
@@ -853,7 +848,7 @@ body::before {
 
 .notam-card.auto-sized {
   height: auto;
-  min-height: calc(var(--card-height) * 0.7);
+  min-height: 200px;
 }
 
 .card-glow {
@@ -1007,46 +1002,23 @@ body::before {
   overflow: hidden;
 }
 
-.notam-header-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.notam-id {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.notam-head {
+/* New styles for raw NOTAM text display */
+.notam-raw-text {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: var(--accent-blue);
-  margin-bottom: 1rem;
-  letter-spacing: 0.02em;
-}
-
-.notam-number {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: var(--accent-blue);
-  letter-spacing: 0.02em;
-}
-
-.notam-source {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  background: rgba(0, 0, 0, 0.3);
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  font-weight: 500;
+  white-space: pre-wrap; /* Allows text to wrap */
+  word-break: break-word; /* Breaks long strings */
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 1rem;
+  border-radius: 8px;
+  flex-grow: 1;
+  overflow-x: auto; /* Horizontal scroll for very long lines */
 }
 
 .notam-meta {
-  margin-bottom: 1rem;
+  margin-top: 1rem; /* Use margin-top instead of margin-bottom */
   font-size: 0.85rem;
   color: var(--text-muted);
   padding: 0.75rem 1rem;
@@ -1115,44 +1087,9 @@ body::before {
   border-radius: 2px;
 }
 
-/* Stunning expand button */
+/* Remove expand button */
 .card-expand-btn {
-  position: absolute;
-  bottom: 1rem;
-  right: 1rem;
-  width: 3rem;
-  height: 3rem;
-  border-radius: 50%;
-  border: none;
-  background: var(--gradient-accent);
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
-  z-index: 3;
-}
-
-.card-expand-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4);
-}
-
-.card-expand-btn.expanded {
-  background: var(--gradient-accent);
-  transform: rotate(180deg);
-}
-
-.card-expand-btn.expanded:hover {
-  transform: rotate(180deg) scale(1.1);
-}
-
-.expand-icon {
-  width: 1.2rem;
-  height: 1.2rem;
-  transition: transform 0.3s ease;
+  display: none;
 }
 
 /* FontAwesome fallback */
@@ -1164,7 +1101,6 @@ body::before {
 /* Responsive design */
 @media (max-width: 768px) {
   :root {
-    --card-height: 280px;
     --grid-gap: 1rem;
   }
   
