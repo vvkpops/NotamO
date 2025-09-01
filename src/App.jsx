@@ -7,14 +7,52 @@ const App = () => {
   // State Management
   const [icaos, setIcaos] = useState(() => JSON.parse(localStorage.getItem("notamIcaos") || "[]"));
   const [activeIcao, setActiveIcao] = useState(null);
+  const [notamDataStore, setNotamDataStore] = useState({}); // Central store for NOTAM data
 
   // Refs for direct DOM access
   const icaoInputRef = useRef(null);
 
-  // Persist ICAOs to localStorage
+  // --- Data Fetching ---
+  const fetchNotams = useCallback(async (icao) => {
+    // Set loading state for the specific ICAO
+    setNotamDataStore(prevStore => ({
+      ...prevStore,
+      [icao]: { ...prevStore[icao], loading: true, error: null }
+    }));
+
+    try {
+      const response = await fetch(`/api/notams?icao=${icao}`);
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || `Network error: ${response.status}`);
+      }
+      // Store successful data fetch
+      setNotamDataStore(prevStore => ({
+        ...prevStore,
+        [icao]: { data: data, loading: false, error: null, lastFetched: Date.now() }
+      }));
+    } catch (err) {
+      // Store error state
+      setNotamDataStore(prevStore => ({
+        ...prevStore,
+        [icao]: { ...prevStore[icao], loading: false, error: err.message }
+      }));
+    }
+  }, []);
+
+  // Effect to fetch data for new ICAOs
+  useEffect(() => {
+    icaos.forEach(icao => {
+      // Fetch only if ICAO is not in the store
+      if (!notamDataStore[icao]) {
+        fetchNotams(icao);
+      }
+    });
+  }, [icaos, notamDataStore, fetchNotams]);
+
+  // Persist ICAOs to localStorage & handle active tab
   useEffect(() => {
     localStorage.setItem("notamIcaos", JSON.stringify(icaos));
-    // If there's no active ICAO, or the active one was removed, set a new one.
     if ((!activeIcao || !icaos.includes(activeIcao)) && icaos.length > 0) {
       setActiveIcao(icaos[0]);
     } else if (icaos.length === 0) {
@@ -35,8 +73,7 @@ const App = () => {
             const addedIcaos = newIcaoInputs.filter(icao => !prevIcaos.includes(icao));
             return [...prevIcaos, ...addedIcaos];
         });
-        // Set the first new ICAO as the active one
-        setActiveIcao(newIcaoInputs[0]);
+        setActiveIcao(newIcaoInputs[0]); // Make the first new one active
     }
     
     icaoInputRef.current.value = "";
@@ -45,17 +82,25 @@ const App = () => {
 
   const handleRemoveIcao = useCallback((icaoToRemove) => {
     setIcaos(prev => prev.filter(i => i !== icaoToRemove));
+    // Also remove from the data store to clean up memory
+    setNotamDataStore(prev => {
+        const newStore = {...prev};
+        delete newStore[icaoToRemove];
+        return newStore;
+    });
   }, []);
 
   const handleIcaoInputKeyPress = (e) => {
     if (e.key === "Enter") handleAddIcao();
   };
 
+  // Get data for the currently active tab
+  const activeNotamData = notamDataStore[activeIcao] || { data: [], loading: true, error: null };
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200">
       <Header />
       
-      {/* Controls Section */}
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 mb-6">
         <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-2 mb-4 items-center bg-gray-800 rounded-lg p-4">
           <input ref={icaoInputRef} placeholder="Enter ICAOs (e.g. CYYT,EGLL,KJFK)" className="bg-gray-700 p-2 rounded text-center w-full sm:w-72 text-white placeholder-gray-400 text-sm" onKeyPress={handleIcaoInputKeyPress} />
@@ -63,11 +108,9 @@ const App = () => {
         </div>
       </div>
       
-      {/* NOTAM Tabs */}
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 pb-8">
         {icaos.length > 0 ? (
             <div className="bg-gray-800/50 rounded-lg border border-gray-700 shadow-lg">
-                {/* Tab Navigation */}
                 <div className="flex items-center border-b border-gray-700 p-2 flex-wrap">
                     {icaos.map(icao => (
                         <div key={icao} className={`relative flex items-center px-4 py-2 cursor-pointer transition-colors duration-200 ${activeIcao === icao ? 'text-cyan-400' : 'text-gray-400 hover:text-white'}`} onClick={() => setActiveIcao(icao)}>
@@ -77,9 +120,8 @@ const App = () => {
                         </div>
                     ))}
                 </div>
-                {/* Tab Content */}
                 <div>
-                    {activeIcao && <NotamTabContent icao={activeIcao} />}
+                    {activeIcao && <NotamTabContent icao={activeIcao} notams={activeNotamData.data} loading={activeNotamData.loading} error={activeNotamData.error} />}
                 </div>
             </div>
         ) : (
