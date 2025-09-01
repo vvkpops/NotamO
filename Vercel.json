@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/api/notams",
-      "destination": "/api/notams.js"
+      "source": "/api/(.*)",
+      "destination": "/api/notams"
     }
   ]
 }
