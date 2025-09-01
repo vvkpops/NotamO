@@ -1,40 +1,64 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { getHeadClass, getHeadTitle, extractRunways, needsExpansion, getNotamType } from './NotamUtils';
 
 const NotamCard = ({ notam }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
 
+  const headClass = getHeadClass(notam);
+  const headTitle = getHeadTitle(notam);
+  const notamType = getNotamType(notam);
+  const runways = notamType === "rwy" ? extractRunways(notam.summary) : "";
+  const canExpand = needsExpansion(notam.summary);
+
+  const toggleExpand = () => {
+    if (canExpand) {
+      setIsExpanded(!isExpanded);
+    }
+  };
+  
   const formatDate = (dateStr) => {
     if (!dateStr || dateStr === 'PERMANENT') return dateStr || 'N/A';
     try {
-      return new Date(dateStr).toLocaleString('en-GB', { timeZone: 'UTC' }) + ' UTC';
+      return new Date(dateStr).toLocaleString('en-GB', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + 'Z';
     } catch { return dateStr; }
   };
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text)
-      .then(() => alert('NOTAM summary copied to clipboard!'))
-      .catch(err => console.error('Failed to copy:', err));
-  };
+  const cardClasses = `glass notam-card notam-animate ${notamType} ${isExpanded ? 'expanded-card' : ''} ${!canExpand ? 'auto-sized' : ''}`;
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 h-full flex flex-col">
-      <div className="flex justify-between items-start mb-2">
-        <div>
-          <p className="font-bold text-lg text-orange-400">{notam.number}</p>
-          <p className="text-xs text-gray-500">Source: {notam.source || 'FAA'}</p>
-        </div>
-        <button 
-          onClick={() => copyToClipboard(notam.summary)} 
-          className="text-xs bg-gray-600 px-2 py-1 rounded hover:bg-gray-500 transition-colors"
-          title="Copy summary to clipboard"
-        >
-          Copy
-        </button>
+    <div className={cardClasses} onClick={toggleExpand}>
+      <div className={`card-head ${headClass}`}>
+        <span>{headTitle}</span>
+        {runways && <span className="text-lg font-extrabold tracking-widest">{runways}</span>}
       </div>
-      <p className="text-xs text-gray-400 mb-3">
-        From: {formatDate(notam.validFrom)}<br/>
-        To: {formatDate(notam.validTo)}
-      </p>
-      <p className="text-sm whitespace-pre-wrap font-mono flex-grow">{notam.summary}</p>
+
+      <div className="notam-card-content">
+        <div className="notam-head">
+          {notam.number || "N/A"}
+          <span className="text-base font-normal text-cyan-300 ml-2">{notam.source}</span>
+        </div>
+        
+        <div className="notam-meta">
+          <span><b>Valid:</b> {formatDate(notam.validFrom)} → {formatDate(notam.validTo)}</span>
+        </div>
+        
+        <div className={isExpanded || !canExpand ? "notam-full-text" : "notam-summary"}>
+          {notam.summary}
+        </div>
+        
+        {canExpand && (
+          <button 
+            className="card-expand-btn" 
+            title={isExpanded ? 'Collapse' : 'Expand'}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleExpand();
+            }}
+          >
+            <i className={`fa fa-angle-${isExpanded ? "up" : "down"}`}></i>
+          </button>
+        )}
+      </div>
     </div>
   );
 };
