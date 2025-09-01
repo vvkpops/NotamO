@@ -12,7 +12,8 @@ const NotamCard = ({ notam }) => {
 
   const headClass = getHeadClass(notam);
   const headTitle = getHeadTitle(notam);
-  const runways = extractRunways(notam.rawText || notam.summary);
+  // Use rawText for runway extraction to be consistent
+  const runways = extractRunways(notam.rawText);
   
   const formatDate = (dateStr) => {
     if (!dateStr || dateStr === 'PERMANENT') return dateStr || 'N/A';
@@ -42,14 +43,13 @@ const NotamCard = ({ notam }) => {
   };
 
   const timeStatus = getTimeStatus();
-  // Card is always "auto-sized" now to fit the full raw text
   const cardClasses = `notam-card ${getHeadClass(notam)} ${isVisible ? 'visible' : ''} auto-sized time-${timeStatus}`;
 
   const copyToClipboard = async (e) => {
     e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(notam.rawText || notam.summary);
-      // Show success feedback
+      // Always copy the rawText
+      await navigator.clipboard.writeText(notam.rawText);
       e.target.textContent = '✓ Copied!';
       setTimeout(() => {
         e.target.textContent = '📋';
@@ -90,12 +90,11 @@ const NotamCard = ({ notam }) => {
       </div>
 
       <div className="notam-card-content">
-        {/* The raw text display */}
+        {/* The raw text display - NO FALLBACK. Only use rawText. */}
         <pre className="notam-raw-text">
-          {notam.rawText || notam.summary}
+          {notam.rawText}
         </pre>
         
-        {/* Meta info is now at the bottom for better flow */}
         <div className="notam-meta">
           <div className="validity-info">
             <div className="validity-row">
