@@ -34,7 +34,6 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
   gap: 1.25rem;
-  margin-bottom: 2rem;
 }
 
 .notam-card {
@@ -45,8 +44,9 @@ body {
   display: flex;
   flex-direction: column;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.3s ease, max-height 0.4s ease-in-out;
   position: relative;
+  overflow: hidden;
 }
 
 .notam-card:hover {
@@ -88,7 +88,6 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: hidden;
   word-wrap: break-word;
 }
 
@@ -119,50 +118,50 @@ body {
   color: var(--text-primary);
   word-break: break-word;
   margin-bottom: 1rem;
+  flex-grow: 1;
 }
 
 /* --- Collapsible Card Logic --- */
 .notam-card.is-collapsible {
-  max-height: 400px; /* Set a max-height for collapsed cards */
-  overflow: hidden;
+  max-height: 250px; /* Set a max-height for collapsed cards */
   cursor: pointer;
 }
 .notam-card.is-expanded {
-  max-height: 2000px; /* Allow expanded card to grow */
-  overflow: visible;
-  z-index: 10;
-  transition: max-height 0.5s ease-in-out;
+  max-height: 1500px; /* Allow expanded card to grow */
 }
 .card-expand-footer {
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 100%;
-  height: 60px;
+  right: 0;
+  height: 50px;
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  padding-bottom: 12px;
-  background: linear-gradient(to bottom, transparent, var(--bg-secondary) 85%);
-  pointer-events: none;
+  padding-bottom: 8px;
+  background: linear-gradient(to top, var(--bg-secondary) 30%, transparent 100%);
+  pointer-events: none; /* Let clicks pass through to the card */
+  transition: opacity 0.3s ease;
+}
+.is-expanded .card-expand-footer {
+  opacity: 0;
 }
 .card-expand-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   background-color: rgba(0,0,0,0.3);
-  color: var(--accent-amber);
+  color: var(--accent-cyan);
   border-radius: 16px;
   padding: 4px 12px;
   font-size: 0.8rem;
   font-weight: bold;
   border: 1px solid var(--bg-tertiary);
-  cursor: pointer;
+  pointer-events: auto; /* Button is clickable */
   transition: all 0.2s ease;
-  pointer-events: auto;
 }
 .card-expand-btn:hover {
-  background-color: var(--accent-amber);
+  background-color: var(--accent-cyan);
   color: var(--bg-primary);
 }
 .card-expand-btn .icon {
@@ -172,6 +171,10 @@ body {
 .is-expanded .card-expand-btn .icon {
   transform: rotate(180deg);
 }
+.notam-card:not(.is-collapsible) .card-expand-footer {
+  display: none;
+}
+
 
 /* --- Top Controls & Header --- */
 .control-panel {
@@ -179,26 +182,10 @@ body {
   padding: 1rem;
   border-radius: var(--radius);
   border: 1px solid var(--bg-tertiary);
-  margin-bottom: 1rem;
 }
 
-#icao-form input {
-  background-color: var(--bg-primary);
-  border: 1px solid var(--bg-tertiary);
-  color: var(--text-primary);
-  transition: border-color 0.2s;
-}
 #icao-form input:focus {
   outline: none;
-  border-color: var(--accent-amber);
-}
-#icao-form button[type="submit"] {
-  background-color: var(--accent-amber);
-  color: var(--bg-primary);
-  transition: background-color 0.2s;
-}
-#icao-form button[type="submit"]:hover {
-  background-color: #ffcf40; /* Lighter amber on hover */
 }
 
 /* --- Filter Chips --- */
@@ -271,34 +258,6 @@ body {
   50% { opacity: 1; }
 }
 
-/* --- Progress Bar --- */
-#icao-progress-bar-outer {
-  margin-bottom: 1rem;
-  padding: 0.5rem 1rem;
-}
-#icao-progress-bar-bg {
-  height: 0.5rem;
-  background-color: var(--bg-primary);
-  border-radius: 1rem;
-  overflow: hidden;
-}
-#icao-progress-bar {
-  height: 100%;
-  background-color: var(--accent-cyan);
-  border-radius: 1rem;
-  width: 0%;
-  transition: width 0.3s ease, background-color 0.3s ease;
-}
-#icao-progress-text {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  margin-top: 0.25rem;
-}
-#icao-progress-timer {
-  font-size: 0.8rem;
-  color: var(--accent-amber);
-}
-
 /* --- ICAO Header in "ALL" view --- */
 .icao-header {
   font-size: 1.5rem;
@@ -313,20 +272,61 @@ body {
   color: var(--accent-amber);
 }
 
+/* --- ICAO Sets Bar --- */
+#icao-sets-bar button {
+  transition: all 0.2s ease;
+}
+.icao-set-new {
+  background-color: var(--accent-amber);
+  color: var(--bg-primary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: bold;
+}
+.icao-set-new:hover { background-color: #ffcf40; }
+.icao-set-divider { color: var(--bg-tertiary); margin: 0 4px; }
+.icao-set-btn {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: 6px 0 0 6px;
+}
+.icao-set-btn:hover { background-color: #4b5563; }
+.icao-set-edit, .icao-set-del {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  padding: 6px 8px;
+}
+.icao-set-edit:hover { color: var(--accent-cyan); }
+.icao-set-del { border-radius: 0 6px 6px 0; }
+.icao-set-del:hover { color: var(--status-red); }
+.icao-set-save {
+  background-color: var(--accent-cyan);
+  color: var(--bg-primary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: bold;
+}
+.icao-set-save:hover { background-color: #40eaff; }
+
+/* --- Notification Modal --- */
+.notification-item {
+  padding: 12px;
+  border-bottom: 1px solid var(--bg-tertiary);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.notification-item:hover {
+  background-color: var(--bg-tertiary);
+}
+.notification-item.unread {
+  background-color: rgba(0, 216, 255, 0.08);
+}
+
 /* --- Misc & Legacy --- */
-/* Deprecate old glass effect */
-.glass {
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--bg-tertiary);
-  border-radius: var(--radius);
-}
-/* Deprecate old head classes */
-.head-rwy, .head-twy, .head-rsc, .head-crfi, .head-ils, .head-fuel, .head-other, .head-cancelled {
-  background: none;
-}
 .hidden { display: none; }
 .notam-animate {
-  animation: cardIn 0.5s ease-out;
+  animation: cardIn 0.5s ease-out forwards;
 }
 @keyframes cardIn {
   from { opacity: 0; transform: translateY(20px); }
