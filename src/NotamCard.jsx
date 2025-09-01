@@ -55,7 +55,7 @@ const NotamCard = ({ notam }) => {
               toggleExpand();
             }}
           >
-            <i className={`fa fa-angle-${isExpanded ? "up" : "down"}`}></i>
+            <i className="fa fa-angle-down"></i>
           </button>
         )}
       </div>
