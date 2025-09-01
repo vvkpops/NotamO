@@ -6,12 +6,22 @@ const CLIENT_SECRET = process.env.FAA_CLIENT_SECRET;
 
 const ALLOWED_ORIGIN = process.env.VERCEL_URL 
     ? `https://${process.env.VERCEL_URL}` 
-    : '*';
+    : 'http://localhost:5173'; // Default Vite dev port
+
+// A more robust date parser
+const parseDate = (s) => {
+    if (!s || s === 'PERMANENT') return null;
+    let iso = s.trim().replace(' ', 'T');
+    if (!/Z$|[+-]\d{2}:?\d{2}$/.test(iso)) iso += 'Z';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? null : d;
+};
 
 export default async function handler(request, response) {
     response.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
     response.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    response.setHeader('Vary', 'Origin'); // Important for CORS caching
 
     if (request.method === 'OPTIONS') {
         return response.status(200).end();
@@ -23,20 +33,19 @@ export default async function handler(request, response) {
     }
 
     try {
-        // Primary FAA Fetch
-        const faaUrl = `https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${icao}&responseFormat=geoJson&pageSize=250`;
         let faaItems = [];
         try {
+            const faaUrl = `https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${icao}&responseFormat=geoJson&pageSize=250`;
             const notamRes = await axios.get(faaUrl, {
                 headers: { 'client_id': CLIENT_ID, 'client_secret': CLIENT_SECRET },
                 timeout: 10000
             });
             faaItems = notamRes.data?.items || [];
         } catch (e) {
-            console.warn(`FAA fetch for ${icao} failed. Message: ${e.message}. Will try NAV CANADA if applicable.`);
+            console.warn(`FAA fetch for ${icao} failed. Message: ${e.message}.`);
         }
 
-        let parsed = faaItems.map(item => {
+        let combinedNotams = faaItems.map(item => {
             const core = item.properties?.coreNOTAMData?.notam || {};
             const trans = item.properties?.coreNOTAMData?.notamTranslation?.[0] || {};
             return {
@@ -49,12 +58,13 @@ export default async function handler(request, response) {
             };
         });
 
-        // NAV CANADA Fallback/Augment for 'C' ICAOs
+        // Augment with NAV CANADA data for 'C' ICAOs
         if (icao.startsWith('C')) {
             try {
                 const navUrl = `https://plan.navcanada.ca/weather/api/alpha/?site=${icao}&alpha=notam`;
                 const navRes = await axios.get(navUrl, { timeout: 5000 });
                 const navNotams = navRes.data?.Alpha?.notam || [];
+                
                 const navParsed = navNotams.map(notam => ({
                     id: notam.id || `${icao}-navcanada-${notam.start}`,
                     number: notam.id || 'N/A',
@@ -63,26 +73,39 @@ export default async function handler(request, response) {
                     validTo: notam.end,
                     source: 'NAV CANADA'
                 }));
-                // Combine and remove duplicates, giving preference to FAA data if ID matches
-                const navIds = new Set(navParsed.map(n => n.id));
-                const filteredFaa = parsed.filter(n => !navIds.has(n.id));
-                parsed = [...filteredFaa, ...navParsed];
+
+                // Smarter merge: Add NAV CANADA NOTAMs only if they don't exist in the FAA list
+                const faaNumbers = new Set(combinedNotams.map(n => n.number));
+                const uniqueNavNotams = navParsed.filter(n => !faaNumbers.has(n.number));
+                combinedNotams.push(...uniqueNavNotams);
+
             } catch (e) {
                 console.warn(`NAV CANADA fetch for ${icao} failed: ${e.message}`);
             }
         }
         
-        // Final filtering and sorting
+        // Final filtering and sorting on the server
         const now = new Date();
-        const finalNotams = parsed
-            .filter(n => !n.validTo || n.validTo === 'PERMANENT' || new Date(n.validTo) >= now)
-            .sort((a, b) => (new Date(b.validFrom) || 0) - (new Date(a.validFrom) || 0));
+        const finalNotams = combinedNotams
+            .filter(n => {
+                if (!n.validTo || n.validTo === 'PERMANENT') return true;
+                const validToDate = parseDate(n.validTo);
+                return validToDate ? validToDate >= now : true;
+            })
+            .sort((a, b) => {
+                const dateA = parseDate(a.validFrom);
+                const dateB = parseDate(b.validFrom);
+                if (!dateA) return 1;
+                if (!dateB) return -1;
+                return dateB - dateA;
+            });
 
         response.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
         return response.status(200).json(finalNotams);
 
     } catch (err) {
         console.error(`[API ERROR] for ${icao}:`, err.message);
-        return response.status(500).json({ error: "Failed to fetch data." });
+        // Avoid sending detailed error messages to the client
+        return response.status(500).json({ error: "An internal server error occurred." });
     }
 }
