@@ -32,13 +32,13 @@ function renderNotificationList() {
   notificationsList.slice().reverse().forEach(n => {
     let el = document.createElement("div");
     el.className = "notification-item" + (n.read ? "" : " unread");
-    el.innerHTML = `<div style="font-size:1em;">${n.message}</div>
-      <div style="font-size:0.93em;color:#7ae;">${n.icao}</div>
-      <div style="font-size:0.88em;color:#aaa;">${n.time}</div>`;
+    el.innerHTML = `<div class="font-semibold text-text-primary text-sm">${n.message}</div>
+      <div class="text-xs text-cyan-400">${n.icao}</div>
+      <div class="text-xs text-text-secondary mt-1">${n.time}</div>`;
     el.onclick = async () => {
       n.read = true;
       updateNotificationBadge();
-      renderNotificationList();
+      el.classList.remove('unread');
       document.getElementById('notification-modal').style.display = "none";
       if (document.getElementById('notam-alert')) document.getElementById('notam-alert').classList.add('hidden');
       if (typeof n.icao === "string" && tabMode !== n.icao) {
@@ -53,8 +53,9 @@ function renderNotificationList() {
           const card = document.getElementById('notam-' + n.cardKey.replace(/[^a-zA-Z0-9_-]/g, ''));
           if (card) {
             card.scrollIntoView({ behavior: "smooth", block: "center" });
-            card.classList.add('ring-4', 'ring-green-400');
-            setTimeout(() => card.classList.remove('ring-4', 'ring-green-400'), 1800);
+            card.style.transition = 'box-shadow 0.3s ease';
+            card.style.boxShadow = '0 0 0 3px var(--accent-cyan)';
+            setTimeout(() => card.style.boxShadow = '', 1800);
           }
         }, 120);
       }
@@ -65,6 +66,7 @@ function renderNotificationList() {
 export function showNewNotamAlert(msg, icao, notamKey) {
   notificationsList.push({ id: notificationIdCounter++, message: msg, icao: icao, cardKey: notamKey, time: new Date().toLocaleTimeString(), read: false });
   updateNotificationBadge();
+  renderNotificationList(); // Re-render list on new notification
   const el = document.getElementById('notam-alert');
   if(el) {
     el.textContent = msg;
@@ -82,8 +84,9 @@ export function showNewNotamAlert(msg, icao, notamKey) {
         const card = document.getElementById('notam-' + notamKey.replace(/[^a-zA-Z0-9_-]/g, ''));
         if (card) {
           card.scrollIntoView({ behavior: "smooth", block: "center" });
-          card.classList.add('ring-4', 'ring-green-400');
-          setTimeout(() => card.classList.remove('ring-4', 'ring-green-400'), 1800);
+          card.style.transition = 'box-shadow 0.3s ease';
+          card.style.boxShadow = '0 0 0 3px var(--accent-green)';
+          setTimeout(() => card.style.boxShadow = '', 1800);
         }
       }, 120);
       notificationsList.forEach(n => { if (n.cardKey === notamKey) n.read = true; });
@@ -108,7 +111,7 @@ function showRawModal(title, rawText) {
       <div class="raw-modal-backdrop" style="position:absolute; top:0; left:0; width:100%; height:100%;"></div>
       <div class="raw-modal-content" style="background-color:#1e293b; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.3); width:80%; max-width:800px; max-height:80%; display:flex; flex-direction:column; position:relative; overflow:hidden; animation:modalOpen 0.3s; z-index:1;">
         <div class="raw-modal-header" style="display:flex; justify-content:space-between; align-items:center; padding:16px; background-color:#172030; border-bottom:1px solid #334155;">
-          <span id="raw-modal-title"></span>
+          <span id="raw-modal-title" class="text-lg font-bold text-text-primary"></span>
           <button id="raw-modal-close" title="Close" style="background:none; border:none; color:#f87171; cursor:pointer; font-size:1.5rem; line-height:1;">&times;</button>
         </div>
         <pre id="raw-modal-body" style="padding:16px; overflow-y:auto; flex-grow:1; font-family:'Source Code Pro',monospace; white-space:pre-wrap; font-size:0.9rem; color:#d1d5db;"></pre>
@@ -174,7 +177,6 @@ function renderIcaoSetsBar() {
     let btnGroup = document.createElement('div');
     btnGroup.style.display = 'inline-flex';
     btnGroup.style.alignItems = 'center';
-    btnGroup.style.marginRight = '8px';
 
     let btn = document.createElement('button');
     btn.className = "icao-set-btn";
@@ -361,14 +363,19 @@ function filterAndSort(arr) {
   
   return filtered.sort((a, b) => {
     const priority = n => ({'rwy':6,'twy':5,'rsc':4,'crfi':3,'ils':2,'fuel':1.5,'cancelled':-1}[getNotamType(n)] || 1);
-    return priority(b) - priority(a);
+    const priorityDiff = priority(b) - priority(a);
+    if (priorityDiff !== 0) return priorityDiff;
+    const dateA = parseDate(a.validFrom) || 0;
+    const dateB = parseDate(b.validFrom) || 0;
+    return dateB - dateA;
   });
 }
 
 function needsExpansion(summary) {
   if (!summary) return false;
   const scale = parseFloat(document.documentElement.style.getPropertyValue('--card-scale') || "1");
-  return summary.length > Math.round(500 * (1/scale));
+  // Adjust this threshold based on the new collapsed card height
+  return summary.length > Math.round(300 / scale);
 }
 
 function notamCardHtml(n) {
@@ -389,7 +396,7 @@ function notamCardHtml(n) {
     <div class="notam-card-content">
       <div style="display:flex;justify-content:space-between;align-items:start;">
         <div class="notam-head">${n.number || ""} <span class="text-base font-normal text-cyan-300 ml-2">${n.icao || ""}</span></div>
-        <a href="#" class="notam-raw-link" title="View raw NOTAM" data-raw-key="${key}">RAW</a>
+        <a href="#" class="notam-raw-link text-xs font-bold text-text-secondary hover:text-accent-amber" title="View raw NOTAM" data-raw-key="${key}">RAW</a>
       </div>
       <div class="notam-meta">
         <span><b>Type:</b> ${n.type || "N/A"}</span>
@@ -397,7 +404,7 @@ function notamCardHtml(n) {
         <span><b>Valid:</b> ${n.validFrom.replace('T', ' ').slice(0,16)} &rarr; ${n.validTo.replace('T', ' ').slice(0,16)}</span>
       </div>
       <div class="notam-text-content">${n.summary ? n.summary.replace(/\n/g, '<br>') : "No summary."}</div>
-      ${isCollapsible ? `<div class="card-expand-footer"><button class="card-expand-btn"><span>${isExpanded ? 'Show Less' : 'Show More'}</span><i class="icon fa fa-angle-down"></i></button></div>` : ''}
+      <div class="card-expand-footer"><button class="card-expand-btn"><span>${isExpanded ? 'Show Less' : 'Show More'}</span><i class="icon fa fa-angle-down"></i></button></div>
     </div>
   </div>`;
 }
@@ -410,45 +417,84 @@ async function renderCards() {
     result.innerHTML = `<div class="text-center text-xl text-slate-400 my-14">Add ICAO airport(s) to fetch NOTAMs.</div>`;
     return;
   }
+  
+  let html = '';
   if (tabMode === "ALL" && icaoSet.length > 1) {
-    await Promise.all(icaoSet.map(icao => ensureIcaoNotamsLoaded(icao)));
-    let html = '';
+    // In "ALL" mode, we don't need to pre-load, just show what we have.
     for (const icao of icaoSet) {
-      const filtered = filterAndSort(notamDataByIcao[icao] || []);
-      html += `<div class="mb-2"><div class="icao-header">${icao} (${filtered.length} NOTAMs)</div><div class="notam-grid">`;
-      html += filtered.length > 0 ? filtered.map(notamCardHtml).join('') : `<div class="bg-[#23283e]/60 glass p-8 rounded-lg text-center text-base text-slate-400">No matching NOTAMs.</div>`;
-      html += `</div></div>`;
+      const notams = notamDataByIcao[icao] || [];
+      const filtered = filterAndSort(notams);
+      html += `<div class="mb-8"><div class="icao-header">${icao} (${filtered.length} NOTAMs)</div>`;
+      if (notamFetchStatusByIcao[icao]) {
+        html += `<div class="notam-grid">`;
+        html += filtered.length > 0 ? filtered.map(notamCardHtml).join('') : `<div class="bg-secondary/60 p-8 rounded-lg text-center text-base text-slate-400">No matching NOTAMs.</div>`;
+        html += `</div>`;
+      } else {
+        html += `<div class="text-center text-lg my-10 text-cyan-400">Loading NOTAMs for ${icao}...</div>`;
+      }
+      html += `</div>`;
     }
-    result.innerHTML = html;
   } else {
-    const icao = tabMode === "ALL" ? icaoSet[0] : tabMode;
-    if (!notamFetchStatusByIcao[icao]) {
-      result.innerHTML = `<div class="text-center text-lg my-10 text-cyan-400">Loading NOTAMs for ${icao}...</div>`;
-      return;
+    const icao = (tabMode === "ALL" && icaoSet.length > 0) ? icaoSet[0] : tabMode;
+    if (!icao) {
+        result.innerHTML = ''; // Clear if no ICAO is selected
+        return;
     }
-    const filtered = filterAndSort(notamDataByIcao[icao] || []);
-    result.innerHTML = `<div class="notam-grid">${filtered.length > 0 ? filtered.map(notamCardHtml).join('') : `<div class="bg-[#23283e]/60 glass p-8 rounded-lg text-center text-base text-slate-400">No matching NOTAMs.</div>`}</div>`;
+    if (!notamFetchStatusByIcao[icao]) {
+      html = `<div class="text-center text-lg my-10 text-cyan-400">Loading NOTAMs for ${icao}...</div>`;
+    } else {
+      const filtered = filterAndSort(notamDataByIcao[icao] || []);
+      html = `<div class="notam-grid">${filtered.length > 0 ? filtered.map(notamCardHtml).join('') : `<div class="bg-secondary/60 p-8 rounded-lg text-center text-base text-slate-400">No matching NOTAMs.</div>`}</div>`;
+    }
   }
+  result.innerHTML = html;
   addCardClickListeners();
   addRawModalListeners();
 }
 
+
 function addCardClickListeners() {
   document.querySelectorAll('.is-collapsible').forEach(card => {
-    card.addEventListener('click', async function(e) {
+    card.addEventListener('click', function(e) {
+      // prevent expansion if raw link is clicked
       if (e.target.closest('.notam-raw-link')) return;
+
       const key = this.getAttribute('data-card-key');
-      expandedCardKey = (expandedCardKey === key) ? null : key;
-      await renderCards();
-      if (expandedCardKey === key) {
-        const cardElement = document.getElementById(`notam-${key}`);
-        if (cardElement && cardElement.getBoundingClientRect().bottom > window.innerHeight) {
-          cardElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      const wasExpanded = this.classList.contains('is-expanded');
+      
+      // If it was expanded, we are closing it.
+      if (wasExpanded) {
+        expandedCardKey = null;
+        this.classList.remove('is-expanded');
+        this.querySelector('.card-expand-btn span').textContent = 'Show More';
+        this.querySelector('.card-expand-btn .icon').style.transform = 'rotate(0deg)';
+      } else {
+        // If another card was open, close it first.
+        if (expandedCardKey) {
+          const currentlyExpanded = document.querySelector('.is-expanded');
+          if (currentlyExpanded) {
+             currentlyExpanded.classList.remove('is-expanded');
+             currentlyExpanded.querySelector('.card-expand-btn span').textContent = 'Show More';
+             currentlyExpanded.querySelector('.card-expand-btn .icon').style.transform = 'rotate(0deg)';
+          }
         }
+        // Now open the new card.
+        expandedCardKey = key;
+        this.classList.add('is-expanded');
+        this.querySelector('.card-expand-btn span').textContent = 'Show Less';
+        this.querySelector('.card-expand-btn .icon').style.transform = 'rotate(180deg)';
+        // Scroll into view if needed
+        setTimeout(() => {
+            const cardRect = this.getBoundingClientRect();
+            if (cardRect.bottom > window.innerHeight) {
+                this.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+            }
+        }, 400); // after animation
       }
     });
   });
 }
+
 function addRawModalListeners() {
   document.querySelectorAll('.notam-raw-link').forEach(link => {
     link.onclick = (e) => {
@@ -467,22 +513,22 @@ function addRawModalListeners() {
 document.addEventListener("DOMContentLoaded", () => {
   // Initialize UI components that depend on the DOM
   renderIcaoSetsBar();
-  document.getElementById('notification-bell').onclick = () => { renderNotificationList(); const m = document.getElementById('notification-modal'); m.style.display = m.style.display === "block" ? "none" : "block"; };
-  document.getElementById('clear-notifications-btn').onclick = () => { notificationsList = []; renderNotificationList(); updateNotificationBadge(); document.getElementById('notification-modal').style.display = "none"; };
+  document.getElementById('notification-bell').onclick = () => { const m = document.getElementById('notification-modal'); m.style.display = m.style.display === "block" ? "none" : "block"; };
+  document.getElementById('clear-notifications-btn').onclick = () => { notificationsList = []; renderNotificationList(); updateNotificationBadge(); };
   
   const cardScaleSlider = document.getElementById('card-scale-slider');
   const cardScaleValue = document.getElementById('card-scale-value');
   function setCardScale(val) {
     document.documentElement.style.setProperty('--card-scale', val);
     document.documentElement.style.setProperty('--card-width', `${Math.round(420 * val)}px`);
-    cardScaleValue.textContent = (+val).toFixed(2) + "x";
+    if(cardScaleValue) cardScaleValue.textContent = (+val).toFixed(2) + "x";
     localStorage.setItem('notamCardScale', val);
     if (activeSession) renderCards();
   }
   let savedScale = localStorage.getItem('notamCardScale') || "1";
-  cardScaleSlider.value = savedScale;
+  if(cardScaleSlider) cardScaleSlider.value = savedScale;
   setCardScale(savedScale);
-  cardScaleSlider.addEventListener('input', e => setCardScale(e.target.value));
+  if(cardScaleSlider) cardScaleSlider.addEventListener('input', e => setCardScale(e.target.value));
 
   document.getElementById('icao-form').onsubmit = (e) => {
     e.preventDefault();
@@ -495,6 +541,12 @@ document.addEventListener("DOMContentLoaded", () => {
     enqueueIcaos(vals);
     updateIcaoProgressBar();
     renderIcaoList();
+    if (icaoSet.length > 1 && tabMode !== 'ALL') {
+        // If we were on a single tab, switch to ALL to see the new ones.
+        setTabMode('ALL');
+    } else if (icaoSet.length === 1) {
+        setTabMode(icaoSet[0]);
+    }
     renderTabs();
     renderCards();
     icaoInput.value = "";
@@ -504,8 +556,15 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('reload-all').onclick = async () => { if (activeSession) await performAutoRefresh(); };
   
   document.querySelectorAll('.filter-chip-input, #f-keyword').forEach(el => {
-    el.onchange = () => { if (activeSession) renderCards(); };
-    el.oninput = () => { if (activeSession) renderCards(); };
+    const render = () => { if (activeSession) renderCards(); };
+    el.onchange = render;
+    if (el.id === 'f-keyword') {
+        let debounce;
+        el.oninput = () => {
+            clearTimeout(debounce);
+            debounce = setTimeout(render, 300);
+        };
+    }
   });
 
   window.addEventListener('scroll', () => { 
@@ -519,6 +578,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const savedIcaos = JSON.parse(localStorage.getItem('notamIcaos') || '[]');
   if (Array.isArray(savedIcaos) && savedIcaos.length > 0) {
     setIcaoSet(savedIcaos);
+    if (icaoSet.length === 1) setTabMode(icaoSet[0]);
     renderIcaoList();
     renderTabs();
     renderCards(); // Initial render
@@ -540,5 +600,8 @@ window.updateNotamCardsForIcao = function(icao, allNotams, newNotams, goneNotams
     flashingIcaos.add(icao);
     renderTabs();
   }
-  renderCards();
+  // Only re-render if the updated ICAO is visible
+  if (tabMode === 'ALL' || tabMode === icao) {
+    renderCards();
+  }
 };
