@@ -4,7 +4,7 @@
 // --- IMPORT shared state and functions from notam-core.js ---
 import {
   icaoSet, setIcaoSet, tabMode, setTabMode, loadedIcaosSet, loadingIcaosSet, icaoQueue, notamDataByIcao, notamFetchStatusByIcao,
-  getIcaoSets, saveIcaoSets, saveIcaos, startBatchingIfNeeded, enqueueIcaos,
+  getIcaoSets, saveIcaoSets, saveIcaos, enqueueIcaos,
   parseDate, getNotamFlags, extractRunways, getClassificationTitle,
   ensureIcaoNotamsLoaded, ensureIcaoNotamsLoadedOnDemand,
   activeSession, performAutoRefresh, resetAutoRefresh
@@ -66,29 +66,31 @@ export function showNewNotamAlert(msg, icao, notamKey) {
   notificationsList.push({ id: notificationIdCounter++, message: msg, icao: icao, cardKey: notamKey, time: new Date().toLocaleTimeString(), read: false });
   updateNotificationBadge();
   const el = document.getElementById('notam-alert');
-  el.textContent = msg;
-  el.classList.remove('hidden');
-  el.onclick = async () => {
-    el.classList.add('hidden');
-    if (typeof icao !== "undefined" && tabMode !== icao) {
-      flashingIcaos.delete(icao);
-      setTabMode(icao);
-      renderTabs();
-      await ensureIcaoNotamsLoaded(icao);
-      await renderCards();
-    }
-    setTimeout(() => {
-      const card = document.getElementById('notam-' + notamKey.replace(/[^a-zA-Z0-9_-]/g, ''));
-      if (card) {
-        card.scrollIntoView({ behavior: "smooth", block: "center" });
-        card.classList.add('ring-4', 'ring-green-400');
-        setTimeout(() => card.classList.remove('ring-4', 'ring-green-400'), 1800);
+  if(el) {
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    el.onclick = async () => {
+      el.classList.add('hidden');
+      if (typeof icao !== "undefined" && tabMode !== icao) {
+        flashingIcaos.delete(icao);
+        setTabMode(icao);
+        renderTabs();
+        await ensureIcaoNotamsLoaded(icao);
+        await renderCards();
       }
-    }, 120);
-    notificationsList.forEach(n => { if (n.cardKey === notamKey) n.read = true; });
-    updateNotificationBadge();
-    renderNotificationList();
-  };
+      setTimeout(() => {
+        const card = document.getElementById('notam-' + notamKey.replace(/[^a-zA-Z0-9_-]/g, ''));
+        if (card) {
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          card.classList.add('ring-4', 'ring-green-400');
+          setTimeout(() => card.classList.remove('ring-4', 'ring-green-400'), 1800);
+        }
+      }, 120);
+      notificationsList.forEach(n => { if (n.cardKey === notamKey) n.read = true; });
+      updateNotificationBadge();
+      renderNotificationList();
+    };
+  }
   if (icao) {
     flashingIcaos.add(icao);
     renderTabs();
@@ -126,6 +128,7 @@ function closeRawModal() {
 
 // --- ICAO PROGRESS BAR ---
 function updateIcaoProgressBar() {
+  if (!icaoSet) return; // Guard against early calls
   const total = icaoSet.length;
   const loaded = icaoSet.filter(icao => loadedIcaosSet.has(icao)).length;
   const percent = total === 0 ? 0 : (loaded / total) * 100;
@@ -138,7 +141,6 @@ function updateIcaoProgressBar() {
   if (text) text.textContent = `${loaded} of ${total} loaded`;
 }
 window.updateIcaoStatusBar = updateIcaoProgressBar; // Make available to other modules
-setInterval(updateIcaoProgressBar, 1000);
 
 // --- ICAO SETS BAR ---
 function renderIcaoSetsBar() {
@@ -146,9 +148,7 @@ function renderIcaoSetsBar() {
   if (!bar) return;
   bar.innerHTML = '';
   let sets = getIcaoSets();
-  // ... (rest of the function is okay, as it uses getIcaoSets, etc. which are now imported)
-  // [No changes needed inside this function]
-  // Add "New Set" button first
+  
   let newSetBtn = document.createElement('button');
   newSetBtn.className = "icao-set-new";
   newSetBtn.innerHTML = '<i class="fa-solid fa-plus"></i> New Set';
@@ -185,13 +185,12 @@ function renderIcaoSetsBar() {
       saveIcaos();
       renderIcaoList();
       renderTabs();
-      renderCards();
+      await renderCards();
       enqueueIcaos(icaoSet);
       updateIcaoProgressBar();
     };
     btnGroup.appendChild(btn);
 
-    // ... edit/delete buttons ...
     let edit = document.createElement('button');
     edit.className = "icao-set-edit"; edit.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>'; edit.title = "Edit set name";
     edit.onclick = (e) => { e.stopPropagation(); let newName = prompt("Rename set:", set.name); if (!newName || newName === set.name || sets.some(s => s.name === newName)) return; sets[i].name = newName; saveIcaoSets(sets); renderIcaoSetsBar(); };
@@ -204,7 +203,7 @@ function renderIcaoSetsBar() {
     bar.appendChild(btnGroup);
   });
 
-  if (icaoSet.length > 0) {
+  if (icaoSet && icaoSet.length > 0) {
     let divider2 = document.createElement('span');
     divider2.className = "icao-set-divider"; divider2.textContent = '|';
     bar.appendChild(divider2);
@@ -218,6 +217,7 @@ function renderIcaoSetsBar() {
 // --- ICAO LIST ---
 function renderIcaoList() {
   const icaoList = document.getElementById('icao-list');
+  if (!icaoList || !icaoSet) return;
   icaoList.innerHTML = '';
   for (const icao of icaoSet) {
     const tag = document.createElement('div');
@@ -230,13 +230,13 @@ function renderIcaoList() {
     icaoList.appendChild(tag);
   }
 }
-function removeIcao(icao) {
+async function removeIcao(icao) {
   setIcaoSet(icaoSet.filter(x => x !== icao));
   delete notamDataByIcao[icao];
   delete notamFetchStatusByIcao[icao];
   loadedIcaosSet.delete(icao);
   loadingIcaosSet.delete(icao);
-  // Modify icaoQueue directly
+  
   let i = icaoQueue.length;
   while(i--) { if(icaoQueue[i] === icao) { icaoQueue.splice(i, 1); } }
   
@@ -244,7 +244,7 @@ function removeIcao(icao) {
   if (tabMode === icao) setTabMode("ALL");
   renderIcaoList();
   renderTabs();
-  renderCards();
+  await renderCards();
   saveIcaos();
   renderIcaoSetsBar();
 };
@@ -252,12 +252,13 @@ function removeIcao(icao) {
 // --- ICAO TABS ---
 function renderTabs() {
   const icaoTabs = document.getElementById('icao-tabs');
+  if (!icaoTabs || !icaoSet) return;
   icaoTabs.innerHTML = '';
   if (icaoSet.length > 1) {
     const allTab = document.createElement('button');
     allTab.className = tabMode === "ALL" ? "active-tab" : "";
     allTab.textContent = "ALL";
-    allTab.onclick = () => { setTabMode("ALL"); renderTabs(); renderCards(); };
+    allTab.onclick = async () => { setTabMode("ALL"); renderTabs(); await renderCards(); };
     icaoTabs.appendChild(allTab);
   }
   for (const icao of icaoSet) {
@@ -271,7 +272,7 @@ function renderTabs() {
       setTabMode(icao);
       renderTabs();
       await ensureIcaoNotamsLoadedOnDemand(icao);
-      renderCards();
+      await renderCards();
     };
     icaoTabs.appendChild(tab);
   }
@@ -301,23 +302,38 @@ function getHeadTitle(n) {
   return "General";
 }
 
+// ROBUST filterAndSort function
 function filterAndSort(arr) {
+  if (!arr) return [];
   const now = new Date();
-  const filters = {
-    rwy: document.getElementById('f-rwy').checked, twy: document.getElementById('f-twy').checked,
-    rsc: document.getElementById('f-rsc').checked, crfi: document.getElementById('f-crfi').checked,
-    ils: document.getElementById('f-ils').checked, fuel: document.getElementById('f-fuel').checked,
-    other: document.getElementById('f-other').checked, cancelled: document.getElementById('f-cancelled').checked,
-    dom: document.getElementById('f-dom').checked, current: document.getElementById('f-current').checked,
-    future: document.getElementById('f-future').checked
+  
+  // Helper to safely get checkbox state
+  const isChecked = (id) => {
+    const el = document.getElementById(id);
+    return el ? el.checked : false;
   };
-  const keyword = document.getElementById('f-keyword').value.trim().toLowerCase();
+  
+  const filters = {
+    rwy: isChecked('f-rwy'), twy: isChecked('f-twy'),
+    rsc: isChecked('f-rsc'), crfi: isChecked('f-crfi'),
+    ils: isChecked('f-ils'), fuel: isChecked('f-fuel'),
+    other: isChecked('f-other'), cancelled: isChecked('f-cancelled'),
+    dom: isChecked('f-dom'), current: isChecked('f-current'),
+    future: isChecked('f-future')
+  };
+  
+  const keywordEl = document.getElementById('f-keyword');
+  const keyword = keywordEl ? keywordEl.value.trim().toLowerCase() : "";
   const noTypeChecked = !filters.rwy && !filters.twy && !filters.rsc && !filters.crfi && !filters.ils && !filters.fuel && !filters.other;
   
   const filtered = arr.filter(n => {
     const type = getNotamType(n);
-    if (!filters.cancelled && type === 'cancelled') return false;
-    if (filters.cancelled && type === 'cancelled') return true; // Show cancelled if checked, regardless of other filters
+    if (filters.cancelled) {
+        if (type === 'cancelled') return true;
+    } else {
+        if (type === 'cancelled') return false;
+    }
+
     if (n.classification === "DOM" && !filters.dom) return false;
     
     if (!noTypeChecked) {
@@ -335,7 +351,7 @@ function filterAndSort(arr) {
       const isFuture = now < from;
       if (!filters.current && isCurrent) return false;
       if (!filters.future && isFuture) return false;
-      if (!isCurrent && !isFuture) return false; // Exclude expired
+      if (!isCurrent && !isFuture && type !== 'cancelled') return false;
     }
     
     if (keyword && !JSON.stringify(n).toLowerCase().includes(keyword)) return false;
@@ -388,8 +404,9 @@ function notamCardHtml(n) {
 
 async function renderCards() {
   const result = document.getElementById('result');
+  if (!result) return;
   updateIcaoProgressBar();
-  if (icaoSet.length === 0) {
+  if (!icaoSet || icaoSet.length === 0) {
     result.innerHTML = `<div class="text-center text-xl text-slate-400 my-14">Add ICAO airport(s) to fetch NOTAMs.</div>`;
     return;
   }
@@ -418,18 +435,17 @@ async function renderCards() {
 
 function addCardClickListeners() {
   document.querySelectorAll('.is-collapsible').forEach(card => {
-    card.addEventListener('click', function(e) {
+    card.addEventListener('click', async function(e) {
       if (e.target.closest('.notam-raw-link')) return;
       const key = this.getAttribute('data-card-key');
       expandedCardKey = (expandedCardKey === key) ? null : key;
-      renderCards().then(() => {
-        if (expandedCardKey === key) {
-          const cardElement = document.getElementById(`notam-${key}`);
-          if (cardElement && cardElement.getBoundingClientRect().bottom > window.innerHeight) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
-          }
+      await renderCards();
+      if (expandedCardKey === key) {
+        const cardElement = document.getElementById(`notam-${key}`);
+        if (cardElement && cardElement.getBoundingClientRect().bottom > window.innerHeight) {
+          cardElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
-      });
+      }
     });
   });
 }
@@ -449,6 +465,7 @@ function addRawModalListeners() {
 
 // --- DOMContentLoaded ---
 document.addEventListener("DOMContentLoaded", () => {
+  // Initialize UI components that depend on the DOM
   renderIcaoSetsBar();
   document.getElementById('notification-bell').onclick = () => { renderNotificationList(); const m = document.getElementById('notification-modal'); m.style.display = m.style.display === "block" ? "none" : "block"; };
   document.getElementById('clear-notifications-btn').onclick = () => { notificationsList = []; renderNotificationList(); updateNotificationBadge(); document.getElementById('notification-modal').style.display = "none"; };
@@ -467,16 +484,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setCardScale(savedScale);
   cardScaleSlider.addEventListener('input', e => setCardScale(e.target.value));
 
-  const savedIcaos = JSON.parse(localStorage.getItem('notamIcaos') || '[]');
-  if (Array.isArray(savedIcaos) && savedIcaos.length > 0) {
-    setIcaoSet(savedIcaos);
-    enqueueIcaos(icaoSet);
-    updateIcaoProgressBar();
-    renderIcaoList();
-    renderTabs();
-    renderCards();
-  }
-  
   document.getElementById('icao-form').onsubmit = (e) => {
     e.preventDefault();
     if (!activeSession) return;
@@ -501,8 +508,24 @@ document.addEventListener("DOMContentLoaded", () => {
     el.oninput = () => { if (activeSession) renderCards(); };
   });
 
-  window.addEventListener('scroll', () => { document.getElementById('back-to-top-btn').style.display = window.scrollY > 300 ? 'flex' : 'none'; });
-  document.getElementById('back-to-top-btn').onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.addEventListener('scroll', () => { 
+    const btn = document.getElementById('back-to-top-btn');
+    if (btn) btn.style.display = window.scrollY > 300 ? 'flex' : 'none'; 
+  });
+  const topBtn = document.getElementById('back-to-top-btn');
+  if (topBtn) topBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // CRITICAL FIX: Load initial data AFTER the DOM is ready
+  const savedIcaos = JSON.parse(localStorage.getItem('notamIcaos') || '[]');
+  if (Array.isArray(savedIcaos) && savedIcaos.length > 0) {
+    setIcaoSet(savedIcaos);
+    renderIcaoList();
+    renderTabs();
+    renderCards(); // Initial render
+    enqueueIcaos(icaoSet); // Start fetching data
+  } else {
+    renderCards(); // Render the empty state
+  }
 });
 
 window.addEventListener('click', (e) => {
