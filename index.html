@@ -1,144 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <title> Fly9er Aviation NOTAM </title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <!-- Google Fonts & Font Awesome Icons -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
-
-    <!-- Custom Application Styles -->
-    <link rel="stylesheet" href="/public/notam.css" />
-
-    <!-- Main CSS Entry Point (Handled by Vite/PostCSS) -->
-    <link rel="stylesheet" href="/src/index.css" />
-</head>
-<body class="bg-primary text-primary font-sans">
-
-    <div class="app-layout">
-        <!-- ===== Left Sidebar: Controls ===== -->
-        <aside id="sidebar">
-            <div class="sidebar-header">
-                <h1 class="text-2xl font-bold tracking-tight text-accent-cyan flex items-center gap-3">
-                    <i class="fa-solid fa-satellite-dish text-cyan-400"></i>
-                    <span>NOTAM Console</span>
-                </h1>
-            </div>
-
-            <div class="sidebar-content">
-                <!-- ICAO Management -->
-                <div class="control-section">
-                    <h2 class="section-title">Station Management</h2>
-                    <form id="icao-form" class="mb-3">
-                        <div class="flex items-center gap-2">
-                            <input id="icao-input" autocomplete="off" class="px-3 py-2 rounded-md font-mono tracking-widest w-full uppercase bg-primary border border-tertiary focus:border-accent-amber focus:ring-accent-amber focus:ring-1 transition" maxlength="100" placeholder="ADD ICAO(S)..." spellcheck="false" />
-                            <button type="submit" class="px-4 py-2 rounded-md font-bold transition shadow-md bg-accent-amber text-bg-primary hover:bg-yellow-400">
-                                <i class="fa-solid fa-plus"></i>
-                            </button>
-                        </div>
-                    </form>
-                    <div id="icao-list" class="flex flex-wrap gap-2"></div>
-                </div>
-
-                <!-- ICAO Sets -->
-                <div class="control-section">
-                    <h2 class="section-title">ICAO Sets</h2>
-                    <div id="icao-sets-bar" class="flex flex-wrap gap-2 items-center"></div>
-                </div>
-
-                <!-- Display Filters -->
-                <div class="control-section">
-                    <h2 class="section-title">Display Filters</h2>
-                    <div class="filter-chips flex flex-wrap items-center gap-2">
-                        <input type="checkbox" id="f-rwy" class="filter-chip-input" checked><label for="f-rwy" class="filter-chip">RWY Closure</label>
-                        <input type="checkbox" id="f-twy" class="filter-chip-input" checked><label for="f-twy" class="filter-chip">TWY Closure</label>
-                        <input type="checkbox" id="f-rsc" class="filter-chip-input" checked><label for="f-rsc" class="filter-chip">RSC/CRFI</label>
-                        <input type="checkbox" id="f-ils" class="filter-chip-input" checked><label for="f-ils" class="filter-chip">ILS</label>
-                        <input type="checkbox" id="f-fuel" class="filter-chip-input" checked><label for="f-fuel" class="filter-chip">Fuel</label>
-                        <input type="checkbox" id="f-other" class="filter-chip-input" checked><label for="f-other" class="filter-chip">Other</label>
-                        <span class="filter-divider"></span>
-                        <input type="checkbox" id="f-cancelled" class="filter-chip-input"><label for="f-cancelled" class="filter-chip">Cancelled</label>
-                        <input type="checkbox" id="f-dom" class="filter-chip-input" checked><label for="f-dom" class="filter-chip">DOM</label>
-                        <span class="filter-divider"></span>
-                        <input type="checkbox" id="f-current" class="filter-chip-input" checked><label for="f-current" class="filter-chip">Current</label>
-                        <input type="checkbox" id="f-future" class="filter-chip-input" checked><label for="f-future" class="filter-chip">Future</label>
-                    </div>
-                </div>
-            </div>
-        </aside>
-
-        <!-- ===== Main Content: NOTAMs ===== -->
-        <main id="main-content">
-            <!-- Top Bar -->
-            <div id="main-top-bar">
-                <div class="flex items-center gap-4">
-                    <input id="f-keyword" type="text" class="px-3 py-1.5 rounded-md w-60 bg-secondary border border-tertiary focus:border-accent-amber placeholder:text-text-secondary" placeholder="Keyword Search..." />
-                     <div class="card-scale-wrap flex items-center gap-2">
-                        <i class="fa-solid fa-magnifying-glass-plus text-accent-amber"></i>
-                        <input id="card-scale-slider" class="w-24" type="range" min="0.5" max="1.5" step="0.01" value="1" />
-                        <span class="card-scale-value font-mono text-sm text-text-secondary w-12 text-center" id="card-scale-value">1.00x</span>
-                    </div>
-                </div>
-                <div class="flex items-center gap-4">
-                     <div id="icao-progress-timer" class="text-sm font-mono text-accent-amber"></div>
-                     <button type="button" id="reload-all" class="px-4 py-1.5 rounded-md font-bold flex items-center gap-2 bg-tertiary hover:bg-gray-600 transition">
-                        <i class="fa-solid fa-arrows-rotate"></i>
-                        <span>Refresh</span>
-                    </button>
-                    <div id="notification-bell" class="text-2xl text-text-secondary hover:text-accent-amber transition-colors duration-200 cursor-pointer">
-                        <span class="relative">
-                            <i class="fa-solid fa-bell"></i>
-                            <span id="notification-badge" class="absolute -top-1 -right-2 w-5 h-5 bg-status-red text-white text-xs font-bold rounded-full flex items-center justify-center border-2 border-primary">0</span>
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ICAO Tabs -->
-            <div id="icao-tabs-wrapper">
-                <div id="icao-tabs"></div>
-            </div>
-
-             <!-- Progress Bar -->
-            <div id="icao-progress-bar-outer" class="mx-6 mb-4 bg-secondary/50 p-2 rounded-lg">
-                <div class="flex justify-between items-center mb-1 px-1">
-                    <div id="icao-progress-label" class="text-xs font-medium text-text-secondary">ICAO Load Progress</div>
-                    <div id="icao-progress-text" class="text-xs font-mono text-text-secondary">0 of 0 loaded</div>
-                </div>
-                <div id="icao-progress-bar-bg" class="w-full h-1.5 bg-primary rounded-full overflow-hidden">
-                    <div id="icao-progress-bar" class="h-full bg-accent-cyan rounded-full transition-all duration-500"></div>
-                </div>
-            </div>
-
-            <!-- Main NOTAM Card Grid -->
-            <div id="result" class="px-6 pb-6"></div>
-        </main>
-
-        <!-- ===== Right Slide-out: Notifications ===== -->
-        <div id="notification-panel">
-            <div class="panel-header">
-                <h2 class="text-xl font-bold">Notifications</h2>
-                <button id="notification-panel-close" class="text-2xl text-text-secondary hover:text-white">&times;</button>
-            </div>
-            <div id="notification-list" class="panel-content"></div>
-            <div class="panel-footer">
-                <button id="clear-notifications-btn">Clear All Notifications</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Back to Top Button -->
-    <button id="back-to-top-btn" title="Back to top" aria-label="Back to top">
-        <i class="fa fa-arrow-up"></i>
-    </button>
-    
-    <!-- Raw NOTAM Modal (created by JS) -->
-
-    <!-- JavaScript Entry Point -->
-    <script type="module" src="/public/main.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="NOTAM Console - Modern aviation NOTAM monitoring"
+    />
+    <title>NOTAM Console</title>
+  </head>
+  <body class="bg-gray-900 text-gray-200 font-sans">
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <!-- A separate root for modals is a best practice in React -->
+    <div id="modal-root"></div>
+    <script type="module" src="/src/index.jsx"></script>
+  </body>
 </html>
