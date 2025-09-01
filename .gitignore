@@ -2,7 +2,7 @@
 /node_modules
 /dist
 
-# Vite
+# Vite / Local environment
 .env
 .env.*
 !.env.example
