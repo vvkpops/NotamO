@@ -5,29 +5,119 @@
   <title>NOTAM Dashboard – Aviation Console</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   
-  <!-- REMOVED Tailwind CDN Script -->
-  
+  <!-- Google Fonts & Font Awesome Icons -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
   
-  <!-- Your existing custom CSS -->
-  <link rel="stylesheet" href="/notam.css"/>
+  <!-- Custom Application Styles -->
+  <link rel="stylesheet" href="/public/notam.css"/>
 
-  <!-- ADDED Link to the new main CSS file for Tailwind -->
+  <!-- Main CSS Entry Point (Handled by Vite/PostCSS) -->
   <link rel="stylesheet" href="/src/index.css" />
 
 </head>
-<body class="bg-gradient-to-br from-[#1a1d22] to-[#202230] min-h-screen text-slate-100 w-full">
+<body class="bg-primary text-primary font-sans">
 
-<!-- ... rest of your body tag remains unchanged ... -->
+  <!-- Notification Bell & Modal -->
+  <div id="notification-bell" class="notification-bell">
+    <span style="font-size:26px;position:relative;">
+      <i class="fa-solid fa-bell"></i>
+      <span id="notification-badge" class="notification-badge">0</span>
+    </span>
+  </div>
+  <div id="notification-modal" class="notification-modal">
+    <div class="notification-modal-header">
+      <span style="font-size:1.2em;font-weight:bold;">Notifications</span>
+      <button id="clear-notifications-btn" class="clear-notifications-btn">Clear All</button>
+    </div>
+    <div id="notification-list" class="notification-list"></div>
+  </div>
 
-<!-- =================================================================== -->
-<!-- CRITICAL CHANGE: Load the new single entry point script -->
-<!-- This replaces the old <script type="module" src="/app.js"></script> -->
-<!-- =================================================================== -->
-<script type="module" src="/public/main.js"></script>
+  <!-- Main Container -->
+  <div class="container mx-auto px-4 py-6">
+    <h1 class="text-3xl sm:text-4xl font-bold tracking-tight mb-4 text-accent-cyan flex items-center gap-3">
+      <i class="fa-solid fa-plane-departure text-xl text-cyan-400"></i>
+      NOTAM Dashboard
+    </h1>
+    <div id="notam-alert" class="hidden mb-4 p-3 rounded-lg bg-green-700/90 text-green-200 font-bold shadow-lg transition cursor-pointer"></div>
+
+    <!-- ICAO Input Area -->
+    <div class="control-panel p-4 flex flex-col sm:flex-row items-center gap-4 mb-4">
+      <form id="icao-form" class="flex flex-wrap items-center gap-3 w-full">
+        <input id="icao-input" autocomplete="off"
+          class="px-4 py-2 rounded-md font-mono tracking-widest w-60 uppercase bg-primary border border-tertiary focus:border-accent-amber focus:ring-accent-amber focus:ring-1 transition"
+          maxlength="100" placeholder="ICAO, ICAO,..." spellcheck="false" />
+        <button type="submit" class="px-5 py-2 rounded-md font-bold transition shadow-md bg-accent-amber text-bg-primary hover:bg-yellow-400">
+          Add
+        </button>
+        <div id="icao-list-wrapper" class="flex-grow flex items-center">
+            <div id="icao-list" class="flex flex-wrap gap-2 ml-4"></div>
+        </div>
+        <button id="icao-list-toggle" type="button" class="ml-auto text-xl px-3 py-1 rounded-full bg-tertiary text-accent-cyan hover:bg-gray-600 transition">⯆</button>
+      </form>
+    </div>
+
+    <!-- ICAO Sets Bar -->
+    <div id="icao-sets-bar" class="flex flex-wrap gap-2 items-center mb-4"></div>
+
+    <!-- Progress Bar -->
+    <div id="icao-progress-bar-outer" class="bg-secondary/50 p-3 rounded-lg mb-4">
+      <div id="icao-progress-label" class="text-sm font-medium text-text-secondary mb-1">ICAO Load Progress</div>
+      <div id="icao-progress-bar-bg" class="w-full h-3 bg-primary rounded-full overflow-hidden">
+        <div id="icao-progress-bar" class="h-full bg-accent-cyan rounded-full transition-all duration-500"></div>
+      </div>
+      <div class="flex justify-between items-center mt-1">
+          <div id="icao-progress-text" class="text-xs font-mono text-text-secondary">0 of 0 loaded</div>
+          <div id="icao-progress-timer" class="text-xs font-mono text-accent-amber"></div>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="control-panel px-3 py-2 mb-4 flex flex-wrap gap-x-4 gap-y-2 items-center justify-between">
+      <div class="filter-chips flex flex-wrap items-center gap-2">
+        <input type="checkbox" id="f-rwy" class="filter-chip-input" checked><label for="f-rwy" class="filter-chip">RWY Closure</label>
+        <input type="checkbox" id="f-twy" class="filter-chip-input" checked><label for="f-twy" class="filter-chip">TWY Closure</label>
+        <input type="checkbox" id="f-rsc" class="filter-chip-input" checked><label for="f-rsc" class="filter-chip">RSC/CRFI</label>
+        <input type="checkbox"id="f-ils" class="filter-chip-input" checked><label for="f-ils" class="filter-chip">ILS</label>
+        <input type="checkbox" id="f-fuel" class="filter-chip-input" checked><label for="f-fuel" class="filter-chip">Fuel</label>
+        <input type="checkbox" id="f-other" class="filter-chip-input" checked><label for="f-other" class="filter-chip">Other</label>
+        <span class="text-gray-600 mx-1">|</span>
+        <input type="checkbox" id="f-cancelled" class="filter-chip-input"><label for="f-cancelled" class="filter-chip">Cancelled</label>
+        <input type="checkbox" id="f-dom" class="filter-chip-input" checked><label for="f-dom" class="filter-chip">DOM</label>
+        <span class="text-gray-600 mx-1">|</span>
+        <input type="checkbox" id="f-current" class="filter-chip-input" checked><label for="f-current" class="filter-chip">Current</label>
+        <input type="checkbox" id="f-future" class="filter-chip-input" checked><label for="f-future" class="filter-chip">Future</label>
+      </div>
+      <div class="flex items-center gap-3 mt-2 sm:mt-0">
+        <div class="card-scale-wrap flex items-center gap-2">
+          <span class="text-sm font-bold text-accent-amber">Size</span>
+          <input id="card-scale-slider" class="card-scale-slider" type="range" min="0.5" max="1.5" step="0.01" value="1"/>
+          <span class="card-scale-value font-mono text-sm text-text-secondary w-12 text-center" id="card-scale-value">1.00x</span>
+        </div>
+        <input id="f-keyword" type="text" class="px-3 py-1 rounded-md w-40 bg-primary border border-tertiary focus:border-accent-amber" placeholder="Keyword..." />
+        <button type="button" id="reload-all" class="px-3 py-1 rounded-md font-bold flex items-center gap-2 bg-tertiary hover:bg-gray-600 transition">
+          <i class="fa-solid fa-arrows-rotate"></i>
+          <span>Refresh</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ICAO Tabs -->
+    <div id="icao-tabs" class="mb-4"></div>
+    
+    <!-- Main NOTAM Card Grid -->
+    <div id="result"></div>
+  </div>
+
+  <!-- Back to Top Button -->
+  <button id="back-to-top-btn" title="Back to top" aria-label="Back to top" class="hidden fixed bottom-5 right-5 z-50 w-11 h-11 bg-accent-cyan/80 text-bg-primary rounded-full cursor-pointer text-xl items-center justify-center shadow-lg backdrop-blur-sm border border-cyan-300/50 hover:bg-accent-cyan hover:scale-110 transition-all duration-200">
+    <i class="fa fa-arrow-up"></i>
+  </button>
+
+  <!-- JavaScript Entry Point -->
+  <script type="module" src="/public/main.js"></script>
 
 </body>
 </html>
