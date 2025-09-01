@@ -27,7 +27,6 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
     if (!notams) return [];
     
     let results = notams.filter(notam => {
-      // Ignore ICAO Header pseudo-NOTAMs from filtering
       if (notam.isIcaoHeader) return true;
 
       const type = getNotamType(notam);
@@ -41,14 +40,12 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
       return true;
     });
 
-    // If in "ALL" tab mode, remove ICAO headers that have no visible NOTAMs under them
     if (icao === 'ALL') {
       const finalResult = [];
       for (let i = 0; i < results.length; i++) {
         if (results[i].isIcaoHeader) {
-          // Check if the next item is also a header or end of list
           if (i + 1 >= results.length || results[i+1].isIcaoHeader) {
-            continue; // Skip this header as it has no items
+            continue; 
           }
         }
         finalResult.push(results[i]);
@@ -60,11 +57,11 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
   }, [notams, keywordFilter, filters, icao]);
 
   if (loading) {
-    return <div className="text-center p-10 text-yellow-400">Loading NOTAMs for {icao}...</div>;
+    return <div className="text-center p-10 text-yellow-400">Loading NOTAMs...</div>;
   }
 
   if (error) {
-    return <div className="text-center p-10 text-red-400">Error fetching data for {icao}: {error}</div>;
+    return <div className="text-center p-10 text-red-400">Error: {error}</div>;
   }
 
   const filterConfig = [
@@ -77,7 +74,7 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
   const renderNotamItem = (notam) => {
     if (notam.isIcaoHeader) {
       return (
-        <div key={`header-${notam.icao}`} className="icao-header-card" style={{gridColumn: '1 / -1'}}>
+        <div key={`header-${notam.icao}`} className="icao-header-card">
           <h3 className="text-xl font-bold text-cyan-300 p-3">{notam.icao}</h3>
         </div>
       );
@@ -112,7 +109,7 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
           filteredNotams.map(item => renderNotamItem(item))
         ) : (
           <div className="text-center p-10 text-gray-400" style={{gridColumn: '1 / -1'}}>
-            {notams && notams.length > 0 ? 'No NOTAMs match your filter criteria.' : `No active NOTAMs found for ${icao}.`}
+            {notams && notams.length > 0 ? 'No NOTAMs match your filter criteria.' : `No active NOTAMs found.`}
           </div>
         )}
       </div>
