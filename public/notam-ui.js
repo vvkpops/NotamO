@@ -156,10 +156,10 @@ function updateIcaoProgressBar() {
   const bar = document.getElementById('icao-progress-bar');
   if (bar) {
     bar.style.width = percent + "%";
-    bar.style.background = percent === 100 ? "#3fe8a6" : "#0ff";
+    bar.style.backgroundColor = percent >= 100 ? "#3fe8a6" : "#00d8ff";
   }
   const text = document.getElementById('icao-progress-text');
-  if (text) text.textContent = `${loaded} / ${total} loaded`;
+  if (text) text.textContent = `${loaded} of ${total} loaded`;
 }
 setInterval(updateIcaoProgressBar, 1000);
 function updateIcaoStatusBar() { updateIcaoProgressBar(); }
@@ -330,28 +330,27 @@ window.removeIcao = function(icao) {
   renderIcaoSetsBar();
 };
 
-// --- ICAO TABS ---
+// --- ICAO TABS (REVISED) ---
 function renderTabs() {
   const icaoTabs = document.getElementById('icao-tabs');
   icaoTabs.innerHTML = '';
   if (icaoSet.length > 1) {
     const allTab = document.createElement('button');
-    allTab.className = `px-4 py-1 rounded-t-lg font-bold ${tabMode === "ALL" ? "bg-cyan-600/60 text-white shadow" : "bg-[#222940] text-cyan-300"} mr-2 mb-1`;
+    // Use a simple 'active-tab' class for styling
+    allTab.className = tabMode === "ALL" ? "active-tab" : "";
     allTab.textContent = "ALL";
     allTab.onclick = () => { tabMode = "ALL"; renderTabs(); renderCards(); };
     icaoTabs.appendChild(allTab);
   }
   for (const icao of icaoSet) {
     const tab = document.createElement('button');
-    // Add flashing class if this ICAO has new NOTAMs
     const isFlashing = flashingIcaos.has(icao);
-    tab.className = `px-4 py-1 rounded-t-lg font-bold uppercase tracking-widest 
-      ${tabMode === icao ? "bg-cyan-600/70 text-white shadow" : "bg-[#23283e] text-cyan-200"} 
-      ${isFlashing ? "flashing-tab" : ""} mr-2 mb-1`;
+    const isActive = tabMode === icao;
+    // Combine classes for active and flashing states
+    tab.className = `${isActive ? "active-tab" : ""} ${isFlashing ? "flashing-tab" : ""}`;
     tab.textContent = icao;
     tab.onclick = async () => {
-      // When tab is clicked, stop flashing
-      flashingIcaos.delete(icao);
+      flashingIcaos.delete(icao); // Stop flashing when clicked
       tabMode = icao;
       renderTabs();
       await ensureIcaoNotamsLoadedOnDemand(icao);
@@ -361,7 +360,7 @@ function renderTabs() {
   }
 }
 
-// --- FILTERING & CARD RENDERING ---
+// --- FILTERING & CARD RENDERING (REVISED) ---
 function getNotamType(n) {
   const f = getNotamFlags(n);
   if (f.isCancelled) return 'cancelled';
@@ -373,28 +372,19 @@ function getNotamType(n) {
   if (f.isFuel) return 'fuel';
   return 'other';
 }
-function getHeadClass(n) {
-  const t = getNotamType(n);
-  if (t === "rwy") return "head-rwy";
-  if (t === "twy") return "head-twy";
-  if (t === "rsc") return "head-rsc";
-  if (t === "crfi") return "head-crfi";
-  if (t === "ils") return "head-ils";
-  if (t === "fuel") return "head-fuel";
-  if (t === "cancelled") return "head-cancelled";
-  return "head-other";
-}
+
 function getHeadTitle(n) {
   const t = getNotamType(n);
-  if (t === 'rwy') return "RWY CLOSURE";
-  if (t === 'twy') return "TWY CLOSURE";
+  if (t === 'rwy') return "Runway Closure";
+  if (t === 'twy') return "Taxiway Closure";
   if (t === 'rsc') return "RSC";
   if (t === 'crfi') return "CRFI";
   if (t === 'ils') return "ILS";
-  if (t === 'fuel') return "FUEL";
-  if (t === 'cancelled') return "CANCELLED";
-  return "Other";
+  if (t === 'fuel') return "Fuel Status";
+  if (t === 'cancelled') return "Cancelled NOTAM";
+  return "General";
 }
+
 function filterAndSort(arr) {
   const now = new Date();
   const fRwy = document.getElementById('f-rwy');
@@ -470,46 +460,38 @@ function filterAndSort(arr) {
   return filtered;
 }
 
-// REVISED: More generous threshold for when to collapse a card
 function needsExpansion(summary) {
   if (!summary) return false;
-  
-  // Get current card scale to estimate visible content
   const scale = parseFloat(document.documentElement.style.getPropertyValue('--card-scale') || "1");
-  
-  // Base threshold on the current scale - larger cards can show more content
-  const baseLength = 600; // characters (approx 10-12 lines)
-  const adjustedThreshold = Math.round(baseLength * (1/scale)); // smaller scale means lower threshold
-  
+  const baseLength = 500;
+  const adjustedThreshold = Math.round(baseLength * (1/scale));
   return summary.length > adjustedThreshold;
 }
 
+// REVISED notamCardHtml
 function notamCardHtml(n) {
-  const t = getNotamType(n);
-  const headClass = getHeadClass(n);
+  const type = getNotamType(n);
   const headTitle = getHeadTitle(n);
   const key = (n.id || n.number || n.qLine || n.summary || "").replace(/[^a-zA-Z0-9_-]/g,'');
-  const rwyAffected = t === "rwy" ? extractRunways(n.summary + " " + n.body) : "";
+  const rwyAffected = type === "rwy" ? extractRunways(n.summary + " " + n.body) : "";
   
   const isExpanded = expandedCardKey === key;
   const isCollapsible = needsExpansion(n.summary);
   
-  // Build class list for the main card div
+  // REVISED: Class list now includes `type-*` for the new CSS border styling
   const cardClasses = [
-    'glass', 'notam-card', 'notam-animate', t,
+    'notam-card', 'notam-animate', `type-${type}`,
     isCollapsible ? 'is-collapsible' : '',
     isExpanded ? 'is-expanded' : ''
   ].join(' ');
 
-  // RAW popup link
   const rawLinkHtml = `<a href="#" class="notam-raw-link" title="View raw NOTAM" data-raw-key="${key}">RAW</a>`;
   
-  // Main card HTML structure
   return `
   <div class="${cardClasses}" id="notam-${key}" data-card-key="${key}">
-    <div class="card-head ${headClass}">
+    <div class="card-head">
       <span>${headTitle}</span>
-      ${t==='rwy' && rwyAffected ? `<span class="ml-4 text-lg font-extrabold tracking-widest">${rwyAffected}</span>` : n.qLine ? `<span class="qline ml-4">${n.qLine}</span>` : ""}
+      ${type==='rwy' && rwyAffected ? `<span class="ml-4 font-mono text-lg tracking-wider">${rwyAffected}</span>` : ""}
     </div>
     <div class="notam-card-content">
       <div style="display:flex;justify-content:space-between;align-items:start;">
@@ -517,13 +499,13 @@ function notamCardHtml(n) {
         ${rawLinkHtml}
       </div>
       <div class="notam-meta">
-        <span><b>Type:</b> ${n.type || ""}</span>
+        <span><b>Type:</b> ${n.type || "N/A"}</span>
         <span><b>Class:</b> ${getClassificationTitle(n.classification)}</span>
         <span><b>Valid:</b> ${n.validFrom.replace('T', ' ').slice(0,16)} &rarr; ${n.validTo.replace('T', ' ').slice(0,16)}</span>
       </div>
       
       <div class="notam-text-content">
-        ${n.summary ? n.summary.replace(/\n/g, '<br>') : ""}
+        ${n.summary ? n.summary.replace(/\n/g, '<br>') : "No summary available."}
       </div>
       
       ${isCollapsible ? `
@@ -555,10 +537,10 @@ async function renderCards() {
       const arr = notamDataByIcao[icao] || [];
       const filtered = filterAndSort(arr);
       html += `<div class="mb-2">
-        <div class="icao-header">${icao} (${filtered.length})</div>
+        <div class="icao-header">${icao} (${filtered.length} NOTAMs)</div>
         <div class="notam-grid">`;
       if (filtered.length === 0) {
-        html += `<div class="bg-[#23283e]/60 glass p-8 rounded-lg text-center text-base text-slate-400">No NOTAMs match for this ICAO.</div>`;
+        html += `<div class="bg-[#23283e]/60 glass p-8 rounded-lg text-center text-base text-slate-400">No NOTAMs match the current filters for this ICAO.</div>`;
       } else {
         for (const n of filtered) html += notamCardHtml(n);
       }
@@ -578,7 +560,7 @@ async function renderCards() {
   const filtered = filterAndSort(arr);
   let singleHtml = `<div class="notam-grid">`;
   if (filtered.length === 0) {
-    singleHtml += `<div class="bg-[#23283e]/60 glass p-8 rounded-lg text-center text-base text-slate-400">No NOTAMs match for this ICAO.</div>`;
+    singleHtml += `<div class="bg-[#23283e]/60 glass p-8 rounded-lg text-center text-base text-slate-400">No NOTAMs match the current filters for this ICAO.</div>`;
   } else {
     for (const n of filtered) singleHtml += notamCardHtml(n);
   }
