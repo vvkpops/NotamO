@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getHeadClass, getHeadTitle, extractRunways, needsExpansion, getNotamType } from './NotamUtils';
+import { getHeadClass, getHeadTitle, extractRunways } from './NotamUtils';
 
 const NotamCard = ({ notam }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -13,15 +12,7 @@ const NotamCard = ({ notam }) => {
 
   const headClass = getHeadClass(notam);
   const headTitle = getHeadTitle(notam);
-  const notamType = getNotamType(notam);
-  const runways = notamType === "rwy" ? extractRunways(notam.summary) : "";
-  const canExpand = needsExpansion(notam.summary);
-
-  const toggleExpand = () => {
-    if (canExpand) {
-      setIsExpanded(!isExpanded);
-    }
-  };
+  const runways = extractRunways(notam.rawText || notam.summary);
   
   const formatDate = (dateStr) => {
     if (!dateStr || dateStr === 'PERMANENT') return dateStr || 'N/A';
@@ -51,12 +42,13 @@ const NotamCard = ({ notam }) => {
   };
 
   const timeStatus = getTimeStatus();
-  const cardClasses = `notam-card ${notamType} ${isExpanded ? 'expanded-card' : ''} ${!canExpand ? 'auto-sized' : ''} ${isVisible ? 'visible' : ''} time-${timeStatus}`;
+  // Card is always "auto-sized" now to fit the full raw text
+  const cardClasses = `notam-card ${getHeadClass(notam)} ${isVisible ? 'visible' : ''} auto-sized time-${timeStatus}`;
 
   const copyToClipboard = async (e) => {
     e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(notam.summary);
+      await navigator.clipboard.writeText(notam.rawText || notam.summary);
       // Show success feedback
       e.target.textContent = '✓ Copied!';
       setTimeout(() => {
@@ -72,7 +64,7 @@ const NotamCard = ({ notam }) => {
   };
 
   return (
-    <div className={cardClasses} onClick={toggleExpand}>
+    <div className={cardClasses}>
       <div className={`card-head ${headClass}`}>
         <div className="head-content">
           <span className="head-title">{headTitle}</span>
@@ -98,13 +90,12 @@ const NotamCard = ({ notam }) => {
       </div>
 
       <div className="notam-card-content">
-        <div className="notam-header-info">
-          <div className="notam-id">
-            <span className="notam-number">{notam.number || "N/A"}</span>
-            <span className="notam-source">{notam.source}</span>
-          </div>
-        </div>
+        {/* The raw text display */}
+        <pre className="notam-raw-text">
+          {notam.rawText || notam.summary}
+        </pre>
         
+        {/* Meta info is now at the bottom for better flow */}
         <div className="notam-meta">
           <div className="validity-info">
             <div className="validity-row">
@@ -115,33 +106,12 @@ const NotamCard = ({ notam }) => {
               <span className="validity-label">To:</span>
               <span className="validity-value">{formatDate(notam.validTo)}</span>
             </div>
+             <div className="validity-row">
+              <span className="validity-label">Source:</span>
+              <span className="validity-value">{notam.source}</span>
+            </div>
           </div>
         </div>
-        
-        <div className={isExpanded || !canExpand ? "notam-full-text" : "notam-summary"}>
-          {notam.summary}
-        </div>
-        
-        {canExpand && (
-          <button 
-            className={`card-expand-btn ${isExpanded ? 'expanded' : ''}`}
-            title={isExpanded ? 'Collapse' : 'Expand'}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleExpand();
-            }}
-          >
-            <svg 
-              className="expand-icon" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2"
-            >
-              <polyline points={isExpanded ? "18,15 12,9 6,15" : "6,9 12,15 18,9"}></polyline>
-            </svg>
-          </button>
-        )}
       </div>
       
       <div className="card-glow"></div>
