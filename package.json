@@ -1,0 +1,19 @@
+{
+  "name": "notam-viewer",
+  "version": "1.0.0",
+  "description": "Local FAA NOTAM Viewer",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "build": "echo 'No build step required'",
+    "dev": "node app.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "express": "^4.18.2",
+    "express-basic-auth": "^1.2.1"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}

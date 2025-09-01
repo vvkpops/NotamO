@@ -1,0 +1,664 @@
+/* Base styles for the NOTAM dashboard */
+
+:root {
+  --card-scale: 1;
+  --card-width: 420px;
+  /* REMOVED fixed card height, will now be dynamic */
+}
+
+body {
+  background-color: #111827;
+  color: #f1f5f9;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Enhanced Glassmorphism effect */
+.glass {
+  background: rgba(30, 34, 48, 0.6); /* Darker, less saturated background */
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem; /* Slightly larger radius */
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+
+/* NOTAM card grid */
+.notam-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+/* Back to top button */
+#back-to-top-btn {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 99;
+  width: 44px; /* Slightly larger */
+  height: 44px;
+  background-color: rgba(12, 74, 110, 0.8);
+  backdrop-filter: blur(8px);
+  color: #67e8f9;
+  border: 1px solid rgba(103, 232, 249, 0.3);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 20px;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+#back-to-top-btn:hover {
+  background-color: #0e7490;
+  transform: scale(1.1);
+}
+
+/* NOTAM Card Styling */
+.notam-card {
+  position: relative;
+  /* REVISED: No fixed height. Cards are now flexible. */
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 0.75rem; /* Match glass radius */
+}
+
+/* NEW: Styles for cards that are collapsible (content is long) */
+.notam-card.is-collapsible {
+  max-height: 450px; /* Set a max-height for collapsed cards */
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.notam-card.is-collapsible:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 12px 20px -4px rgba(0, 0, 0, 0.25);
+}
+
+/* NEW: When a collapsible card is expanded, remove height constraint */
+.notam-card.is-expanded {
+  max-height: 2000px; /* Allow expanded card to grow */
+  height: auto;
+  overflow: visible;
+  z-index: 10;
+  transition: max-height 0.5s ease-in-out;
+}
+
+.card-head {
+  padding: 0.6rem 1rem; /* Adjusted padding */
+  font-size: 1.1rem;
+  font-weight: 600; /* Bolder */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1); /* Add a separator */
+}
+
+.head-rwy { background: linear-gradient(45deg, rgba(220, 38, 38, 0.4), rgba(159, 18, 57, 0.5)); color: #fca5a5; }
+.head-twy { background: linear-gradient(45deg, rgba(245, 158, 11, 0.4), rgba(217, 119, 6, 0.5)); color: #fcd34d; }
+.head-rsc { background: linear-gradient(45deg, rgba(16, 185, 129, 0.4), rgba(5, 150, 105, 0.5)); color: #6ee7b7; }
+.head-crfi { background: linear-gradient(45deg, rgba(59, 130, 246, 0.4), rgba(37, 99, 235, 0.5)); color: #93c5fd; }
+.head-ils { background: linear-gradient(45deg, rgba(139, 92, 246, 0.4), rgba(124, 58, 237, 0.5)); color: #c4b5fd; }
+.head-fuel { background: linear-gradient(45deg, rgba(236, 72, 153, 0.4), rgba(219, 39, 119, 0.5)); color: #f9a8d4; }
+.head-other { background: linear-gradient(45deg, rgba(55, 65, 81, 0.4), rgba(75, 85, 99, 0.5)); color: #d1d5db; }
+.head-cancelled { background: linear-gradient(45deg, rgba(31, 41, 55, 0.4), rgba(55, 65, 81, 0.5)); color: #9ca3af; }
+
+
+.notam-card-content {
+  padding: 1rem; /* Increased padding */
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  /* Ensure content doesn't overflow card boundaries */
+  overflow: hidden;
+  word-wrap: break-word;
+  -webkit-hyphens: auto;
+  -ms-hyphens: auto;
+  hyphens: auto;
+}
+
+.notam-head {
+  font-weight: 700; /* Bolder */
+  font-size: 1.15rem; /* Slightly larger */
+  margin-bottom: 0.5rem;
+  font-family: 'Source Code Pro', monospace; /* Use new mono font */
+}
+
+
+.notam-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
+/* This is now the main container for the text content */
+.notam-text-content {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #e2e8f0;
+  word-break: break-word;
+  margin-bottom: 1rem; /* Space at the bottom */
+}
+
+
+/* NEW: This container holds the fade-out and the expand button */
+.card-expand-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 50px; /* Height of the fade area */
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding-bottom: 8px;
+  background: linear-gradient(to bottom, transparent, rgba(30, 34, 48, 1) 80%);
+  pointer-events: none; /* Allows clicks to pass through unless on the button */
+}
+
+/* NEW: The expand button itself, now smaller and less obtrusive */
+.card-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(30, 64, 175, 0.5);
+  color: #93c5fd;
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  border: 1px solid rgba(103, 232, 249, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  pointer-events: auto; /* Make the button clickable */
+}
+
+.card-expand-btn:hover {
+  background-color: rgba(30, 64, 175, 0.8);
+  color: white;
+  transform: scale(1.05);
+}
+
+.card-expand-btn .icon {
+  margin-left: 6px;
+  transition: transform 0.3s ease;
+}
+
+/* Rotate icon when card is expanded */
+.is-expanded .card-expand-btn .icon {
+  transform: rotate(180deg);
+}
+
+
+/* Progress Bar */
+#icao-progress-bar-outer {
+  margin-bottom: 1rem;
+  background-color: rgba(30, 41, 59, 0.7);
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+#icao-progress-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-bottom: 0.25rem;
+}
+
+#icao-progress-bar-bg {
+  height: 0.75rem; /* Thicker bar */
+  background-color: #1e293b;
+  border-radius: 1rem;
+  overflow: hidden;
+  position: relative;
+}
+
+#icao-progress-bar {
+  height: 100%;
+  background-color: #0ff;
+  border-radius: 1rem;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+#icao-progress-text {
+  text-align: center;
+  font-size: 0.9rem;
+  color: #ffffff;
+  font-weight: 600;
+  margin-top: 5px;
+}
+
+#icao-progress-timer {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-top: 0.25rem;
+  text-align: right;
+}
+
+/* Filter Chips - Keep original color coding */
+.filter-chip-input {
+  display: none;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  background-color: #27334a;
+  color: #b0c0d8;
+  border-radius: 9999px;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.filter-chip-input:checked + .filter-chip {
+  color: white;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Original filter color coding */
+.filter-chip-input#f-rwy:checked + .filter-chip { background-color: rgba(220, 38, 38, 0.6); color: #fca5a5; }
+.filter-chip-input#f-twy:checked + .filter-chip { background-color: rgba(245, 158, 11, 0.6); color: #fcd34d; }
+.filter-chip-input#f-rsc:checked + .filter-chip { background-color: rgba(16, 185, 129, 0.6); color: #6ee7b7; }
+.filter-chip-input#f-crfi:checked + .filter-chip { background-color: rgba(59, 130, 246, 0.6); color: #93c5fd; }
+.filter-chip-input#f-ils:checked + .filter-chip { background-color: rgba(139, 92, 246, 0.6); color: #c4b5fd; }
+.filter-chip-input#f-fuel:checked + .filter-chip { background-color: rgba(236, 72, 153, 0.6); color: #f9a8d4; }
+.filter-chip-input#f-other:checked + .filter-chip { background-color: rgba(55, 65, 81, 0.6); color: #d1d5db; }
+.filter-chip-input#f-cancelled:checked + .filter-chip { background-color: rgba(31, 41, 55, 0.6); color: #9ca3af; }
+.filter-chip-input#f-dom:checked + .filter-chip { background-color: rgba(20, 83, 45, 0.6); color: #34d399; }
+.filter-chip-input#f-current:checked + .filter-chip { background-color: rgba(30, 64, 175, 0.6); color: #93c5fd; }
+.filter-chip-input#f-future:checked + .filter-chip { background-color: rgba(124, 58, 237, 0.6); color: #c4b5fd; }
+
+.filter-chip:hover {
+  transform: translateY(-2px);
+  background-color: #334155;
+}
+
+/* Card Scale Slider */
+.card-scale-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-scale-slider {
+  width: 100px;
+  background-color: #1e293b;
+  height: 6px;
+  border-radius: 3px;
+  -webkit-appearance: none;
+  outline: none;
+}
+
+.card-scale-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #67e8f9;
+  cursor: pointer;
+}
+
+.card-scale-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #67e8f9;
+  cursor: pointer;
+  border: none;
+}
+
+.card-scale-value {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  min-width: 3.5rem;
+}
+
+/* ICAO header */
+.icao-header {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #67e8f9;
+  margin: 1rem 0 0.5rem 0.25rem;
+  text-shadow: 0 0 8px rgba(103, 232, 249, 0.3);
+}
+
+/* Notification system */
+.notification-bell {
+  position: fixed;
+  top: 10px;
+  right: 20px;
+  z-index: 1000;
+  background-color: rgba(17, 24, 39, 0.8);
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  color: #67e8f9;
+  border: 1px solid rgba(103, 232, 249, 0.2);
+}
+
+.notification-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: #dc2626;
+  color: white;
+  border-radius: 50%;
+  min-width: 20px;
+  height: 20px;
+  font-size: 12px;
+  font-weight: bold;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 2px solid #1e293b;
+}
+
+.notification-modal {
+  display: none;
+  position: fixed;
+  top: 70px;
+  right: 20px;
+  width: 350px;
+  max-height: 80vh;
+  background-color: #1e293b;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  overflow: hidden;
+  flex-direction: column;
+}
+
+.notification-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #172030;
+  border-bottom: 1px solid #334155;
+}
+
+.clear-notifications-btn {
+  background: none;
+  border: none;
+  color: #f87171;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.notification-list {
+  overflow-y: auto;
+  max-height: calc(80vh - 50px);
+}
+
+.notification-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid #334155;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.notification-item:hover {
+  background-color: #2d3748;
+}
+
+.notification-item.unread {
+  background-color: rgba(14, 116, 144, 0.2);
+}
+
+.notification-item.unread:hover {
+  background-color: rgba(14, 116, 144, 0.3);
+}
+
+/* Alert banner */
+#notam-alert {
+  padding: 10px 16px;
+  background-color: rgba(16, 185, 129, 0.2);
+  border-left: 4px solid #10b981;
+  border-radius: 4px;
+  color: #d1fae5;
+  font-weight: bold;
+  cursor: pointer;
+  animation: fadeIn 0.5s;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hidden {
+  display: none;
+}
+
+/* RAW NOTAM Modal */
+#raw-notam-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+
+.raw-modal-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.raw-modal-content {
+  background-color: #1e293b;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  width: 80%;
+  max-width: 800px;
+  max-height: 80%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  animation: modalOpen 0.3s;
+  z-index: 1;
+}
+
+@keyframes modalOpen {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.raw-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background-color: #172030;
+  border-bottom: 1px solid #334155;
+}
+
+.raw-modal-close {
+  background: none;
+  border: none;
+  color: #f87171;
+  cursor: pointer;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.raw-modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex-grow: 1;
+  font-family: 'Source Code Pro', monospace;
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+  color: #d1d5db;
+}
+
+.notam-raw-link {
+  display: inline-block;
+  padding: 4px 8px;
+  background-color: rgba(30, 64, 175, 0.3);
+  color: #93c5fd;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-decoration: none;
+  transition: background-color 0.2s;
+  z-index: 20;
+  position: relative;
+}
+
+.notam-raw-link:hover {
+  background-color: rgba(30, 64, 175, 0.5);
+}
+
+/* Animations */
+.notam-animate {
+  animation: cardIn 0.5s;
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ICAO Sets styling */
+.icao-set-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.icao-set-new {
+  background-color: #1a3345;
+  color: #0ff;
+  border: 1px solid #2a5173;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.icao-set-new:hover {
+  background-color: #254a5e;
+}
+
+.icao-set-btn {
+  background-color: #1e293b;
+  color: #67e8f9;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.icao-set-btn:hover {
+  background-color: #334155;
+}
+
+.icao-set-edit, .icao-set-del {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  margin-left: -4px; /* Pull closer to the button */
+  margin-right: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  opacity: 0.6;
+}
+
+.icao-set-edit {
+  color: #67e8f9;
+}
+
+.icao-set-edit:hover {
+  color: #22d3ee;
+  opacity: 1;
+}
+
+.icao-set-del {
+  color: #f87171;
+}
+
+.icao-set-del:hover {
+  color: #ef4444;
+  opacity: 1;
+}
+
+.icao-set-save {
+  background-color: #134e4a;
+  color: #5eead4;
+  border: 1px solid #115e59;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.icao-set-save:hover {
+  background-color: #0f766e;
+}
+
+.icao-set-divider {
+  color: #475569;
+  margin: 0 4px;
+  align-self: center;
+  font-weight: bold;
+}
+
+/* Flashing tab effect */
+@keyframes flash-tab {
+  0% { background-color: #23283e; box-shadow: none; }
+  50% { background-color: #3b82f6; box-shadow: 0 0 12px rgba(59, 130, 246, 0.7); }
+  100% { background-color: #23283e; box-shadow: none; }
+}
+
+.flashing-tab {
+  animation: flash-tab 1.5s infinite;
+  position: relative;
+}
+
+.flashing-tab::after {
+  content: "";
+  position: absolute;
+  top: 4px; /* Adjusted position */
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  background-color: #f87171;
+  border-radius: 50%;
+  border: 2px solid #23283e;
+}
