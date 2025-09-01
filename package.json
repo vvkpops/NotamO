@@ -1,19 +1,17 @@
 {
-  "name": "notam-viewer",
+  "name": "notam-vite",
+  "private": true,
   "version": "1.0.0",
-  "description": "Local FAA NOTAM Viewer",
-  "main": "app.js",
+  "type": "module",
   "scripts": {
-    "start": "node app.js",
-    "build": "echo 'No build step required'",
-    "dev": "node app.js"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
   },
   "dependencies": {
-    "axios": "^1.6.2",
-    "express": "^4.18.2",
-    "express-basic-auth": "^1.2.1"
-  },
-  "engines": {
-    "node": "18.x"
+    "axios": "^1.6.2"
   }
 }
