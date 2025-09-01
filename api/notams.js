@@ -48,15 +48,14 @@ export default async function handler(request, response) {
 
         let combinedNotams = faaItems.map(item => {
             const core = item.properties?.coreNOTAMData?.notam || {};
-            const rawText = core.text || 'No raw text available.';
+            const rawText = core.text || 'Full NOTAM text not available from source.';
             const parsed = parseRawNotam(rawText);
 
             return {
                 id: core.id || `${core.number}-${core.icaoLocation}`,
                 number: core.number || 'N/A',
-                // Both summary and rawText now hold the full text
                 summary: rawText, 
-                rawText: rawText,
+                rawText: rawText, // Ensure rawText is always populated
                 validFrom: core.effectiveStart,
                 validTo: core.effectiveEnd,
                 source: 'FAA',
@@ -72,15 +71,14 @@ export default async function handler(request, response) {
                 const navNotams = navRes.data?.Alpha?.notam || [];
                 
                 const navParsed = navNotams.map(notam => {
-                    const rawText = notam.text?.replace(/\\n/g, '\n') || 'No raw text available.';
+                    const rawText = notam.text?.replace(/\\n/g, '\n') || 'Full NOTAM text not available from source.';
                     const parsed = parseRawNotam(rawText);
 
                     return {
                         id: notam.id || `${icao}-navcanada-${notam.start}`,
                         number: notam.id || 'N/A',
-                        // Both summary and rawText now hold the full text
                         summary: rawText,
-                        rawText: rawText,
+                        rawText: rawText, // Ensure rawText is always populated
                         validFrom: notam.start,
                         validTo: notam.end,
                         source: 'NAV CANADA',
@@ -98,7 +96,6 @@ export default async function handler(request, response) {
             }
         }
         
-        // --- Advanced Cancellation Handling ---
         const cancelledNotamNumbers = new Set();
         combinedNotams.forEach(n => {
             if (n.isCancellation && n.cancels) {
@@ -109,15 +106,10 @@ export default async function handler(request, response) {
         const now = new Date();
         const finalNotams = combinedNotams
             .filter(n => {
-                // Filter out NOTAMs that have been explicitly cancelled by another NOTAM
                 if (cancelledNotamNumbers.has(n.number)) {
                     return false;
                 }
-                
-                // Keep cancellation notices themselves in the list so users see them
                 if (n.isCancellation) return true;
-
-                // Filter out expired NOTAMs (but keep PERMANENT)
                 if (!n.validTo || n.validTo === 'PERMANENT') return true;
                 const validToDate = parseDate(n.validTo);
                 return validToDate ? validToDate >= now : true;
@@ -127,7 +119,7 @@ export default async function handler(request, response) {
                 const dateB = parseDate(b.validFrom);
                 if (!dateA) return 1;
                 if (!dateB) return -1;
-                return dateB - dateA; // Sort most recent first
+                return dateB - dateA;
             });
 
         response.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
