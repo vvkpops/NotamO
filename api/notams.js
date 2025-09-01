@@ -62,6 +62,7 @@ export default async function handler(request, response) {
                 id: core.id || `${core.number}-${core.icaoLocation}`,
                 number: core.number || 'N/A',
                 summary: summary,
+                rawText: core.text, // <-- Add raw text field
                 validFrom: core.effectiveStart,
                 validTo: core.effectiveEnd,
                 source: 'FAA',
@@ -87,6 +88,7 @@ export default async function handler(request, response) {
                         id: notam.id || `${icao}-navcanada-${notam.start}`,
                         number: notam.id || 'N/A',
                         summary: summary,
+                        rawText: notam.text?.replace(/\\n/g, '\n') || '', // <-- Add raw text field
                         validFrom: notam.start,
                         validTo: notam.end,
                         source: 'NAV CANADA',
