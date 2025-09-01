@@ -1,9 +1,10 @@
 // === notam-network.js ===
 // All network and NOTAM fetch logic
 
+// CRITICAL FIX: Removed 'latestNewNotamKey' as it's not exported from notam-core.js
 import { 
   activeSession, notamDataByIcao, notamFetchStatusByIcao, lastNotamIdsByIcao, 
-  loadingIcaosSet, loadedIcaosSet, latestNewNotamKey 
+  loadingIcaosSet, loadedIcaosSet
 } from './notam-core.js';
 
 // We need to import the UI function to show alerts
