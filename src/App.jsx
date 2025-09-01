@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import './index.css';
 import NotamTabContent from './NotamTabContent';
 
@@ -67,7 +67,7 @@ const App = () => {
     if (e.key === "Enter") handleAddIcao();
   };
 
-  // Consolidate data for the "ALL" tab
+  // Consolidate data for the "ALL" tab - NOW WITH useMemo IMPORTED
   const allNotamsData = useMemo(() => {
     let combined = [];
     let isLoading = false;
@@ -111,8 +111,18 @@ const App = () => {
       <Header />
       
       <div className="glass p-4 flex flex-col sm:flex-row items-center gap-4 mb-4">
-        <input ref={icaoInputRef} placeholder="Enter ICAOs (e.g. CYYT, KJFK)" className="px-4 py-2 rounded-lg bg-[#21263b] border border-[#283057] text-lg outline-cyan-300 font-mono tracking-widest uppercase" onKeyPress={handleIcaoInputKeyPress} />
-        <button onClick={handleAddIcao} className="bg-cyan-500 hover:bg-cyan-400 px-4 py-2 rounded-lg font-bold text-[#131926] transition shadow">Add ICAO(s)</button>
+        <input 
+          ref={icaoInputRef} 
+          placeholder="Enter ICAOs (e.g. CYYT, KJFK)" 
+          className="px-4 py-2 rounded-lg bg-[#21263b] border border-[#283057] text-lg outline-cyan-300 font-mono tracking-widest uppercase" 
+          onKeyPress={handleIcaoInputKeyPress} 
+        />
+        <button 
+          onClick={handleAddIcao} 
+          className="bg-cyan-500 hover:bg-cyan-400 px-4 py-2 rounded-lg font-bold text-[#131926] transition shadow"
+        >
+          Add ICAO(s)
+        </button>
       </div>
       
       <div className="glass p-4">
@@ -124,7 +134,12 @@ const App = () => {
         </div>
         
         <div>
-          <NotamTabContent icao={activeTab} notams={activeNotamData.data} loading={activeNotamData.loading} error={activeNotamData.error} />
+          <NotamTabContent 
+            icao={activeTab} 
+            notams={activeNotamData.data} 
+            loading={activeNotamData.loading} 
+            error={activeNotamData.error} 
+          />
         </div>
       </div>
     </div>
