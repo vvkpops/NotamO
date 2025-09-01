@@ -1,195 +1,207 @@
-/* === NOTAM Dashboard Redesign - Aviation Console Theme === */
+/* === NOTAM Dashboard Redesign v2 - Aviation Console Theme === */
 
 :root {
-  /* --- Color Palette --- */
-  --bg-primary: #1a1d22;       /* Deep charcoal, like a cockpit panel */
-  --bg-secondary: #2a2f37;     /* Slightly lighter for cards and elements */
-  --bg-tertiary: #3a4049;      /* Hover states and borders */
-  --text-primary: #e0e6f0;     /* Soft white for main text */
-  --text-secondary: #a0a8b4;   /* Muted gray for meta text */
-  --accent-amber: #ffb700;     /* Primary accent, like instrument backlighting */
-  --accent-cyan: #00d8ff;      /* For specific highlights, like progress */
-  --status-red: #f44336;       /* Runway/Taxiway closures */
-  --status-orange: #ff9800;    /* RSC/CRFI */
-  --status-blue: #2196f3;      /* ILS */
-  --status-purple: #9c27b0;     /* Fuel */
-  --status-gray: #78909c;      /* Other/Cancelled */
-
-  /* --- Sizing & Fonts --- */
+  --bg-primary: #1a1d22;
+  --bg-secondary: #2a2f37;
+  --bg-tertiary: #3a4049;
+  --text-primary: #e0e6f0;
+  --text-secondary: #a0a8b4;
+  --accent-amber: #ffb700;
+  --accent-cyan: #00d8ff;
+  --status-red: #f44336;
+  --status-orange: #ff9800;
+  --status-blue: #2196f3;
+  --status-purple: #9c27b0;
+  --status-gray: #78909c;
   --card-scale: 1;
   --card-width: 420px;
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'Source Code Pro', monospace;
-  --radius: 0.5rem; /* Standardized border radius */
+  --radius: 0.5rem;
+  --sidebar-width: 320px;
 }
 
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-sans);
+  overflow-x: hidden;
 }
 
-/* --- Main NOTAM Card --- */
-.notam-grid {
+/* --- Main App Layout --- */
+.app-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
-  gap: 1.25rem;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  height: 100vh;
+  transition: transform 0.4s ease-in-out;
+}
+body.notifications-visible .app-layout {
+  transform: translateX(-360px);
 }
 
-.notam-card {
-  background-color: var(--bg-secondary);
-  border-radius: var(--radius);
-  border: 1px solid var(--bg-tertiary);
-  border-left-width: 5px; /* Key design element for status */
+/* --- Sidebar --- */
+#sidebar {
+  background-color: var(--bg-primary);
+  border-right: 1px solid var(--bg-tertiary);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.3s ease, max-height 0.4s ease-in-out;
-  position: relative;
-  overflow: hidden;
+  height: 100vh;
+  position: fixed;
+  width: var(--sidebar-width);
+  top: 0; left: 0;
 }
-
-.notam-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+.sidebar-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--bg-tertiary);
+  flex-shrink: 0;
 }
-
-/* Card Type Colors (applied via border) */
-.notam-card.type-rwy { border-left-color: var(--status-red); }
-.notam-card.type-twy { border-left-color: var(--status-orange); }
-.notam-card.type-rsc { border-left-color: var(--status-orange); }
-.notam-card.type-crfi { border-left-color: var(--status-orange); }
-.notam-card.type-ils { border-left-color: var(--status-blue); }
-.notam-card.type-fuel { border-left-color: var(--status-purple); }
-.notam-card.type-cancelled { border-left-color: var(--status-gray); }
-.notam-card.type-other { border-left-color: var(--status-gray); }
-
-
-/* Card Header - Cleaned up, no background */
-.card-head {
-  padding: 0.75rem 1rem;
-  font-size: 1.1rem;
+.sidebar-content {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+.control-section { margin-bottom: 2rem; }
+.section-title {
+  font-size: 0.875rem;
   font-weight: 700;
+  color: var(--accent-amber);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.section-title::after {
+    content: '';
+    height: 1px;
+    background-color: var(--bg-tertiary);
+    flex-grow: 1;
+}
+
+#icao-list .icao-tag {
+    background-color: var(--accent-cyan);
+    color: var(--bg-primary);
+    padding: 4px 8px 4px 12px;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+#icao-list .remove-icao-btn {
+    color: rgba(0,0,0,0.4);
+    transition: color 0.2s;
+}
+#icao-list .remove-icao-btn:hover {
+    color: var(--status-red);
+}
+
+
+/* --- Main Content Area --- */
+#main-content {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+}
+#main-top-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0.75rem 1.5rem;
   border-bottom: 1px solid var(--bg-tertiary);
-  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-shrink: 0;
+}
+#icao-tabs-wrapper {
+  padding: 0 1.5rem;
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--bg-tertiary);
+  flex-shrink: 0;
 }
 
-/* Match header text color to the border */
-.type-rwy .card-head { color: var(--status-red); }
-.type-twy .card-head { color: var(--status-orange); }
-.type-ils .card-head { color: var(--status-blue); }
-
-.notam-card-content {
-  padding: 1rem;
+#result {
   flex-grow: 1;
+}
+
+/* --- Notification Panel (Slide-out) --- */
+#notification-panel {
+  position: fixed;
+  top: 0;
+  right: -360px; /* Start off-screen */
+  width: 360px;
+  height: 100vh;
+  background-color: var(--bg-secondary);
+  border-left: 1px solid var(--bg-tertiary);
+  box-shadow: -10px 0 30px rgba(0,0,0,0.3);
+  z-index: 1001;
   display: flex;
   flex-direction: column;
-  position: relative;
-  word-wrap: break-word;
+  transition: right 0.4s ease-in-out;
 }
-
-.notam-head {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 1.1rem;
-  margin-bottom: 0.5rem;
-  color: var(--accent-amber);
-}
-
-.notam-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-.notam-meta b {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.notam-text-content {
-  font-size: 0.95rem;
-  line-height: 1.6;
-  color: var(--text-primary);
-  word-break: break-word;
-  margin-bottom: 1rem;
-  flex-grow: 1;
-}
-
-/* --- Collapsible Card Logic --- */
-.notam-card.is-collapsible {
-  max-height: 250px; /* Set a max-height for collapsed cards */
-  cursor: pointer;
-}
-.notam-card.is-expanded {
-  max-height: 1500px; /* Allow expanded card to grow */
-}
-.card-expand-footer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
+body.notifications-visible #notification-panel {
   right: 0;
-  height: 50px;
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  padding-bottom: 8px;
-  background: linear-gradient(to top, var(--bg-secondary) 30%, transparent 100%);
-  pointer-events: none; /* Let clicks pass through to the card */
-  transition: opacity 0.3s ease;
 }
-.is-expanded .card-expand-footer {
-  opacity: 0;
-}
-.card-expand-btn {
+.panel-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  background-color: rgba(0,0,0,0.3);
-  color: var(--accent-cyan);
-  border-radius: 16px;
-  padding: 4px 12px;
-  font-size: 0.8rem;
-  font-weight: bold;
-  border: 1px solid var(--bg-tertiary);
-  pointer-events: auto; /* Button is clickable */
-  transition: all 0.2s ease;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--bg-tertiary);
+  flex-shrink: 0;
 }
-.card-expand-btn:hover {
-  background-color: var(--accent-cyan);
-  color: var(--bg-primary);
+.panel-content {
+  flex-grow: 1;
+  overflow-y: auto;
 }
-.card-expand-btn .icon {
-  margin-left: 6px;
-  transition: transform 0.3s ease;
+.notification-item {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--bg-tertiary);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  opacity: 0.85;
 }
-.is-expanded .card-expand-btn .icon {
-  transform: rotate(180deg);
+.notification-item:hover {
+  background-color: var(--bg-tertiary);
+  opacity: 1;
 }
-.notam-card:not(.is-collapsible) .card-expand-footer {
-  display: none;
+.notification-item.unread {
+  background-color: rgba(0, 216, 255, 0.08);
+  opacity: 1;
+  border-left: 3px solid var(--accent-cyan);
 }
-
-
-/* --- Top Controls & Header --- */
-.control-panel {
-  background-color: var(--bg-secondary);
+.notification-item-msg { font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem; }
+.notification-item-meta { font-size: 0.8rem; color: var(--text-secondary); display: flex; justify-content: space-between; }
+.notification-item-icao { font-family: var(--font-mono); color: var(--accent-cyan); font-weight: 600; }
+.panel-footer {
   padding: 1rem;
+  border-top: 1px solid var(--bg-tertiary);
+  flex-shrink: 0;
+}
+#clear-notifications-btn {
+  width: 100%;
+  text-align: center;
+  padding: 0.75rem;
   border-radius: var(--radius);
-  border: 1px solid var(--bg-tertiary);
+  background-color: var(--bg-tertiary);
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+#clear-notifications-btn:hover {
+  background-color: var(--status-red);
+  color: white;
 }
 
-#icao-form input:focus {
-  outline: none;
-}
 
-/* --- Filter Chips --- */
-.filter-chip-input { display: none; }
+/* --- Re-styled Components --- */
 .filter-chip {
   background-color: var(--bg-secondary);
   color: var(--text-secondary);
@@ -211,124 +223,130 @@ body {
   background-color: var(--accent-amber);
   font-weight: 700;
 }
+.filter-divider {
+    width: 1px;
+    height: 20px;
+    background-color: var(--bg-tertiary);
+    margin: 0 4px;
+}
 
-/* --- ICAO Tabs --- */
 #icao-tabs {
-  border-bottom: 2px solid var(--bg-tertiary);
-  margin-bottom: 1rem;
+  display: flex;
+  gap: 0.5rem;
 }
 #icao-tabs button {
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
-  padding: 0.75rem 1.25rem;
+  padding: 0.75rem 0.5rem;
   font-weight: 600;
   color: var(--text-secondary);
   transition: all 0.2s ease;
-  margin-bottom: -2px; /* Overlap the main border */
+  margin-bottom: -1px;
 }
-#icao-tabs button:hover {
-  color: var(--text-primary);
-}
-#icao-tabs button.active-tab { /* Custom class for active state */
+#icao-tabs button:hover { color: var(--text-primary); }
+#icao-tabs button.active-tab {
   color: var(--accent-amber);
   border-bottom-color: var(--accent-amber);
 }
-
-/* Flashing Tab Animation */
 .flashing-tab {
-  position: relative;
   animation: flash-border 1.5s infinite;
 }
 @keyframes flash-border {
   0%, 100% { border-bottom-color: transparent; }
   50% { border-bottom-color: var(--status-blue); }
 }
-.flashing-tab::after {
-  content: '●';
-  position: absolute;
-  top: 6px;
-  right: 10px;
-  font-size: 10px;
-  color: var(--status-blue);
-  animation: flash-dot 1.5s infinite;
+
+/* --- Refined NOTAM Card --- */
+.notam-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
+  gap: 1.25rem;
 }
-@keyframes flash-dot {
-  0%, 100% { opacity: 0; }
-  50% { opacity: 1; }
+.notam-card {
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius);
+  border: 1px solid var(--bg-tertiary);
+  border-left-width: 5px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.3s ease, max-height 0.4s ease-in-out;
+  position: relative;
+  overflow: hidden;
+}
+/* ... rest of notam-card styles are largely unchanged but fit the new theme ... */
+.notam-card:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3); }
+.notam-card.type-rwy { border-left-color: var(--status-red); }
+.notam-card.type-twy { border-left-color: var(--status-orange); }
+.notam-card.type-rsc, .notam-card.type-crfi { border-left-color: var(--status-orange); }
+.notam-card.type-ils { border-left-color: var(--status-blue); }
+.notam-card.type-fuel { border-left-color: var(--status-purple); }
+.notam-card.type-cancelled, .notam-card.type-other { border-left-color: var(--status-gray); }
+.card-head { padding: 0.75rem 1rem; font-size: 1.1rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--bg-tertiary); color: var(--text-primary); }
+.type-rwy .card-head { color: var(--status-red); }
+.type-twy .card-head { color: var(--status-orange); }
+.type-ils .card-head { color: var(--status-blue); }
+.notam-card-content { padding: 1rem; flex-grow: 1; display: flex; flex-direction: column; position: relative; word-wrap: break-word; }
+.notam-head { font-family: var(--font-mono); font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--accent-amber); }
+.notam-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; color: var(--text-secondary); }
+.notam-meta b { color: var(--text-primary); font-weight: 500; }
+.notam-text-content { font-size: 0.95rem; line-height: 1.6; color: var(--text-primary); word-break: break-word; margin-bottom: 1rem; flex-grow: 1; }
+.notam-card.is-collapsible { max-height: 250px; cursor: pointer; }
+.notam-card.is-expanded { max-height: 1500px; }
+.card-expand-footer { position: absolute; bottom: 0; left: 0; right: 0; height: 50px; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 8px; background: linear-gradient(to top, var(--bg-secondary) 30%, transparent 100%); pointer-events: none; transition: opacity 0.3s ease; }
+.is-expanded .card-expand-footer { opacity: 0; }
+.card-expand-btn { display: flex; align-items: center; justify-content: center; background-color: rgba(0,0,0,0.3); color: var(--accent-cyan); border-radius: 16px; padding: 4px 12px; font-size: 0.8rem; font-weight: bold; border: 1px solid var(--bg-tertiary); pointer-events: auto; transition: all 0.2s ease; }
+.card-expand-btn:hover { background-color: var(--accent-cyan); color: var(--bg-primary); }
+.card-expand-btn .icon { margin-left: 6px; transition: transform 0.3s ease; }
+.is-expanded .card-expand-btn .icon { transform: rotate(180deg); }
+.notam-card:not(.is-collapsible) .card-expand-footer { display: none; }
+.icao-header { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin: 2rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 1px solid var(--bg-tertiary); }
+.icao-header::before { content: '▼ '; color: var(--accent-amber); }
+
+/* --- Back to Top button --- */
+#back-to-top-btn {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    right: 20px; /* It will be visible when panel is closed */
+    z-index: 50;
+    width: 44px; height: 44px;
+    background-color: rgba(0, 216, 255, 0.8);
+    color: var(--bg-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.25rem;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(0, 216, 255, 0.5);
+    transition: all 0.2s ease-in-out;
+}
+#back-to-top-btn:hover {
+    background-color: var(--accent-cyan);
+    transform: scale(1.1);
+}
+body.notifications-visible #back-to-top-btn {
+    right: 380px; /* Move with the layout */
 }
 
-/* --- ICAO Header in "ALL" view --- */
-.icao-header {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 2rem 0 1rem 0;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--bg-tertiary);
-}
-.icao-header::before {
-  content: '▼ ';
-  color: var(--accent-amber);
-}
 
-/* --- ICAO Sets Bar --- */
-#icao-sets-bar button {
-  transition: all 0.2s ease;
-}
-.icao-set-new {
-  background-color: var(--accent-amber);
-  color: var(--bg-primary);
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-weight: bold;
-}
+.hidden { display: none; }
+.notam-animate { animation: cardIn 0.5s ease-out forwards; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Other component styles (ICAO sets, etc.) are simplified or fit within the new structure */
+#icao-sets-bar button { transition: all 0.2s ease; }
+.icao-set-new { background-color: var(--accent-amber); color: var(--bg-primary); padding: 6px 12px; border-radius: 6px; font-weight: bold; }
 .icao-set-new:hover { background-color: #ffcf40; }
 .icao-set-divider { color: var(--bg-tertiary); margin: 0 4px; }
-.icao-set-btn {
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
-  padding: 6px 12px;
-  border-radius: 6px 0 0 6px;
-}
+.icao-set-btn { background-color: var(--bg-tertiary); color: var(--text-primary); padding: 6px 12px; border-radius: 6px 0 0 6px; }
 .icao-set-btn:hover { background-color: #4b5563; }
-.icao-set-edit, .icao-set-del {
-  background-color: var(--bg-tertiary);
-  color: var(--text-secondary);
-  padding: 6px 8px;
-}
+.icao-set-edit, .icao-set-del { background-color: var(--bg-tertiary); color: var(--text-secondary); padding: 6px 8px; }
 .icao-set-edit:hover { color: var(--accent-cyan); }
 .icao-set-del { border-radius: 0 6px 6px 0; }
 .icao-set-del:hover { color: var(--status-red); }
-.icao-set-save {
-  background-color: var(--accent-cyan);
-  color: var(--bg-primary);
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-weight: bold;
-}
+.icao-set-save { background-color: var(--accent-cyan); color: var(--bg-primary); padding: 6px 12px; border-radius: 6px; font-weight: bold; }
 .icao-set-save:hover { background-color: #40eaff; }
-
-/* --- Notification Modal --- */
-.notification-item {
-  padding: 12px;
-  border-bottom: 1px solid var(--bg-tertiary);
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-.notification-item:hover {
-  background-color: var(--bg-tertiary);
-}
-.notification-item.unread {
-  background-color: rgba(0, 216, 255, 0.08);
-}
-
-/* --- Misc & Legacy --- */
-.hidden { display: none; }
-.notam-animate {
-  animation: cardIn 0.5s ease-out forwards;
-}
-@keyframes cardIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
