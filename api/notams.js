@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { parseRawNotam } from './parser.js'; // Import the new parser
+import { parseRawNotam } from './parser.js'; // The parser is still useful for identifying cancellations
 
 // Environment variables for security
 const CLIENT_ID = process.env.FAA_CLIENT_ID;
@@ -48,21 +48,15 @@ export default async function handler(request, response) {
 
         let combinedNotams = faaItems.map(item => {
             const core = item.properties?.coreNOTAMData?.notam || {};
-            const trans = item.properties?.coreNOTAMData?.notamTranslation?.[0] || {};
-            
-            // Use our new parser as a fallback or for more detail
-            const parsed = parseRawNotam(core.text);
-            
-            let summary = trans.simpleText || (parsed ? parsed.body : core.text) || 'No summary.';
-            if (parsed?.isCancellation) {
-                summary = `[CANCELLED] This NOTAM cancels ${parsed.cancelsNotam}. Original text: ${summary}`;
-            }
+            const rawText = core.text || 'No raw text available.';
+            const parsed = parseRawNotam(rawText);
 
             return {
                 id: core.id || `${core.number}-${core.icaoLocation}`,
                 number: core.number || 'N/A',
-                summary: summary,
-                rawText: core.text, // <-- Add raw text field
+                // Both summary and rawText now hold the full text
+                summary: rawText, 
+                rawText: rawText,
                 validFrom: core.effectiveStart,
                 validTo: core.effectiveEnd,
                 source: 'FAA',
@@ -78,17 +72,15 @@ export default async function handler(request, response) {
                 const navNotams = navRes.data?.Alpha?.notam || [];
                 
                 const navParsed = navNotams.map(notam => {
-                    const parsed = parseRawNotam(notam.text);
-                    let summary = parsed ? parsed.body : (notam.text?.replace(/\\n/g, '\n') || 'No summary.');
-                    if (parsed?.isCancellation) {
-                        summary = `[CANCELLED] This NOTAM cancels ${parsed.cancelsNotam}. Original text: ${summary}`;
-                    }
+                    const rawText = notam.text?.replace(/\\n/g, '\n') || 'No raw text available.';
+                    const parsed = parseRawNotam(rawText);
 
                     return {
                         id: notam.id || `${icao}-navcanada-${notam.start}`,
                         number: notam.id || 'N/A',
-                        summary: summary,
-                        rawText: notam.text?.replace(/\\n/g, '\n') || '', // <-- Add raw text field
+                        // Both summary and rawText now hold the full text
+                        summary: rawText,
+                        rawText: rawText,
                         validFrom: notam.start,
                         validTo: notam.end,
                         source: 'NAV CANADA',
@@ -117,10 +109,13 @@ export default async function handler(request, response) {
         const now = new Date();
         const finalNotams = combinedNotams
             .filter(n => {
-                // Filter out NOTAMs that have been explicitly cancelled
+                // Filter out NOTAMs that have been explicitly cancelled by another NOTAM
                 if (cancelledNotamNumbers.has(n.number)) {
                     return false;
                 }
+                
+                // Keep cancellation notices themselves in the list so users see them
+                if (n.isCancellation) return true;
 
                 // Filter out expired NOTAMs (but keep PERMANENT)
                 if (!n.validTo || n.validTo === 'PERMANENT') return true;
