@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import './modern-styles.css'; // The new CSS file
 import NotamTabContent from './NotamTabContent';
 
 const App = () => {
