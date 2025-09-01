@@ -1,25 +1,47 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import './index.css';
+import './modern-styles.css'; // The new CSS file
 import NotamTabContent from './NotamTabContent';
 
-// --- Main Application Component -----
 const App = () => {
   // State Management
   const [icaos, setIcaos] = useState(() => JSON.parse(localStorage.getItem("notamIcaos") || "[]"));
   const [activeTab, setActiveTab] = useState('ALL');
   const [notamDataStore, setNotamDataStore] = useState({});
+  const [isAdding, setIsAdding] = useState(false);
 
   const icaoInputRef = useRef(null);
 
   const fetchNotams = useCallback(async (icao) => {
-    setNotamDataStore(prev => ({ ...prev, [icao]: { ...prev[icao], loading: true, error: null } }));
+    setNotamDataStore(prev => ({ 
+      ...prev, 
+      [icao]: { ...prev[icao], loading: true, error: null } 
+    }));
+    
     try {
       const response = await fetch(`/api/notams?icao=${icao}`);
       const data = await response.json();
-      if (!response.ok || data.error) throw new Error(data.error || `Network error`);
-      setNotamDataStore(prev => ({ ...prev, [icao]: { data: data.map(n => ({...n, icao})), loading: false, error: null } }));
+      
+      if (!response.ok || data.error) {
+        throw new Error(data.error || `Failed to fetch NOTAMs for ${icao}`);
+      }
+      
+      setNotamDataStore(prev => ({ 
+        ...prev, 
+        [icao]: { 
+          data: data.map(n => ({...n, icao})), 
+          loading: false, 
+          error: null 
+        } 
+      }));
     } catch (err) {
-      setNotamDataStore(prev => ({ ...prev, [icao]: { ...prev[icao], loading: false, error: err.message } }));
+      setNotamDataStore(prev => ({ 
+        ...prev, 
+        [icao]: { 
+          ...prev[icao], 
+          loading: false, 
+          error: err.message 
+        } 
+      }));
     }
   }, []);
 
@@ -38,21 +60,47 @@ const App = () => {
     }
   }, [icaos, activeTab]);
   
-  const handleAddIcao = useCallback(() => {
-    if (!icaoInputRef.current) return;
-    const newIcaoInputs = icaoInputRef.current.value.toUpperCase().split(/[,\s]+/)
-      .map(s => s.trim()).filter(s => s.length === 4 && /^[A-Z0-9]{4}$/.test(s));
+  const handleAddIcao = useCallback(async () => {
+    if (!icaoInputRef.current || isAdding) return;
     
-    if (newIcaoInputs.length > 0) {
-      const addedIcaos = newIcaoInputs.filter(icao => !icaos.includes(icao));
-      if (addedIcaos.length > 0) {
-        setIcaos(prev => [...prev, ...addedIcaos]);
-        setActiveTab(addedIcaos[0]);
-      }
+    const input = icaoInputRef.current.value.toUpperCase().trim();
+    const newIcaoInputs = input.split(/[,\s]+/)
+      .map(s => s.trim())
+      .filter(s => s.length === 4 && /^[A-Z0-9]{4}$/.test(s));
+    
+    if (newIcaoInputs.length === 0) {
+      // Add shake animation for invalid input
+      icaoInputRef.current.style.animation = 'shake 0.5s ease-in-out';
+      setTimeout(() => {
+        if (icaoInputRef.current) {
+          icaoInputRef.current.style.animation = '';
+        }
+      }, 500);
+      return;
     }
+
+    setIsAdding(true);
+    
+    const addedIcaos = newIcaoInputs.filter(icao => !icaos.includes(icao));
+    
+    if (addedIcaos.length > 0) {
+      setIcaos(prev => [...prev, ...addedIcaos]);
+      setActiveTab(addedIcaos[0]);
+      
+      // Add success animation
+      icaoInputRef.current.classList.add('success-flash');
+      setTimeout(() => {
+        if (icaoInputRef.current) {
+          icaoInputRef.current.classList.remove('success-flash');
+        }
+      }, 500);
+    }
+    
     icaoInputRef.current.value = "";
     icaoInputRef.current.focus();
-  }, [icaos]);
+    
+    setTimeout(() => setIsAdding(false), 300);
+  }, [icaos, isAdding]);
 
   const handleRemoveIcao = useCallback((icaoToRemove) => {
     setIcaos(prev => prev.filter(i => i !== icaoToRemove));
@@ -64,16 +112,17 @@ const App = () => {
   }, []);
 
   const handleIcaoInputKeyPress = (e) => {
-    if (e.key === "Enter") handleAddIcao();
+    if (e.key === "Enter") {
+      handleAddIcao();
+    }
   };
 
-  // Consolidate data for the "ALL" tab - NOW WITH useMemo IMPORTED
+  // Consolidate data for the "ALL" tab
   const allNotamsData = useMemo(() => {
     let combined = [];
     let isLoading = false;
     let anyError = null;
 
-    // Sort ICAOs alphabetically for consistent order
     const sortedIcaos = [...icaos].sort();
 
     sortedIcaos.forEach(icao => {
@@ -82,14 +131,14 @@ const App = () => {
         if (storeEntry.loading) isLoading = true;
         if (storeEntry.error) anyError = anyError || storeEntry.error;
         if (storeEntry.data && storeEntry.data.length > 0) {
-          // Add a header for each ICAO group
           combined.push({ isIcaoHeader: true, icao: icao, id: `header-${icao}` });
           combined = combined.concat(storeEntry.data);
         }
       } else {
-        isLoading = true; // If an ICAO hasn't even started fetching
+        isLoading = true;
       }
     });
+    
     return { data: combined, loading: isLoading, error: anyError };
   }, [notamDataStore, icaos]);
 
@@ -98,66 +147,109 @@ const App = () => {
     : notamDataStore[activeTab] || { data: [], loading: true, error: null };
 
   const Tab = ({ id, label, onRemove }) => (
-    <div className={`icao-tab ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id)}>
+    <div 
+      className={`icao-tab ${activeTab === id ? 'active' : ''}`} 
+      onClick={() => setActiveTab(id)}
+    >
       <span>{label}</span>
       {onRemove && (
-        <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn ml-2">&times;</button>
+        <button 
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            onRemove(id); 
+          }} 
+          className="remove-btn"
+          title={`Remove ${id}`}
+        >
+          ×
+        </button>
       )}
     </div>
   );
 
   return (
-    <div className="container mx-auto px-2 py-6">
-      <Header />
+    <div className="container">
+      <ModernHeader />
       
-      <div className="glass p-4 flex flex-col sm:flex-row items-center gap-4 mb-4">
-        <input 
-          ref={icaoInputRef} 
-          placeholder="Enter ICAOs (e.g. CYYT, KJFK)" 
-          className="px-4 py-2 rounded-lg bg-[#21263b] border border-[#283057] text-lg outline-cyan-300 font-mono tracking-widest uppercase" 
-          onKeyPress={handleIcaoInputKeyPress} 
-        />
-        <button 
-          onClick={handleAddIcao} 
-          className="bg-cyan-500 hover:bg-cyan-400 px-4 py-2 rounded-lg font-bold text-[#131926] transition shadow"
-        >
-          Add ICAO(s)
-        </button>
+      <div className="glass icao-input-container">
+        <div className="icao-input-wrapper">
+          <input 
+            ref={icaoInputRef} 
+            placeholder="Enter ICAO codes (e.g., CYYT, KJFK, EGLL)" 
+            className="icao-input" 
+            onKeyPress={handleIcaoInputKeyPress}
+            disabled={isAdding}
+          />
+          <button 
+            onClick={handleAddIcao} 
+            className={`add-button ${isAdding ? 'loading' : ''}`}
+            disabled={isAdding}
+          >
+            {isAdding ? (
+              <>
+                <span className="loading-spinner"></span>
+                Adding...
+              </>
+            ) : (
+              'Add ICAO'
+            )}
+          </button>
+        </div>
       </div>
       
-      <div className="glass p-4">
+      <div className="glass">
         <div className="icao-tabs">
-          <Tab id="ALL" label="ALL" />
-          {icaos.map(icao => (
-            <Tab key={icao} id={icao} label={icao} onRemove={handleRemoveIcao} />
-          ))}
+          <Tab id="ALL" label={`ALL (${icaos.length})`} />
+          {icaos.map(icao => {
+            const count = notamDataStore[icao]?.data?.length || 0;
+            return (
+              <Tab 
+                key={icao} 
+                id={icao} 
+                label={`${icao} (${count})`} 
+                onRemove={handleRemoveIcao} 
+              />
+            );
+          })}
         </div>
         
-        <div>
-          <NotamTabContent 
-            icao={activeTab} 
-            notams={activeNotamData.data} 
-            loading={activeNotamData.loading} 
-            error={activeNotamData.error} 
-          />
-        </div>
+        <NotamTabContent 
+          icao={activeTab} 
+          notams={activeNotamData.data} 
+          loading={activeNotamData.loading} 
+          error={activeNotamData.error} 
+        />
       </div>
     </div>
   );
 };
 
-const Header = () => {
+const ModernHeader = () => {
   const [utcTime, setUtcTime] = useState('');
+  const [mounted, setMounted] = useState(false);
+  
   useEffect(() => {
-    const tick = () => setUtcTime(new Date().toUTCString().slice(5, -4)); // Cleaner format
+    setMounted(true);
+    const tick = () => {
+      const now = new Date();
+      const timeString = now.toUTCString().slice(5, -4);
+      setUtcTime(timeString);
+    };
+    
     tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
   }, []);
+
   return (
-    <header className="p-4 mb-2 text-center">
-      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-cyan-300">NOTAM Console</h1>
-      <p className="mt-2 text-lg sm:text-xl font-mono text-cyan-400 font-semibold">{utcTime} UTC</p>
+    <header className={`modern-header ${mounted ? 'mounted' : ''}`}>
+      <h1>NOTAM Console</h1>
+      <p>{utcTime} UTC</p>
+      <div className="header-decoration">
+        <div className="decoration-line"></div>
+        <div className="decoration-dot"></div>
+        <div className="decoration-line"></div>
+      </div>
     </header>
   );
 };
