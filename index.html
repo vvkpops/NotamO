@@ -21,18 +21,18 @@
 <body class="bg-primary text-primary font-sans">
 
   <!-- Notification Bell & Modal -->
-  <div id="notification-bell" class="notification-bell">
-    <span style="font-size:26px;position:relative;">
+  <div id="notification-bell" class="fixed top-4 right-4 z-50 cursor-pointer text-2xl text-text-secondary hover:text-accent-amber transition-colors duration-200">
+    <span class="relative">
       <i class="fa-solid fa-bell"></i>
-      <span id="notification-badge" class="notification-badge">0</span>
+      <span id="notification-badge" class="absolute -top-1 -right-2 w-5 h-5 bg-status-red text-white text-xs font-bold rounded-full flex items-center justify-center border-2 border-primary" style="display: none;">0</span>
     </span>
   </div>
-  <div id="notification-modal" class="notification-modal">
-    <div class="notification-modal-header">
-      <span style="font-size:1.2em;font-weight:bold;">Notifications</span>
-      <button id="clear-notifications-btn" class="clear-notifications-btn">Clear All</button>
+  <div id="notification-modal" style="display: none;" class="fixed top-16 right-4 w-80 bg-secondary rounded-lg shadow-2xl z-50 border border-tertiary">
+    <div class="flex justify-between items-center p-3 border-b border-tertiary">
+      <span class="text-base font-bold text-text-primary">Notifications</span>
+      <button id="clear-notifications-btn" class="text-xs font-semibold text-text-secondary hover:text-status-red transition-colors">Clear All</button>
     </div>
-    <div id="notification-list" class="notification-list"></div>
+    <div id="notification-list" class="max-h-96 overflow-y-auto"></div>
   </div>
 
   <!-- Main Container -->
@@ -55,23 +55,22 @@
         <div id="icao-list-wrapper" class="flex-grow flex items-center">
             <div id="icao-list" class="flex flex-wrap gap-2 ml-4"></div>
         </div>
-        <button id="icao-list-toggle" type="button" class="ml-auto text-xl px-3 py-1 rounded-full bg-tertiary text-accent-cyan hover:bg-gray-600 transition">⯆</button>
       </form>
     </div>
 
     <!-- ICAO Sets Bar -->
-    <div id="icao-sets-bar" class="flex flex-wrap gap-2 items-center mb-4"></div>
+    <div id="icao-sets-bar" class="flex flex-wrap gap-2 items-center mb-4 p-3 bg-secondary/50 rounded-lg"></div>
 
     <!-- Progress Bar -->
     <div id="icao-progress-bar-outer" class="bg-secondary/50 p-3 rounded-lg mb-4">
-      <div id="icao-progress-label" class="text-sm font-medium text-text-secondary mb-1">ICAO Load Progress</div>
-      <div id="icao-progress-bar-bg" class="w-full h-3 bg-primary rounded-full overflow-hidden">
+      <div class="flex justify-between items-center mb-1">
+        <div id="icao-progress-label" class="text-sm font-medium text-text-secondary">ICAO Load Progress</div>
+        <div id="icao-progress-timer" class="text-xs font-mono text-accent-amber"></div>
+      </div>
+      <div id="icao-progress-bar-bg" class="w-full h-2 bg-primary rounded-full overflow-hidden">
         <div id="icao-progress-bar" class="h-full bg-accent-cyan rounded-full transition-all duration-500"></div>
       </div>
-      <div class="flex justify-between items-center mt-1">
-          <div id="icao-progress-text" class="text-xs font-mono text-text-secondary">0 of 0 loaded</div>
-          <div id="icao-progress-timer" class="text-xs font-mono text-accent-amber"></div>
-      </div>
+      <div id="icao-progress-text" class="text-xs font-mono text-text-secondary mt-1">0 of 0 loaded</div>
     </div>
 
     <!-- Filter Bar -->
@@ -93,7 +92,7 @@
       <div class="flex items-center gap-3 mt-2 sm:mt-0">
         <div class="card-scale-wrap flex items-center gap-2">
           <span class="text-sm font-bold text-accent-amber">Size</span>
-          <input id="card-scale-slider" class="card-scale-slider" type="range" min="0.5" max="1.5" step="0.01" value="1"/>
+          <input id="card-scale-slider" class="w-24" type="range" min="0.5" max="1.5" step="0.01" value="1"/>
           <span class="card-scale-value font-mono text-sm text-text-secondary w-12 text-center" id="card-scale-value">1.00x</span>
         </div>
         <input id="f-keyword" type="text" class="px-3 py-1 rounded-md w-40 bg-primary border border-tertiary focus:border-accent-amber" placeholder="Keyword..." />
@@ -115,6 +114,8 @@
   <button id="back-to-top-btn" title="Back to top" aria-label="Back to top" class="hidden fixed bottom-5 right-5 z-50 w-11 h-11 bg-accent-cyan/80 text-bg-primary rounded-full cursor-pointer text-xl items-center justify-center shadow-lg backdrop-blur-sm border border-cyan-300/50 hover:bg-accent-cyan hover:scale-110 transition-all duration-200">
     <i class="fa fa-arrow-up"></i>
   </button>
+  
+  <!-- Raw NOTAM Modal (created by JS) -->
 
   <!-- JavaScript Entry Point -->
   <script type="module" src="/public/main.js"></script>
