@@ -17,7 +17,8 @@ export const getNotamFlags = (notam) => {
     isRunway: /\bRWY\b/.test(combinedText) || /\bRUNWAY\b/.test(combinedText),
     isTaxiway: /\bTWY\b/.test(combinedText) || /\bTAXIWAY\b/.test(combinedText),
     isFuel: /\bFUEL\b/.test(combinedText),
-    isCancelled: (notam.type === "C" || /\bCANCELLED\b/.test(combinedText) || /\bCNL\b/.test(combinedText)),
+    // Use the reliable `isCancellation` flag from the API first.
+    isCancelled: notam.isCancellation || (notam.type === "C" || /\bCANCELLED\b/.test(combinedText) || /\bCNL\b/.test(combinedText)),
     isRSC: /\bRSC\b/.test(combinedText), // Runway Surface Condition
     isCRFI: /\bCRFI\b/.test(combinedText), // Canadian Runway Friction Index
   };
@@ -28,6 +29,9 @@ export const getNotamType = (notam) => {
   const text = (notam.summary || '').toUpperCase();
   const rawText = (notam.rawText || '').toUpperCase();
   const combinedText = `${text} ${rawText}`;
+
+  // Prioritize cancellation status
+  if (flags.isCancelled) return 'cancelled';
   
   // Check for ILS/Nav aids FIRST (before runway check)
   // This handles cases like "ILS RWY 09" which should be classified as ILS, not runway
@@ -65,7 +69,6 @@ export const getNotamType = (notam) => {
   
   if (flags.isTaxiway) return 'twy';
   if (flags.isFuel) return 'fuel';
-  if (flags.isCancelled) return 'cancelled';
   
   return 'other';
 };
@@ -122,7 +125,10 @@ export const isNotamCurrent = (notam) => {
   const now = new Date();
   const from = parseDate(notam.validFrom);
   const to = parseDate(notam.validTo);
-  if (notam.validTo === 'PERMANENT') return true;
+  if (notam.validTo === 'PERMANENT' || notam.validTo === 'PERM') {
+      const fromDate = parseDate(notam.validFrom);
+      return fromDate ? fromDate <= now : true;
+  }
   if (!from) return true;
   return from <= now && (!to || to >= now);
 };
