@@ -10,9 +10,9 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('ALL');
   const [notamDataStore, setNotamDataStore] = useState({});
   const [isAdding, setIsAdding] = useState(false);
-  const [isWideMode, setIsWideMode] = useState(() => {
-    const saved = localStorage.getItem('notamWideMode');
-    return saved ? JSON.parse(saved) : false;
+  const [cardSize, setCardSize] = useState(() => {
+    const saved = localStorage.getItem('notamCardSize');
+    return saved ? JSON.parse(saved) : 420; // Default size
   });
 
   // Filter states moved from NotamTabContent
@@ -51,8 +51,8 @@ const App = () => {
   }, [keywordCategories]);
   
   useEffect(() => {
-    localStorage.setItem('notamWideMode', JSON.stringify(isWideMode));
-  }, [isWideMode]);
+    localStorage.setItem('notamCardSize', JSON.stringify(cardSize));
+  }, [cardSize]);
 
   const icaoInputRef = useRef(null);
 
@@ -304,7 +304,7 @@ const App = () => {
   );
 
   return (
-    <div className={`container ${isWideMode ? 'wide-mode' : ''}`}>
+    <div className="container" style={{ '--notam-card-size': `${cardSize}px` }}>
       <ModernHeader />
       
       <div className="glass icao-input-container">
@@ -354,25 +354,9 @@ const App = () => {
                   : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'
               }}
             >
-              <span className="filter-icon">🎯</span>
+              <span className="filter-icon">💡</span>
               <span className="filter-text">HIGHLIGHT</span>
               {keywordHighlightEnabled && (
-                <span className="filter-badge">ON</span>
-              )}
-            </button>
-            <button 
-              className="filter-toggle-btn"
-              onClick={() => setIsWideMode(prev => !prev)}
-              title={isWideMode ? "Disable Wide Mode" : "Enable Wide Mode"}
-              style={{
-                background: isWideMode
-                  ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
-                  : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'
-              }}
-            >
-              <span className="filter-icon">{isWideMode ? '↔️' : '↕️'}</span>
-              <span className="filter-text">WIDE</span>
-              {isWideMode && (
                 <span className="filter-badge">ON</span>
               )}
             </button>
@@ -398,6 +382,20 @@ const App = () => {
                 ✕
               </button>
             )}
+          </div>
+          <div className="card-sizer-control">
+            <span className="sizer-icon">↔️</span>
+            <input
+              type="range"
+              min="420"
+              max="800"
+              step="10"
+              value={cardSize}
+              onChange={(e) => setCardSize(e.target.value)}
+              className="card-size-slider"
+              title={`Adjust card width: ${cardSize}px`}
+            />
+            <span className="sizer-value">{cardSize}px</span>
           </div>
           {hasActiveFilters && (
             <button className="quick-clear-btn" onClick={clearAllFilters}>
@@ -433,7 +431,6 @@ const App = () => {
           filterOrder={filterOrder}
           keywordHighlightEnabled={keywordHighlightEnabled}
           keywordCategories={keywordCategories}
-          isWideMode={isWideMode}
         />
       </div>
 
