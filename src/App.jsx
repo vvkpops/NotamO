@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import NotamTabContent from './NotamTabContent';
 import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
 import { FilterModal } from './NotamTabContent';
-import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKeywordHighlight';
+import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKeywordHighlight.jsx';
 
 const App = () => {
   // State Management
