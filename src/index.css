@@ -787,22 +787,27 @@ body::before {
   margin-top: 2rem;
 }
 
-/* Next-level NOTAM cards */
+/* Next-level NOTAM cards - Updated for subtle design */
 .notam-card {
   position: relative;
-  /* height is now dynamic */
-  /* height: var(--card-height); */
   overflow: hidden;
   display: flex;
   flex-direction: column;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: default; /* No more pointer cursor for expand */
+  cursor: default;
   border-radius: 16px;
   background: rgba(17, 24, 39, 0.8);
   backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   opacity: 0;
   transform: translateY(20px) scale(0.95);
+}
+
+/* Remove the left border color variations */
+.notam-card.time-future,
+.notam-card.time-expired,
+.notam-card.time-active {
+  border-left: 1px solid var(--glass-border); /* Reset to default border */
 }
 
 .notam-card.visible {
@@ -831,19 +836,6 @@ body::before {
 
 .notam-card:hover::before {
   opacity: 0.05;
-}
-
-.notam-card.time-future {
-  border-left: 3px solid var(--accent-orange);
-}
-
-.notam-card.time-expired {
-  border-left: 3px solid var(--accent-red);
-  opacity: 0.7;
-}
-
-.notam-card.time-active {
-  border-left: 3px solid var(--accent-green);
 }
 
 .notam-card.auto-sized {
@@ -919,12 +911,63 @@ body::before {
 .head-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
-.time-badge {
-  font-size: 1.2rem;
+/* New time status badge in header */
+.time-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.time-status-badge.active {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.time-status-badge.future {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.time-status-badge.expired {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
   animation: subtle-pulse 2s ease-in-out infinite;
+}
+
+.status-dot.active {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+.status-dot.future {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+
+.status-dot.expired {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
 }
 
 .copy-btn {
@@ -946,47 +989,48 @@ body::before {
 
 @keyframes subtle-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(0.95); }
+  50% { opacity: 0.7; transform: scale(0.9); }
 }
 
+/* More subtle header colors - reduced opacity */
 .head-rwy { 
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.8) 0%, rgba(220, 38, 38, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.6) 0%, rgba(220, 38, 38, 0.4) 100%);
   color: #fecaca;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .head-twy { 
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.8) 0%, rgba(217, 119, 6, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.6) 0%, rgba(217, 119, 6, 0.4) 100%);
   color: #fef3c7;
 }
 
 .head-rsc { 
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.8) 0%, rgba(5, 150, 105, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.6) 0%, rgba(5, 150, 105, 0.4) 100%);
   color: #d1fae5;
 }
 
 .head-crfi { 
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(124, 58, 237, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.6) 0%, rgba(124, 58, 237, 0.4) 100%);
   color: #ede9fe;
 }
 
 .head-ils { 
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.8) 0%, rgba(37, 99, 235, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.6) 0%, rgba(37, 99, 235, 0.4) 100%);
   color: #dbeafe;
 }
 
 .head-fuel { 
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.8) 0%, rgba(219, 39, 119, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.6) 0%, rgba(219, 39, 119, 0.4) 100%);
   color: #fce7f3;
 }
 
 .head-cancelled { 
-  background: linear-gradient(135deg, rgba(107, 114, 128, 0.8) 0%, rgba(75, 85, 99, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(107, 114, 128, 0.6) 0%, rgba(75, 85, 99, 0.4) 100%);
   color: #f3f4f6;
 }
 
 .head-other { 
-  background: linear-gradient(135deg, rgba(75, 85, 99, 0.8) 0%, rgba(55, 65, 81, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(75, 85, 99, 0.6) 0%, rgba(55, 65, 81, 0.4) 100%);
   color: #f3f4f6;
 }
 
