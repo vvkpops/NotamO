@@ -215,9 +215,13 @@ const App = () => {
       const text = (notam.summary || '').toLowerCase();
 
       if (keywordFilter && !text.includes(keywordFilter.toLowerCase())) return false;
+      
+      // Handle type-based filtering first
+      if (filters[type] === false) return false;
+      
+      // Then handle time-based filtering
       if (!filters.current && isNotamCurrent(notam)) return false;
       if (!filters.future && isNotamFuture(notam)) return false;
-      if (filters[type] === false) return false;
 
       return true;
     });
