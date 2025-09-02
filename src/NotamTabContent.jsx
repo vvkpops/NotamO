@@ -117,23 +117,6 @@ const SearchInput = ({ value, onChange, placeholder, icon = "🔍" }) => (
   </div>
 );
 
-const StatsDisplay = ({ stats }) => (
-  <div className="stats-display">
-    <div className="stat-item">
-      <span className="stat-value active">{stats.active}</span>
-      <span className="stat-label">Active</span>
-    </div>
-    <div className="stat-item">
-      <span className="stat-value future">{stats.future}</span>
-      <span className="stat-label">Future</span>
-    </div>
-    <div className="stat-item">
-      <span className="stat-value runway">{stats.runway}</span>
-      <span className="stat-label">Runway</span>
-    </div>
-  </div>
-);
-
 const LoadingState = () => (
   <div className="loading-state">
     <div className="loading-spinner-large"></div>
@@ -254,20 +237,13 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
     // This will be handled by individual chips
   };
 
-  const { filteredNotams, stats, typeCounts } = useMemo(() => {
-    if (!notams) return { filteredNotams: [], stats: {}, typeCounts: {} };
+  const { filteredNotams, typeCounts } = useMemo(() => {
+    if (!notams) return { filteredNotams: [], typeCounts: {} };
     
-    // Calculate type counts and stats from all NOTAMs
+    // Calculate type counts from all NOTAMs
     const counts = {
       rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0,
       fuel: 0, other: 0, cancelled: 0, current: 0, future: 0
-    };
-    
-    const allStats = {
-      total: 0,
-      active: 0,
-      future: 0,
-      runway: 0
     };
 
     notams.forEach(notam => {
@@ -275,18 +251,12 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
       
       const type = getNotamType(notam);
       counts[type]++;
-      allStats.total++;
       
       if (isNotamCurrent(notam)) {
         counts.current++;
-        allStats.active++;
       }
       if (isNotamFuture(notam)) {
         counts.future++;
-        allStats.future++;
-      }
-      if (type === 'rwy') {
-        allStats.runway++;
       }
     });
     
@@ -342,7 +312,6 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
 
     return { 
       filteredNotams: results, 
-      stats: allStats, 
       typeCounts: counts 
     };
   }, [notams, keywordFilter, filters, icao, filterOrder]);
@@ -413,11 +382,6 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
 
   return (
     <div className="notam-tab-content">
-      {/* Stats Display */}
-      {notams && notams.length > 0 && (
-        <StatsDisplay stats={stats} />
-      )}
-
       {/* Enhanced Filter System */}
       <div className="modern-filter-container">
         <div className="filter-header">
@@ -428,13 +392,6 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
             </button>
           )}
         </div>
-
-        <SearchInput
-          value={keywordFilter}
-          onChange={setKeywordFilter}
-          placeholder="Search NOTAMs by content..."
-          icon="🔍"
-        />
 
         <div className="filter-section">
           <h4>NOTAM Types (Drag to reorder card priority)</h4>
@@ -476,6 +433,15 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
               />
             ))}
           </div>
+        </div>
+
+        <div className="filter-footer">
+          <SearchInput
+            value={keywordFilter}
+            onChange={setKeywordFilter}
+            placeholder="Search..."
+            icon="🔍"
+          />
         </div>
       </div>
 
