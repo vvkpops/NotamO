@@ -217,8 +217,26 @@
 .tab-actions {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.5rem; /* Adjusted gap */
   margin-left: 0.75rem;
+}
+
+.countdown-timer {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transition: color 0.3s ease;
+}
+
+.icao-tab:hover .countdown-timer {
+  color: var(--accent-purple);
+}
+
+.icao-tab.active .countdown-timer {
+  color: var(--accent-blue);
 }
 
 .refresh-btn,
