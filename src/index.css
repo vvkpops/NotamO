@@ -1534,3 +1534,81 @@ body::before {
   color: var(--accent-blue);
   transform: rotate(90deg) scale(1.2);
 }
+
+/* Keyword Highlighting Styles */
+.notam-keyword-highlight {
+  display: inline;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.9em;
+  white-space: nowrap;
+  cursor: help;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.notam-keyword-highlight:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Color classes for keyword highlighting */
+.notam-highlight-red {
+  background-color: #ef4444 !important;
+  color: #fff !important;
+}
+
+.notam-highlight-orange {
+  background-color: #f97316 !important;
+  color: #fff !important;
+}
+
+.notam-highlight-yellow {
+  background-color: #eab308 !important;
+  color: #000 !important;
+}
+
+.notam-highlight-green {
+  background-color: #22c55e !important;
+  color: #fff !important;
+}
+
+.notam-highlight-blue {
+  background-color: #3b82f6 !important;
+  color: #fff !important;
+}
+
+.notam-highlight-purple {
+  background-color: #a855f7 !important;
+  color: #fff !important;
+}
+
+.notam-highlight-pink {
+  background-color: #ec4899 !important;
+  color: #fff !important;
+}
+
+.notam-highlight-cyan {
+  background-color: #06b6d4 !important;
+  color: #000 !important;
+}
+
+.notam-highlight-gray {
+  background-color: #6b7280 !important;
+  color: #fff !important;
+}
+
+.notam-highlight-indigo {
+  background-color: #6366f1 !important;
+  color: #fff !important;
+}
+
+/* Enhanced filter toggle button for highlight feature */
+.filter-toggle-btn.highlight-enabled {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+}
+
+.filter-toggle-btn.highlight-disabled {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+}
