@@ -222,7 +222,7 @@ export default async function handler(request, response) {
             }
         }
         
-        // Filter out cancelled NOTAMs
+        // Identify which NOTAMs are cancelled by another NOTAM
         const cancelledNotamNumbers = new Set();
         combinedNotams.forEach(n => {
             if (n.isCancellation && n.cancels) {
@@ -233,11 +233,19 @@ export default async function handler(request, response) {
         const now = new Date();
         const finalNotams = combinedNotams
             .filter(n => {
+                // Remove NOTAMs that have been explicitly cancelled
                 if (cancelledNotamNumbers.has(n.number)) {
                     return false;
                 }
-                if (n.isCancellation) return true;
-                if (!n.validTo || n.validTo === 'PERMANENT') return true;
+                // Keep cancellation NOTAMs for now; they will be filtered on the client
+                if (n.isCancellation) {
+                    return true;
+                }
+                // Keep NOTAMs that are permanent or have no end date
+                if (!n.validTo || n.validTo === 'PERMANENT') {
+                    return true;
+                }
+                // Keep NOTAMs that have not expired yet
                 const validToDate = parseDate(n.validTo);
                 return validToDate ? validToDate >= now : true;
             })
