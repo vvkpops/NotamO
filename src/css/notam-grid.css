@@ -120,31 +120,82 @@
   opacity: 0.05;
 }
 
-/* New NOTAM indicator styles */
+/* Enhanced New NOTAM indicator styles */
 .notam-card.is-new {
   border-color: var(--accent-green);
-  box-shadow: 0 0 25px rgba(16, 185, 129, 0.3);
+  box-shadow: 
+    0 0 25px rgba(16, 185, 129, 0.3),
+    0 0 50px rgba(16, 185, 129, 0.1);
+  animation: new-card-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes new-card-glow {
+  0% {
+    box-shadow: 
+      0 0 25px rgba(16, 185, 129, 0.3),
+      0 0 50px rgba(16, 185, 129, 0.1);
+  }
+  100% {
+    box-shadow: 
+      0 0 35px rgba(16, 185, 129, 0.5),
+      0 0 70px rgba(16, 185, 129, 0.2);
+  }
 }
 
 .new-notam-indicator {
   position: absolute;
   top: -1px;
   right: -1px;
-  background: var(--accent-green);
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: white;
-  padding: 0.5rem 1rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  border-radius: 0 18px 0 12px;
-  z-index: 3;
-  box-shadow: -2px 2px 10px rgba(16, 185, 129, 0.4);
-  animation: new-pulse 1.5s infinite;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border-radius: 0 18px 0 16px;
+  z-index: 10;
+  box-shadow: 
+    -2px 2px 10px rgba(16, 185, 129, 0.4),
+    0 0 20px rgba(16, 185, 129, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  animation: new-indicator-pulse 2s infinite;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
-@keyframes new-pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+.new-badge-text {
+  position: relative;
+  z-index: 2;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.new-badge-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%);
+  animation: new-badge-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes new-indicator-pulse {
+  0%, 100% { 
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% { 
+    transform: scale(1.05);
+    filter: brightness(1.1);
+  }
+}
+
+@keyframes new-badge-shimmer {
+  0% { opacity: 0; transform: translateX(-100%); }
+  50% { opacity: 1; transform: translateX(0%); }
+  100% { opacity: 0; transform: translateX(100%); }
 }
 
 .notam-card.auto-sized {
@@ -168,6 +219,16 @@
 .notam-card:hover .card-glow {
   opacity: 1;
   box-shadow: 0 0 35px rgba(0, 212, 255, 0.2);
+}
+
+/* Enhanced glow for new NOTAMs */
+.notam-card.is-new .card-glow {
+  box-shadow: 0 0 35px rgba(16, 185, 129, 0.3);
+}
+
+.notam-card.is-new:hover .card-glow {
+  opacity: 1;
+  box-shadow: 0 0 50px rgba(16, 185, 129, 0.4);
 }
 
 /* Card headers */
@@ -284,6 +345,7 @@
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
 }
 
+/* Enhanced copy button */
 .copy-btn {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -294,11 +356,22 @@
   transition: all 0.2s ease;
   font-size: 1rem;
   backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
 }
 
-.copy-btn:hover {
+.copy-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.2);
   transform: scale(1.05);
+}
+
+.copy-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.copy-btn:active {
+  transform: scale(0.95);
 }
 
 /* Header colors */
@@ -369,6 +442,12 @@
   flex-grow: 1;
   overflow-x: auto;
   border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.notam-raw-text:hover {
+  background-color: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .notam-meta {
@@ -380,6 +459,12 @@
   border-radius: 12px;
   border-left: 4px solid var(--accent-blue);
   border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.notam-meta:hover {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .validity-info {
@@ -513,10 +598,35 @@
     }
 }
 
-/* Reduced motion */
+/* Reduced motion accessibility */
 @media (prefers-reduced-motion: reduce) {
-    .notam-grid > * {
+    .notam-grid > *,
+    .notam-card,
+    .new-notam-indicator,
+    .status-dot,
+    .copy-btn {
       transition: none;
+      animation: none;
+    }
+    
+    .notam-card.is-new {
+      animation: none;
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .notam-card {
+      border: 2px solid var(--glass-border);
+    }
+    
+    .notam-card.is-new {
+      border: 2px solid var(--accent-green);
+    }
+    
+    .new-notam-indicator {
+      border: 2px solid white;
     }
 }
 
@@ -538,5 +648,9 @@
   }
   .head-actions {
     gap: 1rem;
+  }
+  .new-notam-indicator {
+    padding: 0.5rem 1rem;
+    font-size: 0.7rem;
   }
 }
