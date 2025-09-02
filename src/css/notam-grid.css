@@ -1,11 +1,12 @@
 /* --- NOTAM Grid and Card Styles --- */
 
 .notam-tab-content {
-  padding: 2.5rem;
+  /* Reduced padding to decrease gap */
+  padding: 1.5rem 2.5rem 2.5rem;
 }
 
 .notam-results {
-  margin-top: 2.5rem;
+  margin-top: 0; /* Removed margin-top to decrease gap */
 }
 
 /* Enhanced ICAO headers */
@@ -15,7 +16,7 @@
   border: none;
   border-left: 5px solid var(--accent-blue);
   border-radius: 16px;
-  margin: 3rem 0 1.5rem;
+  margin: 1.5rem 0; /* Adjusted margin */
   padding: 2rem;
   backdrop-filter: blur(20px);
   box-shadow: 0 4px 20px rgba(0, 212, 255, 0.15);
@@ -69,7 +70,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(var(--notam-card-size, 420px), 1fr));
   gap: var(--grid-gap);
-  margin-top: 2.5rem;
+  margin-top: 1.5rem;
   transition: grid-template-columns 0.5s ease;
 }
 
@@ -117,6 +118,33 @@
 
 .notam-card:hover::before {
   opacity: 0.05;
+}
+
+/* New NOTAM indicator styles */
+.notam-card.is-new {
+  border-color: var(--accent-green);
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.3);
+}
+
+.new-notam-indicator {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  background: var(--accent-green);
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 0 18px 0 12px;
+  z-index: 3;
+  box-shadow: -2px 2px 10px rgba(16, 185, 129, 0.4);
+  animation: new-pulse 1.5s infinite;
+}
+
+@keyframes new-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
 
 .notam-card.auto-sized {

@@ -15,6 +15,11 @@ const App = () => {
     return saved ? JSON.parse(saved) : 420; // Default size
   });
 
+  // New states for batching and new NOTAM detection
+  const [fetchQueue, setFetchQueue] = useState([]);
+  const isProcessingQueue = useRef(false);
+  const queueTimerRef = useRef(null);
+
   // Filter states moved from NotamTabContent
   const [keywordFilter, setKeywordFilter] = useState('');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -70,14 +75,25 @@ const App = () => {
         throw new Error(data.error || `Failed to fetch NOTAMs for ${icao}`);
       }
       
-      setNotamDataStore(prev => ({ 
-        ...prev, 
-        [icao]: { 
-          data: data.map(n => ({...n, icao})), 
-          loading: false, 
-          error: null 
-        } 
-      }));
+      setNotamDataStore(prev => {
+        const oldData = prev[icao]?.data || [];
+        const oldNotamIds = new Set(oldData.map(n => n.id));
+
+        const newData = data.map(n => ({
+          ...n,
+          icao,
+          isNew: !oldNotamIds.has(n.id) // Mark as new if ID wasn't present before
+        }));
+
+        return { 
+          ...prev, 
+          [icao]: { 
+            data: newData, 
+            loading: false, 
+            error: null 
+          } 
+        };
+      });
     } catch (err) {
       setNotamDataStore(prev => ({ 
         ...prev, 
@@ -90,13 +106,42 @@ const App = () => {
     }
   }, []);
 
+  // Effect to process the fetch queue
   useEffect(() => {
-    icaos.forEach(icao => {
-      if (!notamDataStore[icao]) {
-        fetchNotams(icao);
+    const processQueue = () => {
+      if (isProcessingQueue.current || fetchQueue.length === 0) {
+        return;
       }
-    });
-  }, [icaos, notamDataStore, fetchNotams]);
+      
+      isProcessingQueue.current = true;
+      const icaoToFetch = fetchQueue[0];
+      
+      fetchNotams(icaoToFetch).finally(() => {
+        setFetchQueue(prev => prev.slice(1)); // Remove the processed ICAO
+        
+        queueTimerRef.current = setTimeout(() => {
+          isProcessingQueue.current = false;
+          processQueue(); // Process next item after delay
+        }, 2100); // User-specified 2.1-second delay
+      });
+    };
+
+    processQueue();
+
+    return () => {
+      if (queueTimerRef.current) {
+        clearTimeout(queueTimerRef.current);
+      }
+    };
+  }, [fetchQueue, fetchNotams]);
+
+  // Initial fetch for existing ICAOs
+  useEffect(() => {
+    const icaosToFetch = icaos.filter(icao => !notamDataStore[icao] && !fetchQueue.includes(icao));
+    if (icaosToFetch.length > 0) {
+      setFetchQueue(prev => [...new Set([...prev, ...icaosToFetch])]);
+    }
+  }, [icaos]); // Run only when `icaos` array changes initially or is loaded
 
   useEffect(() => {
     localStorage.setItem("notamIcaos", JSON.stringify(icaos));
@@ -105,7 +150,7 @@ const App = () => {
     }
   }, [icaos, activeTab]);
   
-  const handleAddIcao = useCallback(async () => {
+  const handleAddIcao = useCallback(() => {
     if (!icaoInputRef.current || isAdding) return;
     
     const input = icaoInputRef.current.value.toUpperCase().trim();
@@ -125,12 +170,15 @@ const App = () => {
 
     setIsAdding(true);
     
-    const addedIcaos = newIcaoInputs.filter(icao => !icaos.includes(icao));
+    const uniqueNewIcaos = [...new Set(newIcaoInputs.filter(icao => !icaos.includes(icao)))];
     
-    if (addedIcaos.length > 0) {
-      setIcaos(prev => [...prev, ...addedIcaos]);
-      setActiveTab(addedIcaos[0]);
+    if (uniqueNewIcaos.length > 0) {
+      const updatedIcaos = [...icaos, ...uniqueNewIcaos];
+      setIcaos(updatedIcaos);
+      setActiveTab(uniqueNewIcaos[0]);
       
+      setFetchQueue(prev => [...new Set([...prev, ...uniqueNewIcaos])]);
+
       icaoInputRef.current.classList.add('success-flash');
       setTimeout(() => {
         if (icaoInputRef.current) {
@@ -162,7 +210,7 @@ const App = () => {
 
   const allNotamsData = useMemo(() => {
     let combined = [];
-    let isLoading = false;
+    let isLoading = icaos.some(icao => notamDataStore[icao]?.loading || fetchQueue.includes(icao));
     let anyError = null;
 
     const sortedIcaos = [...icaos].sort();
@@ -170,23 +218,29 @@ const App = () => {
     sortedIcaos.forEach(icao => {
       const storeEntry = notamDataStore[icao];
       if (storeEntry) {
-        if (storeEntry.loading) isLoading = true;
         if (storeEntry.error) anyError = anyError || storeEntry.error;
         if (storeEntry.data && storeEntry.data.length > 0) {
           combined.push({ isIcaoHeader: true, icao: icao, id: `header-${icao}` });
           combined = combined.concat(storeEntry.data);
         }
-      } else {
-        isLoading = true;
       }
     });
     
     return { data: combined, loading: isLoading, error: anyError };
-  }, [notamDataStore, icaos]);
+  }, [notamDataStore, icaos, fetchQueue]);
 
-  const activeNotamData = activeTab === 'ALL' 
-    ? allNotamsData 
-    : notamDataStore[activeTab] || { data: [], loading: true, error: null };
+  const activeNotamData = useMemo(() => {
+    if (activeTab === 'ALL') {
+      return allNotamsData;
+    }
+    const storeEntry = notamDataStore[activeTab];
+    const isLoading = storeEntry?.loading || fetchQueue.includes(activeTab);
+    return {
+      data: storeEntry?.data || [],
+      loading: isLoading,
+      error: storeEntry?.error || null,
+    };
+  }, [activeTab, allNotamsData, notamDataStore, fetchQueue]);
 
   // Filter logic moved from NotamTabContent
   const { filteredNotams, typeCounts, hasActiveFilters, activeFilterCount } = useMemo(() => {
@@ -286,26 +340,30 @@ const App = () => {
     setKeywordFilter('');
   };
 
-  const Tab = ({ id, label, onRemove }) => (
-    <div 
-      className={`icao-tab ${activeTab === id ? 'active' : ''}`} 
-      onClick={() => setActiveTab(id)}
-    >
-      <span>{label}</span>
-      {onRemove && (
-        <button 
-          onClick={(e) => { 
-            e.stopPropagation(); 
-            onRemove(id); 
-          }} 
-          className="remove-btn"
-          title={`Remove ${id}`}
-        >
-          ×
-        </button>
-      )}
-    </div>
-  );
+  const Tab = ({ id, label, onRemove }) => {
+    const isLoading = fetchQueue.includes(id) || notamDataStore[id]?.loading;
+    return (
+      <div 
+        className={`icao-tab ${activeTab === id ? 'active' : ''}`} 
+        onClick={() => setActiveTab(id)}
+      >
+        <span>{label}</span>
+        {isLoading && <span className="loading-spinner tab-spinner"></span>}
+        {onRemove && !isLoading && (
+          <button 
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              onRemove(id); 
+            }} 
+            className="remove-btn"
+            title={`Remove ${id}`}
+          >
+            ×
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="container" style={{ '--notam-card-size': `${cardSize}px` }}>
@@ -414,11 +472,12 @@ const App = () => {
           <Tab id="ALL" label={`ALL (${icaos.length})`} />
           {icaos.map(icao => {
             const count = notamDataStore[icao]?.data?.length || 0;
+            const isLoading = fetchQueue.includes(icao) || notamDataStore[icao]?.loading;
             return (
               <Tab 
                 key={icao} 
                 id={icao} 
-                label={`${icao} (${count})`} 
+                label={isLoading ? `${icao}` : `${icao} (${count})`}
                 onRemove={handleRemoveIcao} 
               />
             );
@@ -472,7 +531,7 @@ const ModernHeader = () => {
     const tick = () => {
       const now = new Date();
       const timeString = now.toUTCString().slice(5, -4);
-      setUtcTime(timeString);
+      setUtcTime(timeString + ' UTC');
     };
     
     tick();
@@ -483,12 +542,7 @@ const ModernHeader = () => {
   return (
     <header className={`modern-header ${mounted ? 'mounted' : ''}`}>
       <h1>NOTAM Console</h1>
-      <p>{utcTime} UTC</p>
-      <div className="header-decoration">
-        <div className="decoration-line"></div>
-        <div className="decoration-dot"></div>
-        <div className="decoration-line"></div>
-      </div>
+      <p>{utcTime}</p>
     </header>
   );
 };

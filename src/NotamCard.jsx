@@ -56,7 +56,8 @@ const NotamCard = ({
   };
 
   const timeStatus = getTimeStatus();
-  const cardClasses = `notam-card ${isVisible ? 'visible' : ''} auto-sized`;
+  // Add 'is-new' class if the notam has the isNew flag
+  const cardClasses = `notam-card ${isVisible ? 'visible' : ''} ${notam.isNew ? 'is-new' : ''} auto-sized`;
 
   const copyToClipboard = async (e) => {
     e.stopPropagation();
@@ -86,6 +87,7 @@ const NotamCard = ({
 
   return (
     <div className={cardClasses}>
+      {notam.isNew && <div className="new-notam-indicator">NEW</div>}
       <div className={`card-head ${headClass}`}>
         <div className="head-content">
           <span className="head-title">{headTitle}</span>

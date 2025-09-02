@@ -140,8 +140,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-bottom: var(--section-spacing);
   padding: 1.5rem 2rem;
+  /* Reduced margin-bottom to decrease gap */
+  margin-bottom: 1.5rem; 
 }
 
 .icao-tab {
@@ -160,6 +161,7 @@
   overflow: hidden;
   display: flex;
   align-items: center;
+  gap: 0.75rem;
   min-height: 48px;
   letter-spacing: 0.025em;
 }
@@ -199,6 +201,15 @@
   color: var(--accent-purple);
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(139, 92, 246, 0.15);
+}
+
+.tab-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 .remove-btn {
