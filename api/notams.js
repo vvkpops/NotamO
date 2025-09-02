@@ -64,7 +64,7 @@ const formatNotamToIcao = (notam, originalRawText) => {
     }
     
     // Q line - use parsed data or construct basic one
-    if (parsed.qLine) {
+    if (parsed.qLine && parsed.qLine.trim() !== '') {
         icaoFormatted += `Q) ${parsed.qLine}\n`;
     } else {
         // Construct basic Q line if missing - try to use airport code from notam
@@ -73,21 +73,25 @@ const formatNotamToIcao = (notam, originalRawText) => {
     }
     
     // A line - Aerodrome
-    if (parsed.aerodrome) {
+    if (parsed.aerodrome && parsed.aerodrome.trim() !== '') {
         icaoFormatted += `A) ${parsed.aerodrome}\n`;
     } else if (notam.icao) {
         icaoFormatted += `A) ${notam.icao}\n`;
     }
     
     // B line - Valid from
-    if (parsed.validFromRaw || notam.validFrom) {
-        const fromDate = parsed.validFromRaw || formatToIcaoDate(notam.validFrom);
+    if (parsed.validFromRaw && parsed.validFromRaw.trim() !== '') {
+        icaoFormatted += `B) ${parsed.validFromRaw}\n`;
+    } else if (notam.validFrom) {
+        const fromDate = formatToIcaoDate(notam.validFrom);
         icaoFormatted += `B) ${fromDate}\n`;
     }
     
     // C line - Valid to
-    if (parsed.validToRaw || notam.validTo) {
-        const toDate = parsed.validToRaw || formatToIcaoDate(notam.validTo);
+    if (parsed.validToRaw && parsed.validToRaw.trim() !== '') {
+        icaoFormatted += `C) ${parsed.validToRaw}\n`;
+    } else if (notam.validTo) {
+        const toDate = formatToIcaoDate(notam.validTo);
         if (toDate && toDate !== 'PERM') {
             icaoFormatted += `C) ${toDate}\n`;
         } else if (toDate === 'PERM') {
@@ -96,12 +100,12 @@ const formatNotamToIcao = (notam, originalRawText) => {
     }
     
     // D line - Schedule (if available)
-    if (parsed.schedule) {
+    if (parsed.schedule && parsed.schedule.trim() !== '') {
         icaoFormatted += `D) ${parsed.schedule}\n`;
     }
     
     // E line - Body text
-    if (parsed.body) {
+    if (parsed.body && parsed.body.trim() !== '') {
         icaoFormatted += `E) ${parsed.body}`;
     } else if (originalRawText) {
         // Fallback to original text for E line
@@ -142,6 +146,7 @@ export default async function handler(request, response) {
         let combinedNotams = faaItems.map(item => {
             const core = item.properties?.coreNOTAMData?.notam || {};
             const originalRawText = core.text || 'Full NOTAM text not available from source.';
+            
             const parsed = parseRawNotam(originalRawText);
 
             // Create the NOTAM object
@@ -156,10 +161,17 @@ export default async function handler(request, response) {
                 icao: core.icaoLocation || icao
             };
 
-            // Format to ICAO standard and set both summary and rawText
-            const formattedRawText = formatNotamToIcao(notamObj, originalRawText);
-            notamObj.summary = formattedRawText;
-            notamObj.rawText = formattedRawText;
+            // Check if the original text is already in ICAO format and preserve it
+            if (originalRawText && originalRawText.includes('Q)') && originalRawText.includes('A)') && originalRawText.includes('E)')) {
+                // Already in ICAO format, use as-is
+                notamObj.summary = originalRawText;
+                notamObj.rawText = originalRawText;
+            } else {
+                // Format to ICAO standard and set both summary and rawText
+                const formattedRawText = formatNotamToIcao(notamObj, originalRawText);
+                notamObj.summary = formattedRawText;
+                notamObj.rawText = formattedRawText;
+            }
 
             return notamObj;
         });
