@@ -145,7 +145,10 @@ export default async function handler(request, response) {
 
         let combinedNotams = faaItems.map(item => {
             const core = item.properties?.coreNOTAMData?.notam || {};
-            const originalRawText = core.text || 'Full NOTAM text not available from source.';
+            
+            // Use the formatted ICAO text if available, otherwise fall back to the raw text
+            const formattedIcaoText = item.properties?.coreNOTAMData?.notamTranslation?.[0]?.formattedText;
+            const originalRawText = formattedIcaoText || core.text || 'Full NOTAM text not available from source.';
             
             const parsed = parseRawNotam(originalRawText);
 
@@ -161,8 +164,11 @@ export default async function handler(request, response) {
                 icao: core.icaoLocation || icao
             };
 
-            // Check if the original text is already in ICAO format and preserve it
-            if (originalRawText && originalRawText.includes('Q)') && originalRawText.includes('A)') && originalRawText.includes('E)')) {
+            // If we have the formatted ICAO text, use it directly
+            if (formattedIcaoText) {
+                notamObj.summary = formattedIcaoText;
+                notamObj.rawText = formattedIcaoText;
+            } else if (originalRawText && originalRawText.includes('Q)') && originalRawText.includes('A)') && originalRawText.includes('E)')) {
                 // Already in ICAO format, use as-is
                 notamObj.summary = originalRawText;
                 notamObj.rawText = originalRawText;
