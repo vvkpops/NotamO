@@ -17,7 +17,7 @@ const NotamCard = ({ notam }) => {
   const runways = extractRunways(notam.rawText);
   
   const formatDate = (dateStr) => {
-    if (!dateStr || dateStr === 'PERMANENT') return dateStr || 'N/A';
+    if (!dateStr || dateStr === 'PERMANENT' || dateStr === 'PERM') return 'PERM';
     try {
       const date = new Date(dateStr);
       return date.toLocaleString('en-GB', { 
@@ -35,16 +35,23 @@ const NotamCard = ({ notam }) => {
 
   const getTimeStatus = () => {
     const now = new Date();
+    
+    // Handle PERM dates properly
+    if (notam.validTo === 'PERMANENT' || notam.validTo === 'PERM') {
+      const validFrom = new Date(notam.validFrom);
+      return validFrom > now ? 'future' : 'active';
+    }
+    
     const validFrom = new Date(notam.validFrom);
-    const validTo = notam.validTo === 'PERMANENT' ? null : new Date(notam.validTo);
+    const validTo = new Date(notam.validTo);
     
     if (validFrom > now) return 'future';
-    if (validTo && validTo < now) return 'expired';
+    if (validTo < now) return 'expired';
     return 'active';
   };
 
   const timeStatus = getTimeStatus();
-  const cardClasses = `notam-card ${getHeadClass(notam)} ${isVisible ? 'visible' : ''} auto-sized time-${timeStatus}`;
+  const cardClasses = `notam-card ${isVisible ? 'visible' : ''} auto-sized`;
 
   const copyToClipboard = async (e) => {
     e.stopPropagation();
