@@ -51,6 +51,19 @@ const DraggableFilterChip = ({
     onDrop(draggedType, type);
   };
 
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    onDragOver(type);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    // Only clear if we're actually leaving the element
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      // Don't clear here, let the parent handle it
+    }
+  };
+
   return (
     <button
       ref={chipRef}
@@ -60,6 +73,8 @@ const DraggableFilterChip = ({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       title={`Drag to reorder | ${label}: ${count} NOTAMs`}
     >
@@ -104,10 +119,6 @@ const SearchInput = ({ value, onChange, placeholder, icon = "🔍" }) => (
 
 const StatsDisplay = ({ stats }) => (
   <div className="stats-display">
-    <div className="stat-item">
-      <span className="stat-value">{stats.total}</span>
-      <span className="stat-label">Total NOTAMs</span>
-    </div>
     <div className="stat-item">
       <span className="stat-value active">{stats.active}</span>
       <span className="stat-label">Active</span>
@@ -205,7 +216,9 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
   };
 
   const handleDragOver = (type) => {
-    setDragState(prev => ({ ...prev, draggedOver: type }));
+    if (dragState.draggedItem && dragState.draggedItem !== type) {
+      setDragState(prev => ({ ...prev, draggedOver: type }));
+    }
   };
 
   const handleDrop = (draggedType, dropTargetType) => {
@@ -216,16 +229,29 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
       const draggedIndex = newOrder.indexOf(draggedType);
       const targetIndex = newOrder.indexOf(dropTargetType);
       
+      if (draggedIndex === -1 || targetIndex === -1) return prev;
+      
       // Remove the dragged item
-      newOrder.splice(draggedIndex, 1);
+      const [draggedItem] = newOrder.splice(draggedIndex, 1);
       
       // Insert it at the target position
-      newOrder.splice(targetIndex, 0, draggedType);
+      newOrder.splice(targetIndex, 0, draggedItem);
       
       return newOrder;
     });
     
     setDragState({ draggedItem: null, draggedOver: null });
+  };
+
+  // Container-level drag handlers for better cross-element dragging
+  const handleContainerDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleContainerDrop = (e) => {
+    e.preventDefault();
+    // This will be handled by individual chips
   };
 
   const { filteredNotams, stats, typeCounts } = useMemo(() => {
@@ -387,20 +413,6 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
 
   return (
     <div className="notam-tab-content">
-      {/* Current Filter Order Display */}
-      {filterOrder.length > 0 && (
-        <div className="filter-order-display">
-          <h4>Current Card Priority Order:</h4>
-          <div className="order-chips">
-            {filterOrder.map((type, index) => (
-              <span key={type} className={`order-chip order-chip-${type}`}>
-                {index + 1}. {filterConfig.find(f => f.key === type)?.label || type.toUpperCase()}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Stats Display */}
       {notams && notams.length > 0 && (
         <StatsDisplay stats={stats} />
@@ -426,7 +438,11 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
 
         <div className="filter-section">
           <h4>NOTAM Types (Drag to reorder card priority)</h4>
-          <div className="filter-chips draggable-chips">
+          <div 
+            className="filter-chips draggable-chips"
+            onDragOver={handleContainerDragOver}
+            onDrop={handleContainerDrop}
+          >
             {orderedFilterConfig.map(({ key, label }) => (
               <DraggableFilterChip 
                 key={key} 
