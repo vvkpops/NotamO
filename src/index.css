@@ -803,13 +803,6 @@ body::before {
   transform: translateY(20px) scale(0.95);
 }
 
-/* Remove the left border color variations */
-.notam-card.time-future,
-.notam-card.time-expired,
-.notam-card.time-active {
-  border-left: 1px solid var(--glass-border); /* Reset to default border */
-}
-
 .notam-card.visible {
   opacity: 1;
   transform: translateY(0) scale(1);
