@@ -10,6 +10,10 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('ALL');
   const [notamDataStore, setNotamDataStore] = useState({});
   const [isAdding, setIsAdding] = useState(false);
+  const [isWideMode, setIsWideMode] = useState(() => {
+    const saved = localStorage.getItem('notamWideMode');
+    return saved ? JSON.parse(saved) : false;
+  });
 
   // Filter states moved from NotamTabContent
   const [keywordFilter, setKeywordFilter] = useState('');
@@ -45,6 +49,10 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem('notamKeywordCategories', JSON.stringify(keywordCategories));
   }, [keywordCategories]);
+  
+  useEffect(() => {
+    localStorage.setItem('notamWideMode', JSON.stringify(isWideMode));
+  }, [isWideMode]);
 
   const icaoInputRef = useRef(null);
 
@@ -296,7 +304,7 @@ const App = () => {
   );
 
   return (
-    <div className="container">
+    <div className={`container ${isWideMode ? 'wide-mode' : ''}`}>
       <ModernHeader />
       
       <div className="glass icao-input-container">
@@ -349,6 +357,22 @@ const App = () => {
               <span className="filter-icon">🎯</span>
               <span className="filter-text">HIGHLIGHT</span>
               {keywordHighlightEnabled && (
+                <span className="filter-badge">ON</span>
+              )}
+            </button>
+            <button 
+              className="filter-toggle-btn"
+              onClick={() => setIsWideMode(prev => !prev)}
+              title={isWideMode ? "Disable Wide Mode" : "Enable Wide Mode"}
+              style={{
+                background: isWideMode
+                  ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+                  : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'
+              }}
+            >
+              <span className="filter-icon">{isWideMode ? '↔️' : '↕️'}</span>
+              <span className="filter-text">WIDE</span>
+              {isWideMode && (
                 <span className="filter-badge">ON</span>
               )}
             </button>
@@ -409,6 +433,7 @@ const App = () => {
           filterOrder={filterOrder}
           keywordHighlightEnabled={keywordHighlightEnabled}
           keywordCategories={keywordCategories}
+          isWideMode={isWideMode}
         />
       </div>
 
