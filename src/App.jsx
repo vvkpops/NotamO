@@ -19,6 +19,7 @@ const App = () => {
   const [fetchQueue, setFetchQueue] = useState([]);
   const isProcessingQueue = useRef(false);
   const queueTimerRef = useRef(null);
+  const [newNotamIcaos, setNewNotamIcaos] = useState(new Set());
 
   // Filter states moved from NotamTabContent
   const [keywordFilter, setKeywordFilter] = useState('');
@@ -78,12 +79,17 @@ const App = () => {
       setNotamDataStore(prev => {
         const oldData = prev[icao]?.data || [];
         const oldNotamIds = new Set(oldData.map(n => n.id));
+        let hasNewNotams = false;
 
-        const newData = data.map(n => ({
-          ...n,
-          icao,
-          isNew: !oldNotamIds.has(n.id) // Mark as new if ID wasn't present before
-        }));
+        const newData = data.map(n => {
+          const isNew = !oldNotamIds.has(n.id);
+          if (isNew) hasNewNotams = true;
+          return { ...n, icao, isNew };
+        });
+
+        if (hasNewNotams && oldData.length > 0) {
+          setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
+        }
 
         return { 
           ...prev, 
@@ -106,7 +112,7 @@ const App = () => {
     }
   }, []);
 
-  // --- Corrected Queue Processing Logic ---
+  // --- Queue Processing Logic ---
   const processQueueRef = useRef();
 
   useEffect(() => {
@@ -127,31 +133,38 @@ const App = () => {
         fetchNotams(icaoToFetch).finally(() => {
           queueTimerRef.current = setTimeout(() => {
             isProcessingQueue.current = false;
-            // Use the ref to call the latest version of the function
             processQueueRef.current(); 
           }, 2100);
         });
 
-        // Return the queue with the processed item removed
         return currentQueue.slice(1);
       });
     };
   });
 
   useEffect(() => {
-    // Kick off the queue processing when the component mounts or fetchQueue gets new items
     if (fetchQueue.length > 0 && !isProcessingQueue.current) {
       processQueueRef.current();
     }
-
-    // Cleanup timer on unmount
     return () => {
       if (queueTimerRef.current) {
         clearTimeout(queueTimerRef.current);
       }
     };
   }, [fetchQueue]);
-  // --- End of Correction ---
+
+  // --- Auto-Refresh Logic ---
+  useEffect(() => {
+    const autoRefreshInterval = 5 * 60 * 1000; // 5 minutes
+    const timer = setInterval(() => {
+      if (icaos.length > 0) {
+        console.log(`Auto-refreshing all ICAOs: ${icaos.join(', ')}`);
+        setFetchQueue(prev => [...new Set([...prev, ...icaos])]);
+      }
+    }, autoRefreshInterval);
+
+    return () => clearInterval(timer);
+  }, [icaos]);
 
   // Initial fetch for existing ICAOs
   useEffect(() => {
@@ -220,6 +233,13 @@ const App = () => {
     });
   }, []);
 
+  const handleRefreshIcao = useCallback((icaoToRefresh) => {
+    if (fetchQueue.includes(icaoToRefresh)) {
+      return;
+    }
+    setFetchQueue(prev => [...prev, icaoToRefresh]);
+  }, [fetchQueue]);
+
   const handleIcaoInputKeyPress = (e) => {
     if (e.key === "Enter") {
       handleAddIcao();
@@ -230,6 +250,7 @@ const App = () => {
     let combined = [];
     let isLoading = icaos.some(icao => notamDataStore[icao]?.loading || fetchQueue.includes(icao));
     let anyError = null;
+    let hasAnyData = false;
 
     const sortedIcaos = [...icaos].sort();
 
@@ -238,13 +259,14 @@ const App = () => {
       if (storeEntry) {
         if (storeEntry.error) anyError = anyError || storeEntry.error;
         if (storeEntry.data && storeEntry.data.length > 0) {
+          hasAnyData = true;
           combined.push({ isIcaoHeader: true, icao: icao, id: `header-${icao}` });
           combined = combined.concat(storeEntry.data);
         }
       }
     });
     
-    return { data: combined, loading: isLoading, error: anyError };
+    return { data: combined, loading: isLoading && !hasAnyData, error: anyError };
   }, [notamDataStore, icaos, fetchQueue]);
 
   const activeNotamData = useMemo(() => {
@@ -288,10 +310,8 @@ const App = () => {
 
       if (keywordFilter && !text.includes(keywordFilter.toLowerCase())) return false;
       
-      // Handle type-based filtering first
       if (filters[type] === false) return false;
       
-      // Then handle time-based filtering
       if (!filters.current && isNotamCurrent(notam)) return false;
       if (!filters.future && isNotamFuture(notam)) return false;
 
@@ -358,27 +378,54 @@ const App = () => {
     setKeywordFilter('');
   };
 
-  const Tab = ({ id, label, onRemove }) => {
+  const handleTabClick = (id) => {
+    setActiveTab(id);
+    // Clear the 'new' status for this ICAO when its tab is clicked
+    if (newNotamIcaos.has(id)) {
+      setNewNotamIcaos(prevSet => {
+        const newSet = new Set(prevSet);
+        newSet.delete(id);
+        return newSet;
+      });
+    }
+  };
+
+  const Tab = ({ id, label, onRemove, onRefresh }) => {
     const isLoading = fetchQueue.includes(id) || notamDataStore[id]?.loading;
+    const hasNew = newNotamIcaos.has(id);
     return (
       <div 
-        className={`icao-tab ${activeTab === id ? 'active' : ''}`} 
-        onClick={() => setActiveTab(id)}
+        className={`icao-tab ${activeTab === id ? 'active' : ''} ${hasNew ? 'has-new-notams' : ''}`} 
+        onClick={() => handleTabClick(id)}
       >
         <span>{label}</span>
         {isLoading && <span className="loading-spinner tab-spinner"></span>}
-        {onRemove && !isLoading && (
-          <button 
-            onClick={(e) => { 
-              e.stopPropagation(); 
-              onRemove(id); 
-            }} 
-            className="remove-btn"
-            title={`Remove ${id}`}
-          >
-            ×
-          </button>
-        )}
+        <div className="tab-actions">
+          {onRefresh && !isLoading && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRefresh(id);
+              }}
+              className="refresh-btn"
+              title={`Refresh ${id}`}
+            >
+              🔄
+            </button>
+          )}
+          {onRemove && !isLoading && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(id);
+              }}
+              className="remove-btn"
+              title={`Remove ${id}`}
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
     );
   };
@@ -496,7 +543,8 @@ const App = () => {
                 key={icao} 
                 id={icao} 
                 label={isLoading ? `${icao}` : `${icao} (${count})`}
-                onRemove={handleRemoveIcao} 
+                onRemove={handleRemoveIcao}
+                onRefresh={handleRefreshIcao}
               />
             );
           })}
