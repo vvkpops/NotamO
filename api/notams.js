@@ -20,9 +20,16 @@ const parseDate = (s) => {
 
 // Function to format dates for ICAO format (YYMMDDHHMM)
 const formatToIcaoDate = (isoDate) => {
-    if (!isoDate || isoDate === 'PERMANENT') return 'PERMANENT';
+    if (!isoDate || isoDate === 'PERMANENT' || isoDate === 'PERM') return 'PERM';
+    
+    // Handle various permanent indicators
+    const upperDate = isoDate.toString().toUpperCase();
+    if (upperDate.includes('PERM') || upperDate.includes('PERMANENT')) return 'PERM';
+    
     try {
         const date = new Date(isoDate);
+        if (isNaN(date.getTime())) return isoDate; // Return original if not a valid date
+        
         const year = date.getUTCFullYear().toString().slice(-2);
         const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
         const day = date.getUTCDate().toString().padStart(2, '0');
@@ -60,8 +67,9 @@ const formatNotamToIcao = (notam, originalRawText) => {
     if (parsed.qLine) {
         icaoFormatted += `Q) ${parsed.qLine}\n`;
     } else {
-        // Construct basic Q line if missing
-        icaoFormatted += `Q) CZVR/QXXXX/IV/M/A/000/999/0000N00000W000\n`;
+        // Construct basic Q line if missing - try to use airport code from notam
+        const airportCode = parsed.aerodrome || notam.icao || 'CZVR';
+        icaoFormatted += `Q) ${airportCode}/QXXXX/IV/M/A/000/999/0000N00000W000\n`;
     }
     
     // A line - Aerodrome
@@ -80,8 +88,10 @@ const formatNotamToIcao = (notam, originalRawText) => {
     // C line - Valid to
     if (parsed.validToRaw || notam.validTo) {
         const toDate = parsed.validToRaw || formatToIcaoDate(notam.validTo);
-        if (toDate !== 'PERMANENT') {
+        if (toDate && toDate !== 'PERM') {
             icaoFormatted += `C) ${toDate}\n`;
+        } else if (toDate === 'PERM') {
+            icaoFormatted += `C) PERM\n`;
         }
     }
     
