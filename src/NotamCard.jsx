@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getHeadClass, getHeadTitle, extractRunways } from './NotamUtils';
-import { highlightNotamKeywords } from './NotamKeywordHighlight';
+import { highlightNotamKeywords } from './NotamKeywordHighlight.jsx';
 
 const NotamCard = ({ 
   notam, 
