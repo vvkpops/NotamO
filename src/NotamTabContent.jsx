@@ -1,6 +1,74 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import NotamCard from './NotamCard';
 import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
+
+const DraggableFilterChip = ({ 
+  label, 
+  type, 
+  isActive, 
+  onClick, 
+  count = 0, 
+  onDragStart, 
+  onDragEnd, 
+  onDragOver, 
+  onDrop, 
+  isDragging,
+  draggedOver 
+}) => {
+  const chipRef = useRef(null);
+
+  const handleDragStart = (e) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', type);
+    onDragStart(type);
+    
+    // Add visual feedback
+    if (chipRef.current) {
+      chipRef.current.style.transform = 'rotate(5deg) scale(1.05)';
+      chipRef.current.style.opacity = '0.7';
+    }
+  };
+
+  const handleDragEnd = () => {
+    onDragEnd();
+    
+    // Reset visual feedback
+    if (chipRef.current) {
+      chipRef.current.style.transform = '';
+      chipRef.current.style.opacity = '';
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    onDragOver(type);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const draggedType = e.dataTransfer.getData('text/plain');
+    onDrop(draggedType, type);
+  };
+
+  return (
+    <button
+      ref={chipRef}
+      className={`filter-chip filter-chip-${type} ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${draggedOver ? 'drag-over' : ''} draggable-chip`}
+      onClick={onClick}
+      draggable={true}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      title={`Drag to reorder | ${label}: ${count} NOTAMs`}
+    >
+      <span className="drag-handle">⋮⋮</span>
+      <span className="chip-label">{label}</span>
+      {count > 0 && <span className="chip-count">{count}</span>}
+    </button>
+  );
+};
 
 const FilterChip = ({ label, type, isActive, onClick, count = 0 }) => (
   <button
@@ -98,9 +166,21 @@ const EmptyState = ({ hasFilters, onClearFilters }) => (
 
 const NotamTabContent = ({ icao, notams, loading, error }) => {
   const [keywordFilter, setKeywordFilter] = useState('');
+  
+  // Default filter order - this determines card sorting priority
+  const [filterOrder, setFilterOrder] = useState([
+    'rwy', 'twy', 'rsc', 'crfi', 'ils', 'fuel', 'other', 'cancelled'
+  ]);
+  
   const [filters, setFilters] = useState({
     rwy: true, twy: true, rsc: true, crfi: true, ils: true,
     fuel: true, other: true, cancelled: false, current: true, future: true,
+  });
+
+  // Drag and drop state
+  const [dragState, setDragState] = useState({
+    draggedItem: null,
+    draggedOver: null
   });
 
   const handleFilterChange = (filterKey) => {
@@ -113,6 +193,39 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
       fuel: true, other: true, cancelled: false, current: true, future: true,
     });
     setKeywordFilter('');
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (type) => {
+    setDragState(prev => ({ ...prev, draggedItem: type }));
+  };
+
+  const handleDragEnd = () => {
+    setDragState({ draggedItem: null, draggedOver: null });
+  };
+
+  const handleDragOver = (type) => {
+    setDragState(prev => ({ ...prev, draggedOver: type }));
+  };
+
+  const handleDrop = (draggedType, dropTargetType) => {
+    if (draggedType === dropTargetType) return;
+
+    setFilterOrder(prev => {
+      const newOrder = [...prev];
+      const draggedIndex = newOrder.indexOf(draggedType);
+      const targetIndex = newOrder.indexOf(dropTargetType);
+      
+      // Remove the dragged item
+      newOrder.splice(draggedIndex, 1);
+      
+      // Insert it at the target position
+      newOrder.splice(targetIndex, 0, draggedType);
+      
+      return newOrder;
+    });
+    
+    setDragState({ draggedItem: null, draggedOver: null });
   };
 
   const { filteredNotams, stats, typeCounts } = useMemo(() => {
@@ -166,6 +279,27 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
       return true;
     });
 
+    // Sort NOTAMs based on filter order - this is the key enhancement!
+    results.sort((a, b) => {
+      if (a.isIcaoHeader && b.isIcaoHeader) return 0;
+      if (a.isIcaoHeader) return -1;
+      if (b.isIcaoHeader) return 1;
+
+      const aType = getNotamType(a);
+      const bType = getNotamType(b);
+      const aPriority = filterOrder.indexOf(aType);
+      const bPriority = filterOrder.indexOf(bType);
+      
+      // If same type, sort by date (newest first)
+      if (aPriority === bPriority) {
+        const aDate = new Date(a.validFrom);
+        const bDate = new Date(b.validFrom);
+        return bDate - aDate;
+      }
+      
+      return aPriority - bPriority;
+    });
+
     // Clean up empty ICAO headers in ALL view
     if (icao === 'ALL') {
       const finalResult = [];
@@ -185,7 +319,7 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
       stats: allStats, 
       typeCounts: counts 
     };
-  }, [notams, keywordFilter, filters, icao]);
+  }, [notams, keywordFilter, filters, icao, filterOrder]);
 
   if (loading) {
     return <LoadingState />;
@@ -211,12 +345,17 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
     { key: 'future', label: 'Future' }
   ];
 
+  // Reorder filter config based on current filter order
+  const orderedFilterConfig = filterOrder.map(type => 
+    filterConfig.find(config => config.key === type)
+  ).filter(Boolean);
+
   const hasActiveFilters = keywordFilter || Object.values(filters).some((value, index) => {
     const defaultFilters = [true, true, true, true, true, true, true, false, true, true];
     return value !== defaultFilters[index];
   });
 
-  const renderNotamItem = (notam) => {
+  const renderNotamItem = (notam, index) => {
     if (notam.isIcaoHeader) {
       return (
         <div key={`header-${notam.icao}`} className="icao-header-card">
@@ -231,20 +370,46 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
         </div>
       );
     }
-    return <NotamCard key={notam.id} notam={notam} />;
+
+    // Calculate visual priority for the card (for subtle effects)
+    const typePriority = filterOrder.indexOf(getNotamType(notam));
+    
+    return (
+      <div key={notam.id} style={{
+        order: typePriority,
+        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+        transform: `translateY(${typePriority * 1}px)` // Subtle staggered effect
+      }}>
+        <NotamCard notam={notam} />
+      </div>
+    );
   };
 
   return (
     <div className="notam-tab-content">
+      {/* Current Filter Order Display */}
+      {filterOrder.length > 0 && (
+        <div className="filter-order-display">
+          <h4>Current Card Priority Order:</h4>
+          <div className="order-chips">
+            {filterOrder.map((type, index) => (
+              <span key={type} className={`order-chip order-chip-${type}`}>
+                {index + 1}. {filterConfig.find(f => f.key === type)?.label || type.toUpperCase()}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stats Display */}
       {notams && notams.length > 0 && (
         <StatsDisplay stats={stats} />
       )}
 
-      {/* Filter System */}
+      {/* Enhanced Filter System */}
       <div className="modern-filter-container">
         <div className="filter-header">
-          <h3>Filter & Search</h3>
+          <h3>🎯 Drag Filters to Reorder Cards</h3>
           {hasActiveFilters && (
             <button className="clear-all-btn" onClick={clearAllFilters}>
               Clear All
@@ -260,16 +425,22 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
         />
 
         <div className="filter-section">
-          <h4>NOTAM Types</h4>
-          <div className="filter-chips">
-            {filterConfig.map(({ key, label }) => (
-              <FilterChip 
+          <h4>NOTAM Types (Drag to reorder card priority)</h4>
+          <div className="filter-chips draggable-chips">
+            {orderedFilterConfig.map(({ key, label }) => (
+              <DraggableFilterChip 
                 key={key} 
                 label={label} 
                 type={key} 
                 isActive={filters[key]} 
                 onClick={() => handleFilterChange(key)}
                 count={typeCounts[key] || 0}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                isDragging={dragState.draggedItem === key}
+                draggedOver={dragState.draggedOver === key}
               />
             ))}
           </div>
@@ -296,7 +467,7 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
       <div className="notam-results">
         {filteredNotams.length > 0 ? (
           <div className="notam-grid">
-            {filteredNotams.map(item => renderNotamItem(item))}
+            {filteredNotams.map((item, index) => renderNotamItem(item, index))}
           </div>
         ) : (
           <EmptyState 
