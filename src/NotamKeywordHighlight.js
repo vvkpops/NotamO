@@ -1,4 +1,4 @@
-// NotamKeywordHighlight.js - Keyword highlighting feature for NOTAM data
+// NotamKeywordHighlight.jsx - Keyword highlighting feature for NOTAM data
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 
