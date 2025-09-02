@@ -1,14 +1,12 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useRef } from 'react';
 import NotamCard from './NotamCard';
-import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
+import { getNotamType } from './NotamUtils';
 
-const FilterModal = ({ 
+export const FilterModal = ({ 
   isOpen, 
   onClose, 
   filters, 
   onFilterChange, 
-  keywordFilter, 
-  onKeywordChange, 
   typeCounts, 
   onClearAll,
   filterOrder,
@@ -18,14 +16,12 @@ const FilterModal = ({
 }) => {
   const modalRef = useRef(null);
 
-  // Close modal when clicking outside
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
       onClose();
     }
   };
 
-  // Drag and drop handlers
   const handleDragStart = (type) => {
     setDragState(prev => ({ ...prev, draggedItem: type }));
   };
@@ -68,7 +64,7 @@ const FilterModal = ({
   }) => {
     const chipRef = useRef(null);
 
-    const handleDragStart = (e) => {
+    const handleDragStartInternal = (e) => {
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', type);
       handleDragStart(type);
@@ -79,7 +75,7 @@ const FilterModal = ({
       }
     };
 
-    const handleDragEnd = () => {
+    const handleDragEndInternal = () => {
       handleDragEnd();
       
       if (chipRef.current) {
@@ -88,13 +84,13 @@ const FilterModal = ({
       }
     };
 
-    const handleDragOver = (e) => {
+    const handleDragOverInternal = (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       handleDragOver(type);
     };
 
-    const handleDrop = (e) => {
+    const handleDropInternal = (e) => {
       e.preventDefault();
       const draggedType = e.dataTransfer.getData('text/plain');
       handleDrop(draggedType, type);
@@ -106,10 +102,10 @@ const FilterModal = ({
         className={`filter-chip filter-chip-${type} ${isActive ? 'active' : ''} ${dragState.draggedItem === type ? 'dragging' : ''} ${dragState.draggedOver === type ? 'drag-over' : ''} draggable-chip`}
         onClick={onClick}
         draggable={true}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
+        onDragStart={handleDragStartInternal}
+        onDragEnd={handleDragEndInternal}
+        onDragOver={handleDragOverInternal}
+        onDrop={handleDropInternal}
         title={`Drag to reorder | ${label}: ${count} NOTAMs`}
       >
         <span className="drag-handle">⋮⋮</span>
@@ -160,31 +156,6 @@ const FilterModal = ({
         </div>
 
         <div className="filter-modal-content">
-          {/* Search */}
-          <div className="filter-section">
-            <h4>Search</h4>
-            <div className="search-input-wrapper">
-              <span className="search-icon">🔍</span>
-              <input
-                type="text"
-                placeholder="Search keywords..."
-                className="search-input"
-                value={keywordFilter}
-                onChange={(e) => onKeywordChange(e.target.value)}
-              />
-              {keywordFilter && (
-                <button 
-                  className="clear-search-btn"
-                  onClick={() => onKeywordChange('')}
-                  title="Clear search"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* NOTAM Types */}
           <div className="filter-section">
             <h4>NOTAM Types (Drag to reorder card priority)</h4>
             <div className="filter-chips draggable-chips">
@@ -201,7 +172,6 @@ const FilterModal = ({
             </div>
           </div>
 
-          {/* Time Status */}
           <div className="filter-section">
             <h4>Time Status</h4>
             <div className="filter-chips">
@@ -221,10 +191,10 @@ const FilterModal = ({
 
         <div className="filter-modal-footer">
           <button className="clear-all-btn" onClick={onClearAll}>
-            Clear All Filters
+            Clear All Selections
           </button>
           <button className="apply-filters-btn" onClick={onClose}>
-            Apply Filters
+            Apply & Close
           </button>
         </div>
       </div>
@@ -261,8 +231,8 @@ const EmptyState = ({ hasFilters, onClearFilters }) => (
     <h3>{hasFilters ? 'No NOTAMs match your filters' : 'No NOTAMs found'}</h3>
     <p>
       {hasFilters 
-        ? 'Try adjusting your search criteria to see more results.'
-        : 'There are currently no active NOTAMs for this airport.'
+        ? 'Try adjusting your search criteria or clearing filters to see more results.'
+        : 'There are currently no active NOTAMs for this airport, or you can try adding an ICAO code above.'
       }
     </p>
     {hasFilters && (
@@ -273,110 +243,7 @@ const EmptyState = ({ hasFilters, onClearFilters }) => (
   </div>
 );
 
-const NotamTabContent = ({ icao, notams, loading, error }) => {
-  const [keywordFilter, setKeywordFilter] = useState('');
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  
-  const [filterOrder, setFilterOrder] = useState([
-    'rwy', 'twy', 'rsc', 'crfi', 'ils', 'fuel', 'other', 'cancelled'
-  ]);
-  
-  const [filters, setFilters] = useState({
-    rwy: true, twy: true, rsc: true, crfi: true, ils: true,
-    fuel: true, other: true, cancelled: false, current: true, future: true,
-  });
-
-  const [dragState, setDragState] = useState({
-    draggedItem: null,
-    draggedOver: null
-  });
-
-  const handleFilterChange = (filterKey) => {
-    setFilters(prev => ({ ...prev, [filterKey]: !prev[filterKey] }));
-  };
-
-  const clearAllFilters = () => {
-    setFilters({
-      rwy: true, twy: true, rsc: true, crfi: true, ils: true,
-      fuel: true, other: true, cancelled: false, current: true, future: true,
-    });
-    setKeywordFilter('');
-  };
-
-  const { filteredNotams, typeCounts } = useMemo(() => {
-    if (!notams) return { filteredNotams: [], typeCounts: {} };
-    
-    const counts = {
-      rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0,
-      fuel: 0, other: 0, cancelled: 0, current: 0, future: 0
-    };
-
-    notams.forEach(notam => {
-      if (notam.isIcaoHeader) return;
-      
-      const type = getNotamType(notam);
-      counts[type]++;
-      
-      if (isNotamCurrent(notam)) {
-        counts.current++;
-      }
-      if (isNotamFuture(notam)) {
-        counts.future++;
-      }
-    });
-    
-    let results = notams.filter(notam => {
-      if (notam.isIcaoHeader) return true;
-
-      const type = getNotamType(notam);
-      const text = (notam.summary || '').toLowerCase();
-
-      if (keywordFilter && !text.includes(keywordFilter.toLowerCase())) return false;
-      if (!filters.current && isNotamCurrent(notam)) return false;
-      if (!filters.future && isNotamFuture(notam)) return false;
-      if (filters[type] === false) return false;
-
-      return true;
-    });
-
-    results.sort((a, b) => {
-      if (a.isIcaoHeader && b.isIcaoHeader) return 0;
-      if (a.isIcaoHeader) return -1;
-      if (b.isIcaoHeader) return 1;
-
-      const aType = getNotamType(a);
-      const bType = getNotamType(b);
-      const aPriority = filterOrder.indexOf(aType);
-      const bPriority = filterOrder.indexOf(bType);
-      
-      if (aPriority === bPriority) {
-        const aDate = new Date(a.validFrom);
-        const bDate = new Date(b.validFrom);
-        return bDate - aDate;
-      }
-      
-      return aPriority - bPriority;
-    });
-
-    if (icao === 'ALL') {
-      const finalResult = [];
-      for (let i = 0; i < results.length; i++) {
-        if (results[i].isIcaoHeader) {
-          if (i + 1 >= results.length || results[i+1].isIcaoHeader) {
-            continue; 
-          }
-        }
-        finalResult.push(results[i]);
-      }
-      results = finalResult;
-    }
-
-    return { 
-      filteredNotams: results, 
-      typeCounts: counts 
-    };
-  }, [notams, keywordFilter, filters, icao, filterOrder]);
-
+const NotamTabContent = ({ icao, notams, loading, error, hasActiveFilters, onClearFilters, filterOrder }) => {
   if (loading) {
     return <LoadingState />;
   }
@@ -385,21 +252,7 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
     return <ErrorState error={error} />;
   }
 
-  const hasActiveFilters = keywordFilter || Object.values(filters).some((value, index) => {
-    const defaultFilters = [true, true, true, true, true, true, true, false, true, true];
-    return value !== defaultFilters[index];
-  });
-
-  // Count active filters for badge
-  const activeFilterCount = Object.keys(filters).filter(key => {
-    const defaultFilters = {
-      rwy: true, twy: true, rsc: true, crfi: true, ils: true,
-      fuel: true, other: true, cancelled: false, current: true, future: true,
-    };
-    return filters[key] !== defaultFilters[key];
-  }).length + (keywordFilter ? 1 : 0);
-
-  const renderNotamItem = (notam, index) => {
+  const renderNotamItem = (notam) => {
     if (notam.isIcaoHeader) {
       return (
         <div key={`header-${notam.icao}`} className="icao-header-card">
@@ -414,68 +267,21 @@ const NotamTabContent = ({ icao, notams, loading, error }) => {
         </div>
       );
     }
-
-    const typePriority = filterOrder.indexOf(getNotamType(notam));
     
-    return (
-      <div key={notam.id} style={{
-        order: typePriority,
-        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-        transform: `translateY(${typePriority * 1}px)`
-      }}>
-        <NotamCard notam={notam} />
-      </div>
-    );
+    return <NotamCard key={notam.id} notam={notam} />;
   };
 
   return (
     <div className="notam-tab-content">
-      {/* Compact Filter Button */}
-      <div className="compact-filter-container">
-        <button 
-          className="filter-toggle-btn"
-          onClick={() => setIsFilterModalOpen(true)}
-        >
-          <span className="filter-icon">🎯</span>
-          <span className="filter-text">FILTER</span>
-          {activeFilterCount > 0 && (
-            <span className="filter-badge">{activeFilterCount}</span>
-          )}
-        </button>
-        
-        {hasActiveFilters && (
-          <button className="quick-clear-btn" onClick={clearAllFilters}>
-            Clear All
-          </button>
-        )}
-      </div>
-
-      {/* Filter Modal */}
-      <FilterModal
-        isOpen={isFilterModalOpen}
-        onClose={() => setIsFilterModalOpen(false)}
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        keywordFilter={keywordFilter}
-        onKeywordChange={setKeywordFilter}
-        typeCounts={typeCounts}
-        onClearAll={clearAllFilters}
-        filterOrder={filterOrder}
-        setFilterOrder={setFilterOrder}
-        dragState={dragState}
-        setDragState={setDragState}
-      />
-
-      {/* Results */}
       <div className="notam-results">
-        {filteredNotams.length > 0 ? (
+        {notams.length > 0 ? (
           <div className="notam-grid">
-            {filteredNotams.map((item, index) => renderNotamItem(item, index))}
+            {notams.map((item) => renderNotamItem(item))}
           </div>
         ) : (
           <EmptyState 
             hasFilters={hasActiveFilters}
-            onClearFilters={clearAllFilters}
+            onClearFilters={onClearFilters}
           />
         )}
       </div>
