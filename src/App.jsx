@@ -4,6 +4,8 @@ import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
 import { FilterModal } from './NotamTabContent';
 import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKeywordHighlight.jsx';
 
+const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
 const App = () => {
   // State Management
   const [icaos, setIcaos] = useState(() => JSON.parse(localStorage.getItem("notamIcaos") || "[]"));
@@ -15,13 +17,14 @@ const App = () => {
     return saved ? JSON.parse(saved) : 420; // Default size
   });
 
-  // New states for batching and new NOTAM detection
+  // Batching, new NOTAM detection, and auto-refresh states
   const [fetchQueue, setFetchQueue] = useState([]);
   const isProcessingQueue = useRef(false);
   const queueTimerRef = useRef(null);
   const [newNotamIcaos, setNewNotamIcaos] = useState(new Set());
+  const [timeToNextRefresh, setTimeToNextRefresh] = useState(AUTO_REFRESH_INTERVAL);
 
-  // Filter states moved from NotamTabContent
+  // Filter states
   const [keywordFilter, setKeywordFilter] = useState('');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [filterOrder, setFilterOrder] = useState([
@@ -47,7 +50,7 @@ const App = () => {
   });
   const [isHighlightModalOpen, setIsHighlightModalOpen] = useState(false);
 
-  // Save keyword highlighting settings to localStorage
+  // Save settings to localStorage
   useEffect(() => {
     localStorage.setItem('notamKeywordHighlightEnabled', JSON.stringify(keywordHighlightEnabled));
   }, [keywordHighlightEnabled]);
@@ -78,18 +81,16 @@ const App = () => {
       
       setNotamDataStore(prev => {
         const oldData = prev[icao]?.data || [];
-        const isInitialFetch = oldData.length === 0; // Check if this is the first time fetching
+        const isInitialFetch = oldData.length === 0;
         const oldNotamIds = new Set(oldData.map(n => n.id));
         let hasNewNotams = false;
 
         const newData = data.map(n => {
-          // A NOTAM is only "new" if it's not the initial fetch AND its ID wasn't in the old data
           const isNew = !isInitialFetch && !oldNotamIds.has(n.id);
           if (isNew) hasNewNotams = true;
           return { ...n, icao, isNew };
         });
 
-        // The tab should only flash if new NOTAMs are detected on a refresh
         if (hasNewNotams) {
           setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
         }
@@ -120,9 +121,7 @@ const App = () => {
 
   useEffect(() => {
     processQueueRef.current = () => {
-      if (isProcessingQueue.current) {
-        return;
-      }
+      if (isProcessingQueue.current) return;
 
       setFetchQueue(currentQueue => {
         if (currentQueue.length === 0) {
@@ -150,32 +149,42 @@ const App = () => {
       processQueueRef.current();
     }
     return () => {
-      if (queueTimerRef.current) {
-        clearTimeout(queueTimerRef.current);
-      }
+      if (queueTimerRef.current) clearTimeout(queueTimerRef.current);
     };
   }, [fetchQueue]);
 
-  // --- Auto-Refresh Logic ---
+  // --- Global Auto-Refresh and Countdown Timer ---
   useEffect(() => {
-    const autoRefreshInterval = 5 * 60 * 1000; // 5 minutes
-    const timer = setInterval(() => {
-      if (icaos.length > 0) {
-        console.log(`Auto-refreshing all ICAOs: ${icaos.join(', ')}`);
-        setFetchQueue(prev => [...new Set([...prev, ...icaos])]);
-      }
-    }, autoRefreshInterval);
+    // This timer handles the countdown display
+    const countdownTimer = setInterval(() => {
+      setTimeToNextRefresh(prevTime => (prevTime > 0 ? prevTime - 1000 : 0));
+    }, 1000);
 
-    return () => clearInterval(timer);
-  }, [icaos]);
+    // This timer triggers the actual refresh
+    const autoRefreshTimer = setInterval(() => {
+      // Use a function to get the latest `icaos` state without depending on it
+      setIcaos(currentIcaos => {
+        if (currentIcaos.length > 0) {
+          console.log(`Auto-refreshing all ICAOs: ${currentIcaos.join(', ')}`);
+          setFetchQueue(prevQueue => [...new Set([...prevQueue, ...currentIcaos])]);
+        }
+        return currentIcaos; // Return state unchanged
+      });
+      // Reset the countdown
+      setTimeToNextRefresh(AUTO_REFRESH_INTERVAL);
+    }, AUTO_REFRESH_INTERVAL);
 
-  // Initial fetch for existing ICAOs
-  useEffect(() => {
+    // Initial fetch for existing ICAOs
     const icaosToFetch = icaos.filter(icao => !notamDataStore[icao] && !fetchQueue.includes(icao));
     if (icaosToFetch.length > 0) {
       setFetchQueue(prev => [...new Set([...prev, ...icaosToFetch])]);
     }
-  }, [icaos]);
+
+    return () => {
+      clearInterval(countdownTimer);
+      clearInterval(autoRefreshTimer);
+    };
+  }, []); // Empty dependency array ensures this runs only once
 
   useEffect(() => {
     localStorage.setItem("notamIcaos", JSON.stringify(icaos));
@@ -188,42 +197,28 @@ const App = () => {
     if (!icaoInputRef.current || isAdding) return;
     
     const input = icaoInputRef.current.value.toUpperCase().trim();
-    const newIcaoInputs = input.split(/[,\s]+/)
-      .map(s => s.trim())
-      .filter(s => s.length === 4 && /^[A-Z0-9]{4}$/.test(s));
+    const newIcaoInputs = input.split(/[,\s]+/).map(s => s.trim()).filter(s => s.length === 4 && /^[A-Z0-9]{4}$/.test(s));
     
     if (newIcaoInputs.length === 0) {
       icaoInputRef.current.style.animation = 'shake 0.5s ease-in-out';
-      setTimeout(() => {
-        if (icaoInputRef.current) {
-          icaoInputRef.current.style.animation = '';
-        }
-      }, 500);
+      setTimeout(() => { if (icaoInputRef.current) { icaoInputRef.current.style.animation = ''; } }, 500);
       return;
     }
 
     setIsAdding(true);
-    
     const uniqueNewIcaos = [...new Set(newIcaoInputs.filter(icao => !icaos.includes(icao)))];
     
     if (uniqueNewIcaos.length > 0) {
       const updatedIcaos = [...icaos, ...uniqueNewIcaos];
       setIcaos(updatedIcaos);
       setActiveTab(uniqueNewIcaos[0]);
-      
       setFetchQueue(prev => [...new Set([...prev, ...uniqueNewIcaos])]);
-
       icaoInputRef.current.classList.add('success-flash');
-      setTimeout(() => {
-        if (icaoInputRef.current) {
-          icaoInputRef.current.classList.remove('success-flash');
-        }
-      }, 500);
+      setTimeout(() => { if (icaoInputRef.current) { icaoInputRef.current.classList.remove('success-flash'); } }, 500);
     }
     
     icaoInputRef.current.value = "";
     icaoInputRef.current.focus();
-    
     setTimeout(() => setIsAdding(false), 300);
   }, [icaos, isAdding]);
 
@@ -237,16 +232,12 @@ const App = () => {
   }, []);
 
   const handleRefreshIcao = useCallback((icaoToRefresh) => {
-    if (fetchQueue.includes(icaoToRefresh)) {
-      return;
-    }
+    if (fetchQueue.includes(icaoToRefresh)) return;
     setFetchQueue(prev => [...prev, icaoToRefresh]);
   }, [fetchQueue]);
 
   const handleIcaoInputKeyPress = (e) => {
-    if (e.key === "Enter") {
-      handleAddIcao();
-    }
+    if (e.key === "Enter") handleAddIcao();
   };
 
   const allNotamsData = useMemo(() => {
@@ -255,9 +246,7 @@ const App = () => {
     let anyError = null;
     let hasAnyData = false;
 
-    const sortedIcaos = [...icaos].sort();
-
-    sortedIcaos.forEach(icao => {
+    [...icaos].sort().forEach(icao => {
       const storeEntry = notamDataStore[icao];
       if (storeEntry) {
         if (storeEntry.error) anyError = anyError || storeEntry.error;
@@ -273,160 +262,85 @@ const App = () => {
   }, [notamDataStore, icaos, fetchQueue]);
 
   const activeNotamData = useMemo(() => {
-    if (activeTab === 'ALL') {
-      return allNotamsData;
-    }
+    if (activeTab === 'ALL') return allNotamsData;
     const storeEntry = notamDataStore[activeTab];
     const isLoading = storeEntry?.loading || fetchQueue.includes(activeTab);
-    return {
-      data: storeEntry?.data || [],
-      loading: isLoading,
-      error: storeEntry?.error || null,
-    };
+    return { data: storeEntry?.data || [], loading: isLoading, error: storeEntry?.error || null };
   }, [activeTab, allNotamsData, notamDataStore, fetchQueue]);
 
-  // Filter logic moved from NotamTabContent
   const { filteredNotams, typeCounts, hasActiveFilters, activeFilterCount } = useMemo(() => {
     const notams = activeNotamData.data;
     if (!notams) return { filteredNotams: [], typeCounts: {}, hasActiveFilters: false, activeFilterCount: 0 };
     
-    const counts = {
-      rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0,
-      fuel: 0, other: 0, cancelled: 0, current: 0, future: 0
-    };
-
+    const counts = { rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0, fuel: 0, other: 0, cancelled: 0, current: 0, future: 0 };
     notams.forEach(notam => {
       if (notam.isIcaoHeader) return;
-      
       const type = getNotamType(notam);
       counts[type]++;
-      
       if (isNotamCurrent(notam)) counts.current++;
       if (isNotamFuture(notam)) counts.future++;
     });
     
     let results = notams.filter(notam => {
       if (notam.isIcaoHeader) return true;
-
       const type = getNotamType(notam);
-      const text = (notam.summary || '').toLowerCase();
-
-      if (keywordFilter && !text.includes(keywordFilter.toLowerCase())) return false;
-      
+      if (keywordFilter && !(notam.summary || '').toLowerCase().includes(keywordFilter.toLowerCase())) return false;
       if (filters[type] === false) return false;
-      
       if (!filters.current && isNotamCurrent(notam)) return false;
       if (!filters.future && isNotamFuture(notam)) return false;
-
       return true;
     });
 
     results.sort((a, b) => {
-      if (a.isIcaoHeader && b.isIcaoHeader) return 0;
-      if (a.isIcaoHeader) return -1;
-      if (b.isIcaoHeader) return 1;
-
-      const aType = getNotamType(a);
-      const bType = getNotamType(b);
-      const aPriority = filterOrder.indexOf(aType);
-      const bPriority = filterOrder.indexOf(bType);
-      
-      if (aPriority === bPriority) {
-        const aDate = new Date(a.validFrom);
-        const bDate = new Date(b.validFrom);
-        return bDate - aDate;
-      }
-      
-      return aPriority - bPriority;
+      if (a.isIcaoHeader) return -1; if (b.isIcaoHeader) return 1;
+      const aPrio = filterOrder.indexOf(getNotamType(a)), bPrio = filterOrder.indexOf(getNotamType(b));
+      if (aPrio !== bPrio) return aPrio - bPrio;
+      return new Date(b.validFrom) - new Date(a.validFrom);
     });
 
     if (activeTab === 'ALL') {
-      const finalResult = [];
-      for (let i = 0; i < results.length; i++) {
-        if (results[i].isIcaoHeader) {
-          if (i + 1 >= results.length || results[i+1].isIcaoHeader) {
-            continue; 
-          }
-        }
-        finalResult.push(results[i]);
-      }
-      results = finalResult;
+      results = results.filter((item, i, arr) => !item.isIcaoHeader || (i + 1 < arr.length && !arr[i+1].isIcaoHeader));
     }
     
-    const defaultFilters = {
-      rwy: true, twy: true, rsc: true, crfi: true, ils: true,
-      fuel: true, other: true, cancelled: false, current: true, future: true,
-    };
-
+    const defaultFilters = { rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, other: true, cancelled: false, current: true, future: true };
     const hasFilters = keywordFilter || Object.keys(filters).some(key => filters[key] !== defaultFilters[key]);
     const filterCount = Object.keys(filters).filter(key => filters[key] !== defaultFilters[key]).length + (keywordFilter ? 1 : 0);
 
-    return { 
-      filteredNotams: results, 
-      typeCounts: counts,
-      hasActiveFilters: hasFilters,
-      activeFilterCount: filterCount
-    };
+    return { filteredNotams: results, typeCounts: counts, hasActiveFilters: hasFilters, activeFilterCount: filterCount };
   }, [activeNotamData.data, keywordFilter, filters, activeTab, filterOrder]);
 
-  const handleFilterChange = (filterKey) => {
-    setFilters(prev => ({ ...prev, [filterKey]: !prev[filterKey] }));
-  };
-
+  const handleFilterChange = (filterKey) => setFilters(prev => ({ ...prev, [filterKey]: !prev[filterKey] }));
   const clearAllFilters = () => {
-    setFilters({
-      rwy: true, twy: true, rsc: true, crfi: true, ils: true,
-      fuel: true, other: true, cancelled: false, current: true, future: true,
-    });
+    setFilters({ rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, other: true, cancelled: false, current: true, future: true });
     setKeywordFilter('');
   };
 
   const handleTabClick = (id) => {
     setActiveTab(id);
-    // Clear the 'new' status for this ICAO when its tab is clicked
     if (newNotamIcaos.has(id)) {
-      setNewNotamIcaos(prevSet => {
-        const newSet = new Set(prevSet);
-        newSet.delete(id);
-        return newSet;
-      });
+      setNewNotamIcaos(prevSet => { const newSet = new Set(prevSet); newSet.delete(id); return newSet; });
     }
   };
 
-  const Tab = ({ id, label, onRemove, onRefresh }) => {
+  const Tab = ({ id, label, onRemove, onRefresh, timeToRefresh }) => {
     const isLoading = fetchQueue.includes(id) || notamDataStore[id]?.loading;
     const hasNew = newNotamIcaos.has(id);
+    const minutes = Math.floor(timeToRefresh / 60000);
+    const seconds = Math.floor((timeToRefresh % 60000) / 1000).toString().padStart(2, '0');
+    
     return (
-      <div 
-        className={`icao-tab ${activeTab === id ? 'active' : ''} ${hasNew ? 'has-new-notams' : ''}`} 
-        onClick={() => handleTabClick(id)}
-      >
+      <div className={`icao-tab ${activeTab === id ? 'active' : ''} ${hasNew ? 'has-new-notams' : ''}`} onClick={() => handleTabClick(id)}>
         <span>{label}</span>
         {isLoading && <span className="loading-spinner tab-spinner"></span>}
         <div className="tab-actions">
           {onRefresh && !isLoading && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRefresh(id);
-              }}
-              className="refresh-btn"
-              title={`Refresh ${id}`}
-            >
-              🔄
-            </button>
+            <>
+              <span className="countdown-timer" title={`Next auto-refresh in ${minutes}:${seconds}`}>{minutes}:{seconds}</span>
+              <button onClick={(e) => { e.stopPropagation(); onRefresh(id); }} className="refresh-btn" title={`Refresh ${id}`}>🔄</button>
+            </>
           )}
           {onRemove && !isLoading && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove(id);
-              }}
-              className="remove-btn"
-              title={`Remove ${id}`}
-            >
-              ×
-            </button>
+            <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn" title={`Remove ${id}`}>×</button>
           )}
         </div>
       </div>
@@ -440,98 +354,34 @@ const App = () => {
       <div className="glass icao-input-container">
         <div className="top-controls">
           <div className="icao-input-wrapper">
-            <input 
-              ref={icaoInputRef} 
-              placeholder="ICAO codes (e.g., CYYT, KJFK)" 
-              className="icao-input compact" 
-              onKeyPress={handleIcaoInputKeyPress}
-              disabled={isAdding}
-            />
-            <button 
-              onClick={handleAddIcao} 
-              className={`add-button ${isAdding ? 'loading' : ''}`}
-              disabled={isAdding}
-            >
-              {isAdding ? (
-                <>
-                  <span className="loading-spinner"></span>
-                  Adding...
-                </>
-              ) : (
-                'Add ICAO'
-              )}
+            <input ref={icaoInputRef} placeholder="ICAO codes (e.g., CYYT, KJFK)" className="icao-input compact" onKeyPress={handleIcaoInputKeyPress} disabled={isAdding} />
+            <button onClick={handleAddIcao} className={`add-button ${isAdding ? 'loading' : ''}`} disabled={isAdding}>
+              {isAdding ? (<><span className="loading-spinner"></span>Adding...</>) : 'Add ICAO'}
             </button>
           </div>
-          
           <div className="filter-controls">
-            <button 
-              className="filter-toggle-btn"
-              onClick={() => setIsFilterModalOpen(true)}
-            >
-              <span className="filter-icon">🎯</span>
-              <span className="filter-text">FILTER</span>
-              {activeFilterCount > 0 && (
-                <span className="filter-badge">{activeFilterCount}</span>
-              )}
+            <button className="filter-toggle-btn" onClick={() => setIsFilterModalOpen(true)}>
+              <span className="filter-icon">🎯</span><span className="filter-text">FILTER</span>
+              {activeFilterCount > 0 && (<span className="filter-badge">{activeFilterCount}</span>)}
             </button>
-            
-            <button 
-              className="filter-toggle-btn"
-              onClick={() => setIsHighlightModalOpen(true)}
-              style={{
-                background: keywordHighlightEnabled 
-                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                  : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'
-              }}
-            >
-              <span className="filter-icon">💡</span>
-              <span className="filter-text">HIGHLIGHT</span>
-              {keywordHighlightEnabled && (
-                <span className="filter-badge">ON</span>
-              )}
+            <button className="filter-toggle-btn" onClick={() => setIsHighlightModalOpen(true)} style={{background: keywordHighlightEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'}}>
+              <span className="filter-icon">💡</span><span className="filter-text">HIGHLIGHT</span>
+              {keywordHighlightEnabled && (<span className="filter-badge">ON</span>)}
             </button>
           </div>
         </div>
-
         <div className="bottom-controls">
           <div className="search-input-wrapper">
             <span className="search-icon">🔍</span>
-            <input
-              type="text"
-              placeholder="Filter current results by keyword..."
-              className="search-input"
-              value={keywordFilter}
-              onChange={(e) => setKeywordFilter(e.target.value)}
-            />
-            {keywordFilter && (
-              <button 
-                className="clear-search-btn"
-                onClick={() => setKeywordFilter('')}
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
+            <input type="text" placeholder="Filter current results by keyword..." className="search-input" value={keywordFilter} onChange={(e) => setKeywordFilter(e.target.value)} />
+            {keywordFilter && (<button className="clear-search-btn" onClick={() => setKeywordFilter('')} title="Clear search">✕</button>)}
           </div>
           <div className="card-sizer-control">
             <span className="sizer-icon">↔️</span>
-            <input
-              type="range"
-              min="420"
-              max="800"
-              step="10"
-              value={cardSize}
-              onChange={(e) => setCardSize(e.target.value)}
-              className="card-size-slider"
-              title={`Adjust card width: ${cardSize}px`}
-            />
+            <input type="range" min="420" max="800" step="10" value={cardSize} onChange={(e) => setCardSize(e.target.value)} className="card-size-slider" title={`Adjust card width: ${cardSize}px`} />
             <span className="sizer-value">{cardSize}px</span>
           </div>
-          {hasActiveFilters && (
-            <button className="quick-clear-btn" onClick={clearAllFilters}>
-              Clear All Filters
-            </button>
-          )}
+          {hasActiveFilters && (<button className="quick-clear-btn" onClick={clearAllFilters}>Clear All Filters</button>)}
         </div>
       </div>
       
@@ -542,51 +392,15 @@ const App = () => {
             const count = notamDataStore[icao]?.data?.length || 0;
             const isLoading = fetchQueue.includes(icao) || notamDataStore[icao]?.loading;
             return (
-              <Tab 
-                key={icao} 
-                id={icao} 
-                label={isLoading ? `${icao}` : `${icao} (${count})`}
-                onRemove={handleRemoveIcao}
-                onRefresh={handleRefreshIcao}
-              />
+              <Tab key={icao} id={icao} label={isLoading ? `${icao}` : `${icao} (${count})`} onRemove={handleRemoveIcao} onRefresh={handleRefreshIcao} timeToRefresh={timeToNextRefresh} />
             );
           })}
         </div>
-        
-        <NotamTabContent 
-          icao={activeTab} 
-          notams={filteredNotams} 
-          loading={activeNotamData.loading} 
-          error={activeNotamData.error}
-          hasActiveFilters={hasActiveFilters}
-          onClearFilters={clearAllFilters}
-          filterOrder={filterOrder}
-          keywordHighlightEnabled={keywordHighlightEnabled}
-          keywordCategories={keywordCategories}
-        />
+        <NotamTabContent icao={activeTab} notams={filteredNotams} loading={activeNotamData.loading} error={activeNotamData.error} hasActiveFilters={hasActiveFilters} onClearFilters={clearAllFilters} filterOrder={filterOrder} keywordHighlightEnabled={keywordHighlightEnabled} keywordCategories={keywordCategories} />
       </div>
 
-      <FilterModal
-        isOpen={isFilterModalOpen}
-        onClose={() => setIsFilterModalOpen(false)}
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        typeCounts={typeCounts}
-        onClearAll={clearAllFilters}
-        filterOrder={filterOrder}
-        setFilterOrder={setFilterOrder}
-        dragState={dragState}
-        setDragState={setDragState}
-      />
-
-      <NotamKeywordHighlightManager
-        isOpen={isHighlightModalOpen}
-        onClose={() => setIsHighlightModalOpen(false)}
-        keywordCategories={keywordCategories}
-        setKeywordCategories={setKeywordCategories}
-        keywordHighlightEnabled={keywordHighlightEnabled}
-        setKeywordHighlightEnabled={setKeywordHighlightEnabled}
-      />
+      <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} filters={filters} onFilterChange={handleFilterChange} typeCounts={typeCounts} onClearAll={clearAllFilters} filterOrder={filterOrder} setFilterOrder={setFilterOrder} dragState={dragState} setDragState={setDragState} />
+      <NotamKeywordHighlightManager isOpen={isHighlightModalOpen} onClose={() => setIsHighlightModalOpen(false)} keywordCategories={keywordCategories} setKeywordCategories={setKeywordCategories} keywordHighlightEnabled={keywordHighlightEnabled} setKeywordHighlightEnabled={setKeywordHighlightEnabled} />
     </div>
   );
 };
@@ -602,7 +416,6 @@ const ModernHeader = () => {
       const timeString = now.toUTCString().slice(5, -4);
       setUtcTime(timeString + ' UTC');
     };
-    
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
