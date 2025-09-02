@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import NotamTabContent from './NotamTabContent';
+import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
+import { FilterModal } from './NotamTabContent'; // Import the modal
 
 const App = () => {
   // State Management
@@ -7,6 +9,21 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('ALL');
   const [notamDataStore, setNotamDataStore] = useState({});
   const [isAdding, setIsAdding] = useState(false);
+
+  // Filter states moved from NotamTabContent
+  const [keywordFilter, setKeywordFilter] = useState('');
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [filterOrder, setFilterOrder] = useState([
+    'rwy', 'twy', 'rsc', 'crfi', 'ils', 'fuel', 'other', 'cancelled'
+  ]);
+  const [filters, setFilters] = useState({
+    rwy: true, twy: true, rsc: true, crfi: true, ils: true,
+    fuel: true, other: true, cancelled: false, current: true, future: true,
+  });
+  const [dragState, setDragState] = useState({
+    draggedItem: null,
+    draggedOver: null
+  });
 
   const icaoInputRef = useRef(null);
 
@@ -114,7 +131,6 @@ const App = () => {
     }
   };
 
-  // Consolidate data for the "ALL" tab
   const allNotamsData = useMemo(() => {
     let combined = [];
     let isLoading = false;
@@ -143,6 +159,100 @@ const App = () => {
     ? allNotamsData 
     : notamDataStore[activeTab] || { data: [], loading: true, error: null };
 
+  // Filter logic moved from NotamTabContent
+  const { filteredNotams, typeCounts, hasActiveFilters, activeFilterCount } = useMemo(() => {
+    const notams = activeNotamData.data;
+    if (!notams) return { filteredNotams: [], typeCounts: {}, hasActiveFilters: false, activeFilterCount: 0 };
+    
+    const counts = {
+      rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0,
+      fuel: 0, other: 0, cancelled: 0, current: 0, future: 0
+    };
+
+    notams.forEach(notam => {
+      if (notam.isIcaoHeader) return;
+      
+      const type = getNotamType(notam);
+      counts[type]++;
+      
+      if (isNotamCurrent(notam)) counts.current++;
+      if (isNotamFuture(notam)) counts.future++;
+    });
+    
+    let results = notams.filter(notam => {
+      if (notam.isIcaoHeader) return true;
+
+      const type = getNotamType(notam);
+      const text = (notam.summary || '').toLowerCase();
+
+      if (keywordFilter && !text.includes(keywordFilter.toLowerCase())) return false;
+      if (!filters.current && isNotamCurrent(notam)) return false;
+      if (!filters.future && isNotamFuture(notam)) return false;
+      if (filters[type] === false) return false;
+
+      return true;
+    });
+
+    results.sort((a, b) => {
+      if (a.isIcaoHeader && b.isIcaoHeader) return 0;
+      if (a.isIcaoHeader) return -1;
+      if (b.isIcaoHeader) return 1;
+
+      const aType = getNotamType(a);
+      const bType = getNotamType(b);
+      const aPriority = filterOrder.indexOf(aType);
+      const bPriority = filterOrder.indexOf(bType);
+      
+      if (aPriority === bPriority) {
+        const aDate = new Date(a.validFrom);
+        const bDate = new Date(b.validFrom);
+        return bDate - aDate;
+      }
+      
+      return aPriority - bPriority;
+    });
+
+    if (activeTab === 'ALL') {
+      const finalResult = [];
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].isIcaoHeader) {
+          if (i + 1 >= results.length || results[i+1].isIcaoHeader) {
+            continue; 
+          }
+        }
+        finalResult.push(results[i]);
+      }
+      results = finalResult;
+    }
+    
+    const defaultFilters = {
+      rwy: true, twy: true, rsc: true, crfi: true, ils: true,
+      fuel: true, other: true, cancelled: false, current: true, future: true,
+    };
+
+    const hasFilters = keywordFilter || Object.keys(filters).some(key => filters[key] !== defaultFilters[key]);
+    const filterCount = Object.keys(filters).filter(key => filters[key] !== defaultFilters[key]).length + (keywordFilter ? 1 : 0);
+
+    return { 
+      filteredNotams: results, 
+      typeCounts: counts,
+      hasActiveFilters: hasFilters,
+      activeFilterCount: filterCount
+    };
+  }, [activeNotamData.data, keywordFilter, filters, activeTab, filterOrder]);
+
+  const handleFilterChange = (filterKey) => {
+    setFilters(prev => ({ ...prev, [filterKey]: !prev[filterKey] }));
+  };
+
+  const clearAllFilters = () => {
+    setFilters({
+      rwy: true, twy: true, rsc: true, crfi: true, ils: true,
+      fuel: true, other: true, cancelled: false, current: true, future: true,
+    });
+    setKeywordFilter('');
+  };
+
   const Tab = ({ id, label, onRemove }) => (
     <div 
       className={`icao-tab ${activeTab === id ? 'active' : ''}`} 
@@ -169,28 +279,70 @@ const App = () => {
       <ModernHeader />
       
       <div className="glass icao-input-container">
-        <div className="icao-input-wrapper">
-          <input 
-            ref={icaoInputRef} 
-            placeholder="ICAO codes (e.g., CYYT, KJFK)" 
-            className="icao-input compact" 
-            onKeyPress={handleIcaoInputKeyPress}
-            disabled={isAdding}
-          />
-          <button 
-            onClick={handleAddIcao} 
-            className={`add-button ${isAdding ? 'loading' : ''}`}
-            disabled={isAdding}
-          >
-            {isAdding ? (
-              <>
-                <span className="loading-spinner"></span>
-                Adding...
-              </>
-            ) : (
-              'Add ICAO'
+        <div className="top-controls">
+          <div className="icao-input-wrapper">
+            <input 
+              ref={icaoInputRef} 
+              placeholder="ICAO codes (e.g., CYYT, KJFK)" 
+              className="icao-input compact" 
+              onKeyPress={handleIcaoInputKeyPress}
+              disabled={isAdding}
+            />
+            <button 
+              onClick={handleAddIcao} 
+              className={`add-button ${isAdding ? 'loading' : ''}`}
+              disabled={isAdding}
+            >
+              {isAdding ? (
+                <>
+                  <span className="loading-spinner"></span>
+                  Adding...
+                </>
+              ) : (
+                'Add ICAO'
+              )}
+            </button>
+          </div>
+          
+          <div className="filter-controls">
+            <button 
+              className="filter-toggle-btn"
+              onClick={() => setIsFilterModalOpen(true)}
+            >
+              <span className="filter-icon">🎯</span>
+              <span className="filter-text">FILTER</span>
+              {activeFilterCount > 0 && (
+                <span className="filter-badge">{activeFilterCount}</span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="bottom-controls">
+          <div className="search-input-wrapper">
+            <span className="search-icon">🔍</span>
+            <input
+              type="text"
+              placeholder="Filter current results by keyword..."
+              className="search-input"
+              value={keywordFilter}
+              onChange={(e) => setKeywordFilter(e.target.value)}
+            />
+            {keywordFilter && (
+              <button 
+                className="clear-search-btn"
+                onClick={() => setKeywordFilter('')}
+                title="Clear search"
+              >
+                ✕
+              </button>
             )}
-          </button>
+          </div>
+          {hasActiveFilters && (
+            <button className="quick-clear-btn" onClick={clearAllFilters}>
+              Clear All Filters
+            </button>
+          )}
         </div>
       </div>
       
@@ -212,11 +364,27 @@ const App = () => {
         
         <NotamTabContent 
           icao={activeTab} 
-          notams={activeNotamData.data} 
+          notams={filteredNotams} 
           loading={activeNotamData.loading} 
-          error={activeNotamData.error} 
+          error={activeNotamData.error}
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={clearAllFilters}
+          filterOrder={filterOrder}
         />
       </div>
+
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        typeCounts={typeCounts}
+        onClearAll={clearAllFilters}
+        filterOrder={filterOrder}
+        setFilterOrder={setFilterOrder}
+        dragState={dragState}
+        setDragState={setDragState}
+      />
     </div>
   );
 };
