@@ -80,9 +80,10 @@ const NotamCard = ({ notam }) => {
           )}
         </div>
         <div className="head-actions">
-          <span className={`time-badge time-${timeStatus}`}>
-            {timeStatus === 'active' ? '🟢' : timeStatus === 'future' ? '🟡' : '🔴'}
-          </span>
+          <div className={`time-status-badge ${timeStatus}`}>
+            <div className={`status-dot ${timeStatus}`}></div>
+            <span>{timeStatus === 'active' ? 'Active' : timeStatus === 'future' ? 'Future' : 'Expired'}</span>
+          </div>
           <button 
             className="copy-btn" 
             onClick={copyToClipboard}
