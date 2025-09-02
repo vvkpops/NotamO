@@ -154,31 +154,38 @@ const App = () => {
   }, [fetchQueue]);
 
   const handleRefreshAll = useCallback(() => {
-    if (icaos.length > 0) {
-      console.log(`Manual refresh triggered for all ICAOs: ${icaos.join(', ')}`);
-      setFetchQueue(prevQueue => [...new Set([...prevQueue, ...icaos])]);
-    }
-  }, [icaos]);
+    // Use a function with setIcaos to get the most recent state
+    setIcaos(currentIcaos => {
+      if (currentIcaos.length > 0) {
+        console.log(`Auto-refresh triggered for all ICAOs: ${currentIcaos.join(', ')}`);
+        setFetchQueue(prevQueue => [...new Set([...prevQueue, ...currentIcaos])]);
+      }
+      return currentIcaos;
+    });
+  }, []);
 
-  // --- Global Auto-Refresh and Countdown Timer ---
+  // --- Global Auto-Refresh and Countdown Timer (Corrected) ---
   useEffect(() => {
-    const countdownTimer = setInterval(() => {
-      setTimeToNextRefresh(prevTime => (prevTime > 0 ? prevTime - 1000 : AUTO_REFRESH_INTERVAL));
+    // Single, unified timer
+    const timer = setInterval(() => {
+      setTimeToNextRefresh(prevTime => {
+        const newTime = prevTime - 1000;
+        if (newTime <= 0) {
+          handleRefreshAll(); // Trigger the refresh
+          return AUTO_REFRESH_INTERVAL; // Reset the timer
+        }
+        return newTime; // Otherwise, just decrement
+      });
     }, 1000);
-
-    const autoRefreshTimer = setInterval(() => {
-      handleRefreshAll();
-    }, AUTO_REFRESH_INTERVAL);
-
-    const icaosToFetch = icaos.filter(icao => !notamDataStore[icao] && !fetchQueue.includes(icao));
+    
+    // Initial fetch for any ICAOs loaded from localStorage
+    const icaosToFetch = JSON.parse(localStorage.getItem("notamIcaos") || "[]")
+      .filter(icao => !notamDataStore[icao] && !fetchQueue.includes(icao));
     if (icaosToFetch.length > 0) {
       setFetchQueue(prev => [...new Set([...prev, ...icaosToFetch])]);
     }
 
-    return () => {
-      clearInterval(countdownTimer);
-      clearInterval(autoRefreshTimer);
-    };
+    return () => clearInterval(timer);
   }, [handleRefreshAll]);
 
   useEffect(() => {
@@ -317,15 +324,16 @@ const App = () => {
     return (
       <div className={`icao-tab ${activeTab === id ? 'active' : ''} ${hasNew ? 'has-new-notams' : ''}`} onClick={() => handleTabClick(id)}>
         <span>{label}</span>
-        {isLoading && <span className="loading-spinner tab-spinner"></span>}
-        <div className="tab-actions">
-          {onRefresh && !isLoading && (
-            <button onClick={(e) => { e.stopPropagation(); onRefresh(id); }} className="refresh-btn" title={`Refresh ${id}`}>🔄</button>
-          )}
-          {onRemove && !isLoading && (
-            <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn" title={`Remove ${id}`}>×</button>
-          )}
-        </div>
+        {isLoading ? <span className="loading-spinner tab-spinner"></span> :
+          <div className="tab-actions">
+            {onRefresh && (
+              <button onClick={(e) => { e.stopPropagation(); onRefresh(id); }} className="refresh-btn" title={`Refresh ${id}`}>🔄</button>
+            )}
+            {onRemove && (
+              <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn" title={`Remove ${id}`}>×</button>
+            )}
+          </div>
+        }
       </div>
     );
   };
