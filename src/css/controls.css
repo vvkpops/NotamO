@@ -135,7 +135,7 @@
   animation: spin 1s linear infinite;
 }
 
-/* Enhanced ICAO tabs */
+/* Enhanced ICAO tabs with improved new NOTAM indicators */
 .icao-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -252,21 +252,79 @@
   background: rgba(239, 68, 68, 0.2);
 }
 
-/* New NOTAM indicator for tabs */
-.icao-tab.has-new-notams:not(.active) {
-  animation: newNotamGlow 1.5s infinite alternate;
+/* Enhanced New NOTAM indicator for tabs */
+.icao-tab.has-new-notams {
+  position: relative;
+  overflow: visible;
 }
 
-@keyframes newNotamGlow {
+.icao-tab.has-new-notams:not(.active) {
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+  background: rgba(16, 185, 129, 0.1);
+  animation: newNotamTabGlow 2s ease-in-out infinite alternate;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.icao-tab.has-new-notams::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 12px;
+  height: 12px;
+  background: radial-gradient(circle, #10b981 0%, #059669 100%);
+  border-radius: 50%;
+  border: 2px solid var(--primary-bg);
+  animation: newNotamDot 1.5s ease-in-out infinite;
+  z-index: 5;
+}
+
+@keyframes newNotamTabGlow {
   from {
     border-color: var(--accent-green);
     box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
     color: var(--accent-green);
   }
   to {
-    border-color: var(--border-primary);
-    box-shadow: none;
-    color: var(--text-secondary);
+    border-color: rgba(16, 185, 129, 0.8);
+    box-shadow: 0 0 25px rgba(16, 185, 129, 0.5);
+    color: rgba(16, 185, 129, 0.9);
+  }
+}
+
+@keyframes newNotamDot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.7;
+  }
+}
+
+/* Clear the new indicator when tab becomes active */
+.icao-tab.has-new-notams.active {
+  animation: none;
+  background: rgba(0, 212, 255, 0.15);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  box-shadow: 0 0 25px rgba(0, 212, 255, 0.25);
+}
+
+.icao-tab.has-new-notams.active::after {
+  animation: fadeOut 0.5s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0);
   }
 }
 
@@ -420,7 +478,7 @@
   color: var(--text-primary);
 }
 
-/* New Card Sizer Control */
+/* Card Sizer Control */
 .card-sizer-control {
   display: flex;
   align-items: center;
@@ -484,7 +542,6 @@
   transform: scale(1.1);
 }
 
-
 /* Enhanced filter toggle button for highlight feature */
 .filter-toggle-btn.highlight-enabled {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
@@ -528,10 +585,42 @@
     padding: 0.875rem 1.5rem;
     font-size: 0.9rem;
   }
+  
+  .icao-tab.has-new-notams::after {
+    top: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+  }
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .icao-tab,
+  .add-button,
+  .filter-toggle-btn,
+  .loading-spinner,
+  .tab-spinner {
+    transition: none;
+    animation: none;
+  }
+  
+  .icao-tab.has-new-notams {
+    animation: none;
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+    background: rgba(16, 185, 129, 0.15);
+  }
+  
+  .icao-tab.has-new-notams::after {
+    animation: none;
+  }
 }
 
 /* Focus states for accessibility */
-.filter-toggle-btn:focus-visible {
+.filter-toggle-btn:focus-visible,
+.add-button:focus-visible,
+.icao-tab:focus-visible {
   outline: 2px solid var(--accent-blue);
   outline-offset: 2px;
 }
