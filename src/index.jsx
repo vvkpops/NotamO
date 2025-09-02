@@ -1,7 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
-import './HighlightModal.css';
+import './css/base.css';
+import './css/controls.css';
+import './css/notam-grid.css';
+import './css/states.css';
+import './css/filter-modal.css';
+import './css/HighlightModal.css';
 import App from './App';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
