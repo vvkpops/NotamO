@@ -8,6 +8,7 @@ const NotamCard = ({
   keywordCategories = {} 
 }) => {
   const [isVisible, setIsVisible] = useState(false);
+  const [copyStatus, setCopyStatus] = useState('📋');
 
   useEffect(() => {
     // Trigger entrance animation
@@ -56,23 +57,31 @@ const NotamCard = ({
   };
 
   const timeStatus = getTimeStatus();
-  // Add 'is-new' class if the notam has the isNew flag
+  
+  // Enhanced card classes with new NOTAM detection
   const cardClasses = `notam-card ${isVisible ? 'visible' : ''} ${notam.isNew ? 'is-new' : ''} auto-sized`;
 
   const copyToClipboard = async (e) => {
     e.stopPropagation();
+    setCopyStatus('⏳');
+    
     try {
       // Always copy the rawText which should now be in ICAO format
-      await navigator.clipboard.writeText(notam.rawText);
-      e.target.textContent = '✓ Copied!';
+      const textToCopy = notam.rawText || notam.summary || 'NOTAM text not available';
+      await navigator.clipboard.writeText(textToCopy);
+      
+      setCopyStatus('✅');
+      console.log(`📋 Copied NOTAM ${notam.number} to clipboard`);
+      
       setTimeout(() => {
-        e.target.textContent = '📋';
+        setCopyStatus('📋');
       }, 2000);
     } catch (err) {
-      console.error('Failed to copy:', err);
-      e.target.textContent = '❌';
+      console.error('❌ Failed to copy NOTAM to clipboard:', err);
+      setCopyStatus('❌');
+      
       setTimeout(() => {
-        e.target.textContent = '📋';
+        setCopyStatus('📋');
       }, 2000);
     }
   };
@@ -85,9 +94,18 @@ const NotamCard = ({
     ? highlightNotamKeywords(displayText, keywordCategories, true)
     : displayText;
 
+  // Enhanced new NOTAM indicator with better animation
+  const newNotamIndicator = notam.isNew && (
+    <div className="new-notam-indicator">
+      <span className="new-badge-text">NEW</span>
+      <span className="new-badge-glow"></span>
+    </div>
+  );
+
   return (
-    <div className={cardClasses}>
-      {notam.isNew && <div className="new-notam-indicator">NEW</div>}
+    <div className={cardClasses} data-notam-id={notam.id} data-notam-number={notam.number}>
+      {newNotamIndicator}
+      
       <div className={`card-head ${headClass}`}>
         <div className="head-content">
           <span className="head-title">{headTitle}</span>
@@ -107,8 +125,9 @@ const NotamCard = ({
             className="copy-btn" 
             onClick={copyToClipboard}
             title="Copy ICAO formatted NOTAM"
+            disabled={copyStatus !== '📋'}
           >
-            📋
+            {copyStatus}
           </button>
         </div>
       </div>
@@ -140,6 +159,12 @@ const NotamCard = ({
               <span className="validity-label">Source:</span>
               <span className="validity-value">{notam.source}</span>
             </div>
+            {notam.number && notam.number !== 'N/A' && (
+              <div className="validity-row">
+                <span className="validity-label">Number:</span>
+                <span className="validity-value">{notam.number}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
