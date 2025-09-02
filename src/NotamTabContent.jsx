@@ -243,7 +243,17 @@ const EmptyState = ({ hasFilters, onClearFilters }) => (
   </div>
 );
 
-const NotamTabContent = ({ icao, notams, loading, error, hasActiveFilters, onClearFilters, filterOrder }) => {
+const NotamTabContent = ({ 
+  icao, 
+  notams, 
+  loading, 
+  error, 
+  hasActiveFilters, 
+  onClearFilters, 
+  filterOrder,
+  keywordHighlightEnabled = false,
+  keywordCategories = {}
+}) => {
   if (loading) {
     return <LoadingState />;
   }
@@ -268,7 +278,14 @@ const NotamTabContent = ({ icao, notams, loading, error, hasActiveFilters, onCle
       );
     }
     
-    return <NotamCard key={notam.id} notam={notam} />;
+    return (
+      <NotamCard 
+        key={notam.id} 
+        notam={notam} 
+        keywordHighlightEnabled={keywordHighlightEnabled}
+        keywordCategories={keywordCategories}
+      />
+    );
   };
 
   return (
