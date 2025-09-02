@@ -114,6 +114,10 @@ export function parseRawNotam(rawText) {
         break;
       case 'C':
         result.validToRaw = value.trim();
+        // Handle PERM variations
+        if (result.validToRaw.toUpperCase().includes('PERM')) {
+          result.validToRaw = 'PERM';
+        }
         break;
       case 'D':
         result.schedule = value.trim();
