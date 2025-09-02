@@ -78,16 +78,19 @@ const App = () => {
       
       setNotamDataStore(prev => {
         const oldData = prev[icao]?.data || [];
+        const isInitialFetch = oldData.length === 0; // Check if this is the first time fetching
         const oldNotamIds = new Set(oldData.map(n => n.id));
         let hasNewNotams = false;
 
         const newData = data.map(n => {
-          const isNew = !oldNotamIds.has(n.id);
+          // A NOTAM is only "new" if it's not the initial fetch AND its ID wasn't in the old data
+          const isNew = !isInitialFetch && !oldNotamIds.has(n.id);
           if (isNew) hasNewNotams = true;
           return { ...n, icao, isNew };
         });
 
-        if (hasNewNotams && oldData.length > 0) {
+        // The tab should only flash if new NOTAMs are detected on a refresh
+        if (hasNewNotams) {
           setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
         }
 
