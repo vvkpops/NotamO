@@ -106,34 +106,52 @@ const App = () => {
     }
   }, []);
 
-  // Effect to process the fetch queue
+  // --- Corrected Queue Processing Logic ---
+  const processQueueRef = useRef();
+
   useEffect(() => {
-    const processQueue = () => {
-      if (isProcessingQueue.current || fetchQueue.length === 0) {
+    processQueueRef.current = () => {
+      if (isProcessingQueue.current) {
         return;
       }
-      
-      isProcessingQueue.current = true;
-      const icaoToFetch = fetchQueue[0];
-      
-      fetchNotams(icaoToFetch).finally(() => {
-        setFetchQueue(prev => prev.slice(1)); // Remove the processed ICAO
-        
-        queueTimerRef.current = setTimeout(() => {
+
+      setFetchQueue(currentQueue => {
+        if (currentQueue.length === 0) {
           isProcessingQueue.current = false;
-          processQueue(); // Process next item after delay
-        }, 2100); // User-specified 2.1-second delay
+          return currentQueue;
+        }
+
+        isProcessingQueue.current = true;
+        const icaoToFetch = currentQueue[0];
+        
+        fetchNotams(icaoToFetch).finally(() => {
+          queueTimerRef.current = setTimeout(() => {
+            isProcessingQueue.current = false;
+            // Use the ref to call the latest version of the function
+            processQueueRef.current(); 
+          }, 2100);
+        });
+
+        // Return the queue with the processed item removed
+        return currentQueue.slice(1);
       });
     };
+  });
 
-    processQueue();
+  useEffect(() => {
+    // Kick off the queue processing when the component mounts or fetchQueue gets new items
+    if (fetchQueue.length > 0 && !isProcessingQueue.current) {
+      processQueueRef.current();
+    }
 
+    // Cleanup timer on unmount
     return () => {
       if (queueTimerRef.current) {
         clearTimeout(queueTimerRef.current);
       }
     };
-  }, [fetchQueue, fetchNotams]);
+  }, [fetchQueue]);
+  // --- End of Correction ---
 
   // Initial fetch for existing ICAOs
   useEffect(() => {
@@ -141,7 +159,7 @@ const App = () => {
     if (icaosToFetch.length > 0) {
       setFetchQueue(prev => [...new Set([...prev, ...icaosToFetch])]);
     }
-  }, [icaos]); // Run only when `icaos` array changes initially or is loaded
+  }, [icaos]);
 
   useEffect(() => {
     localStorage.setItem("notamIcaos", JSON.stringify(icaos));
