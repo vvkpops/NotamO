@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import NotamTabContent from './NotamTabContent';
 import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
-import { FilterModal } from './NotamTabContent'; // Import the modal
+import { FilterModal } from './NotamTabContent';
+import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKeywordHighlight';
 
 const App = () => {
   // State Management
@@ -24,6 +25,26 @@ const App = () => {
     draggedItem: null,
     draggedOver: null
   });
+
+  // Keyword highlighting states
+  const [keywordHighlightEnabled, setKeywordHighlightEnabled] = useState(() => {
+    const saved = localStorage.getItem('notamKeywordHighlightEnabled');
+    return saved ? JSON.parse(saved) : true;
+  });
+  const [keywordCategories, setKeywordCategories] = useState(() => {
+    const saved = localStorage.getItem('notamKeywordCategories');
+    return saved ? JSON.parse(saved) : DEFAULT_NOTAM_KEYWORDS;
+  });
+  const [isHighlightModalOpen, setIsHighlightModalOpen] = useState(false);
+
+  // Save keyword highlighting settings to localStorage
+  useEffect(() => {
+    localStorage.setItem('notamKeywordHighlightEnabled', JSON.stringify(keywordHighlightEnabled));
+  }, [keywordHighlightEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('notamKeywordCategories', JSON.stringify(keywordCategories));
+  }, [keywordCategories]);
 
   const icaoInputRef = useRef(null);
 
@@ -315,6 +336,22 @@ const App = () => {
                 <span className="filter-badge">{activeFilterCount}</span>
               )}
             </button>
+            
+            <button 
+              className="filter-toggle-btn"
+              onClick={() => setIsHighlightModalOpen(true)}
+              style={{
+                background: keywordHighlightEnabled 
+                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                  : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'
+              }}
+            >
+              <span className="filter-icon">🎯</span>
+              <span className="filter-text">HIGHLIGHT</span>
+              {keywordHighlightEnabled && (
+                <span className="filter-badge">ON</span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -370,6 +407,8 @@ const App = () => {
           hasActiveFilters={hasActiveFilters}
           onClearFilters={clearAllFilters}
           filterOrder={filterOrder}
+          keywordHighlightEnabled={keywordHighlightEnabled}
+          keywordCategories={keywordCategories}
         />
       </div>
 
@@ -384,6 +423,15 @@ const App = () => {
         setFilterOrder={setFilterOrder}
         dragState={dragState}
         setDragState={setDragState}
+      />
+
+      <NotamKeywordHighlightManager
+        isOpen={isHighlightModalOpen}
+        onClose={() => setIsHighlightModalOpen(false)}
+        keywordCategories={keywordCategories}
+        setKeywordCategories={setKeywordCategories}
+        keywordHighlightEnabled={keywordHighlightEnabled}
+        setKeywordHighlightEnabled={setKeywordHighlightEnabled}
       />
     </div>
   );
