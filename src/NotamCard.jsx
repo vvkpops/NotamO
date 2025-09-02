@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { getHeadClass, getHeadTitle, extractRunways } from './NotamUtils';
+import { highlightNotamKeywords } from './NotamKeywordHighlight';
 
-const NotamCard = ({ notam }) => {
+const NotamCard = ({ 
+  notam, 
+  keywordHighlightEnabled = false, 
+  keywordCategories = {} 
+}) => {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -73,6 +78,11 @@ const NotamCard = ({ notam }) => {
 
   // Ensure we have the ICAO formatted text to display
   const displayText = notam.rawText || notam.summary || 'NOTAM text not available';
+  
+  // Apply keyword highlighting if enabled
+  const highlightedText = keywordHighlightEnabled 
+    ? highlightNotamKeywords(displayText, keywordCategories, true)
+    : displayText;
 
   return (
     <div className={cardClasses}>
@@ -102,10 +112,17 @@ const NotamCard = ({ notam }) => {
       </div>
 
       <div className="notam-card-content">
-        {/* Display the ICAO formatted text */}
-        <pre className="notam-raw-text">
-          {displayText}
-        </pre>
+        {/* Display the ICAO formatted text with keyword highlighting */}
+        {keywordHighlightEnabled ? (
+          <pre 
+            className="notam-raw-text"
+            dangerouslySetInnerHTML={{ __html: highlightedText }}
+          />
+        ) : (
+          <pre className="notam-raw-text">
+            {displayText}
+          </pre>
+        )}
         
         <div className="notam-meta">
           <div className="validity-info">
