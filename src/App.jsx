@@ -153,28 +153,23 @@ const App = () => {
     };
   }, [fetchQueue]);
 
+  const handleRefreshAll = useCallback(() => {
+    if (icaos.length > 0) {
+      console.log(`Manual refresh triggered for all ICAOs: ${icaos.join(', ')}`);
+      setFetchQueue(prevQueue => [...new Set([...prevQueue, ...icaos])]);
+    }
+  }, [icaos]);
+
   // --- Global Auto-Refresh and Countdown Timer ---
   useEffect(() => {
-    // This timer handles the countdown display
     const countdownTimer = setInterval(() => {
-      setTimeToNextRefresh(prevTime => (prevTime > 0 ? prevTime - 1000 : 0));
+      setTimeToNextRefresh(prevTime => (prevTime > 0 ? prevTime - 1000 : AUTO_REFRESH_INTERVAL));
     }, 1000);
 
-    // This timer triggers the actual refresh
     const autoRefreshTimer = setInterval(() => {
-      // Use a function to get the latest `icaos` state without depending on it
-      setIcaos(currentIcaos => {
-        if (currentIcaos.length > 0) {
-          console.log(`Auto-refreshing all ICAOs: ${currentIcaos.join(', ')}`);
-          setFetchQueue(prevQueue => [...new Set([...prevQueue, ...currentIcaos])]);
-        }
-        return currentIcaos; // Return state unchanged
-      });
-      // Reset the countdown
-      setTimeToNextRefresh(AUTO_REFRESH_INTERVAL);
+      handleRefreshAll();
     }, AUTO_REFRESH_INTERVAL);
 
-    // Initial fetch for existing ICAOs
     const icaosToFetch = icaos.filter(icao => !notamDataStore[icao] && !fetchQueue.includes(icao));
     if (icaosToFetch.length > 0) {
       setFetchQueue(prev => [...new Set([...prev, ...icaosToFetch])]);
@@ -184,7 +179,7 @@ const App = () => {
       clearInterval(countdownTimer);
       clearInterval(autoRefreshTimer);
     };
-  }, []); // Empty dependency array ensures this runs only once
+  }, [handleRefreshAll]);
 
   useEffect(() => {
     localStorage.setItem("notamIcaos", JSON.stringify(icaos));
@@ -195,19 +190,15 @@ const App = () => {
   
   const handleAddIcao = useCallback(() => {
     if (!icaoInputRef.current || isAdding) return;
-    
     const input = icaoInputRef.current.value.toUpperCase().trim();
     const newIcaoInputs = input.split(/[,\s]+/).map(s => s.trim()).filter(s => s.length === 4 && /^[A-Z0-9]{4}$/.test(s));
-    
     if (newIcaoInputs.length === 0) {
       icaoInputRef.current.style.animation = 'shake 0.5s ease-in-out';
       setTimeout(() => { if (icaoInputRef.current) { icaoInputRef.current.style.animation = ''; } }, 500);
       return;
     }
-
     setIsAdding(true);
     const uniqueNewIcaos = [...new Set(newIcaoInputs.filter(icao => !icaos.includes(icao)))];
-    
     if (uniqueNewIcaos.length > 0) {
       const updatedIcaos = [...icaos, ...uniqueNewIcaos];
       setIcaos(updatedIcaos);
@@ -216,7 +207,6 @@ const App = () => {
       icaoInputRef.current.classList.add('success-flash');
       setTimeout(() => { if (icaoInputRef.current) { icaoInputRef.current.classList.remove('success-flash'); } }, 500);
     }
-    
     icaoInputRef.current.value = "";
     icaoInputRef.current.focus();
     setTimeout(() => setIsAdding(false), 300);
@@ -224,11 +214,7 @@ const App = () => {
 
   const handleRemoveIcao = useCallback((icaoToRemove) => {
     setIcaos(prev => prev.filter(i => i !== icaoToRemove));
-    setNotamDataStore(prev => {
-      const newStore = {...prev};
-      delete newStore[icaoToRemove];
-      return newStore;
-    });
+    setNotamDataStore(prev => { const newStore = {...prev}; delete newStore[icaoToRemove]; return newStore; });
   }, []);
 
   const handleRefreshIcao = useCallback((icaoToRefresh) => {
@@ -245,7 +231,6 @@ const App = () => {
     let isLoading = icaos.some(icao => notamDataStore[icao]?.loading || fetchQueue.includes(icao));
     let anyError = null;
     let hasAnyData = false;
-
     [...icaos].sort().forEach(icao => {
       const storeEntry = notamDataStore[icao];
       if (storeEntry) {
@@ -257,7 +242,6 @@ const App = () => {
         }
       }
     });
-    
     return { data: combined, loading: isLoading && !hasAnyData, error: anyError };
   }, [notamDataStore, icaos, fetchQueue]);
 
@@ -271,17 +255,13 @@ const App = () => {
   const { filteredNotams, typeCounts, hasActiveFilters, activeFilterCount } = useMemo(() => {
     const notams = activeNotamData.data;
     if (!notams) return { filteredNotams: [], typeCounts: {}, hasActiveFilters: false, activeFilterCount: 0 };
-    
     const counts = { rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0, fuel: 0, other: 0, cancelled: 0, current: 0, future: 0 };
     notams.forEach(notam => {
       if (notam.isIcaoHeader) return;
-      const type = getNotamType(notam);
-      counts[type]++;
-      if (isNotamCurrent(notam)) counts.current++;
-      if (isNotamFuture(notam)) counts.future++;
+      const type = getNotamType(notam); counts[type]++;
+      if (isNotamCurrent(notam)) counts.current++; if (isNotamFuture(notam)) counts.future++;
     });
-    
-    let results = notams.filter(notam => {
+    const filterFunc = notam => {
       if (notam.isIcaoHeader) return true;
       const type = getNotamType(notam);
       if (keywordFilter && !(notam.summary || '').toLowerCase().includes(keywordFilter.toLowerCase())) return false;
@@ -289,23 +269,32 @@ const App = () => {
       if (!filters.current && isNotamCurrent(notam)) return false;
       if (!filters.future && isNotamFuture(notam)) return false;
       return true;
-    });
-
-    results.sort((a, b) => {
-      if (a.isIcaoHeader) return -1; if (b.isIcaoHeader) return 1;
+    };
+    const sortFunc = (a, b) => {
+      if (a.isIcaoHeader || b.isIcaoHeader) return 0;
       const aPrio = filterOrder.indexOf(getNotamType(a)), bPrio = filterOrder.indexOf(getNotamType(b));
       if (aPrio !== bPrio) return aPrio - bPrio;
       return new Date(b.validFrom) - new Date(a.validFrom);
-    });
-
+    };
+    let results = notams.filter(filterFunc).sort(sortFunc);
     if (activeTab === 'ALL') {
-      results = results.filter((item, i, arr) => !item.isIcaoHeader || (i + 1 < arr.length && !arr[i+1].isIcaoHeader));
+        const icaoGroups = results.reduce((acc, item) => {
+            if (item.isIcaoHeader) return acc;
+            acc[item.icao] = acc[item.icao] || [];
+            acc[item.icao].push(item);
+            return acc;
+        }, {});
+        results = [];
+        Object.keys(icaoGroups).sort().forEach(icao => {
+            if (icaoGroups[icao].length > 0) {
+                results.push({ isIcaoHeader: true, icao: icao, id: `header-${icao}` });
+                results.push(...icaoGroups[icao]);
+            }
+        });
     }
-    
     const defaultFilters = { rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, other: true, cancelled: false, current: true, future: true };
     const hasFilters = keywordFilter || Object.keys(filters).some(key => filters[key] !== defaultFilters[key]);
     const filterCount = Object.keys(filters).filter(key => filters[key] !== defaultFilters[key]).length + (keywordFilter ? 1 : 0);
-
     return { filteredNotams: results, typeCounts: counts, hasActiveFilters: hasFilters, activeFilterCount: filterCount };
   }, [activeNotamData.data, keywordFilter, filters, activeTab, filterOrder]);
 
@@ -322,22 +311,16 @@ const App = () => {
     }
   };
 
-  const Tab = ({ id, label, onRemove, onRefresh, timeToRefresh }) => {
+  const Tab = ({ id, label, onRemove, onRefresh }) => {
     const isLoading = fetchQueue.includes(id) || notamDataStore[id]?.loading;
     const hasNew = newNotamIcaos.has(id);
-    const minutes = Math.floor(timeToRefresh / 60000);
-    const seconds = Math.floor((timeToRefresh % 60000) / 1000).toString().padStart(2, '0');
-    
     return (
       <div className={`icao-tab ${activeTab === id ? 'active' : ''} ${hasNew ? 'has-new-notams' : ''}`} onClick={() => handleTabClick(id)}>
         <span>{label}</span>
         {isLoading && <span className="loading-spinner tab-spinner"></span>}
         <div className="tab-actions">
           {onRefresh && !isLoading && (
-            <>
-              <span className="countdown-timer" title={`Next auto-refresh in ${minutes}:${seconds}`}>{minutes}:{seconds}</span>
-              <button onClick={(e) => { e.stopPropagation(); onRefresh(id); }} className="refresh-btn" title={`Refresh ${id}`}>🔄</button>
-            </>
+            <button onClick={(e) => { e.stopPropagation(); onRefresh(id); }} className="refresh-btn" title={`Refresh ${id}`}>🔄</button>
           )}
           {onRemove && !isLoading && (
             <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn" title={`Remove ${id}`}>×</button>
@@ -349,7 +332,7 @@ const App = () => {
 
   return (
     <div className="container" style={{ '--notam-card-size': `${cardSize}px` }}>
-      <ModernHeader />
+      <ModernHeader timeToNextRefresh={timeToNextRefresh} onRefreshAll={handleRefreshAll} />
       
       <div className="glass icao-input-container">
         <div className="top-controls">
@@ -392,7 +375,7 @@ const App = () => {
             const count = notamDataStore[icao]?.data?.length || 0;
             const isLoading = fetchQueue.includes(icao) || notamDataStore[icao]?.loading;
             return (
-              <Tab key={icao} id={icao} label={isLoading ? `${icao}` : `${icao} (${count})`} onRemove={handleRemoveIcao} onRefresh={handleRefreshIcao} timeToRefresh={timeToNextRefresh} />
+              <Tab key={icao} id={icao} label={isLoading ? `${icao}` : `${icao} (${count})`} onRemove={handleRemoveIcao} onRefresh={handleRefreshIcao} />
             );
           })}
         </div>
@@ -405,7 +388,7 @@ const App = () => {
   );
 };
 
-const ModernHeader = () => {
+const ModernHeader = ({ timeToNextRefresh, onRefreshAll }) => {
   const [utcTime, setUtcTime] = useState('');
   const [mounted, setMounted] = useState(false);
   
@@ -413,18 +396,26 @@ const ModernHeader = () => {
     setMounted(true);
     const tick = () => {
       const now = new Date();
-      const timeString = now.toUTCString().slice(5, -4);
-      setUtcTime(timeString + ' UTC');
+      setUtcTime(now.toUTCString().slice(5, -4) + ' UTC');
     };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, []);
 
+  const minutes = Math.floor(timeToNextRefresh / 60000);
+  const seconds = Math.floor((timeToNextRefresh % 60000) / 1000).toString().padStart(2, '0');
+
   return (
     <header className={`modern-header ${mounted ? 'mounted' : ''}`}>
       <h1>NOTAM Console</h1>
-      <p>{utcTime}</p>
+      <div className="header-meta">
+        <div className="global-refresh" title={`Next auto-refresh in ${minutes}:${seconds}`}>
+          <button onClick={onRefreshAll} className="refresh-all-btn">Refresh All</button>
+          <span className="global-countdown">{minutes}:{seconds}</span>
+        </div>
+        <p className="utc-time">{utcTime}</p>
+      </div>
     </header>
   );
 };

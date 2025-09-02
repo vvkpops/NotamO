@@ -124,7 +124,48 @@ body::before {
   animation: titleGlow 3s ease-in-out infinite alternate;
 }
 
-.modern-header p {
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.global-refresh {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(17, 24, 39, 0.7);
+  padding: 0.5rem 0.5rem 0.5rem 1.25rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-primary);
+}
+
+.refresh-all-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.refresh-all-btn:hover {
+  color: var(--accent-blue);
+}
+
+.global-countdown {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--accent-blue);
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  min-width: 50px;
+  text-align: center;
+}
+
+.utc-time {
   font-family: 'JetBrains Mono', monospace;
   font-size: 1rem;
   color: var(--accent-blue);
@@ -132,31 +173,6 @@ body::before {
   opacity: 0.9;
   animation: pulse 2s ease-in-out infinite;
   margin: 0;
-}
-
-.header-decoration {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.5rem;
-  margin-top: 2.5rem;
-}
-
-.decoration-line {
-  width: 80px;
-  height: 3px;
-  background: var(--gradient-accent);
-  border-radius: 2px;
-  animation: lineGlow 2s ease-in-out infinite alternate;
-}
-
-.decoration-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--accent-blue);
-  box-shadow: 0 0 20px var(--accent-blue);
-  animation: dotPulse 1.5s ease-in-out infinite;
 }
 
 /* Keyframes */
@@ -168,16 +184,6 @@ body::before {
 @keyframes pulse {
   0%, 100% { opacity: 0.9; }
   50% { opacity: 0.7; }
-}
-
-@keyframes lineGlow {
-  0% { box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); }
-  100% { box-shadow: 0 0 15px rgba(139, 92, 246, 0.6); }
-}
-
-@keyframes dotPulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.8; }
 }
 
 @keyframes shake {
@@ -217,11 +223,16 @@ body::before {
   .modern-header {
     flex-direction: column;
     padding: 2rem 0;
-    gap: 0.5rem;
+    gap: 1.5rem;
     text-align: center;
   }
   
   .modern-header h1 {
     font-size: 2.2rem;
+  }
+
+  .header-meta {
+    flex-direction: column;
+    gap: 1rem;
   }
 }

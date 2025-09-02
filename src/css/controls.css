@@ -141,7 +141,6 @@
   flex-wrap: wrap;
   gap: 1rem;
   padding: 1.5rem 2rem;
-  /* Reduced margin-bottom to decrease gap */
   margin-bottom: 1.5rem; 
 }
 
@@ -211,32 +210,14 @@
   border-top-color: var(--accent-blue);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
-  margin-right: 0.5rem; /* Space between spinner and actions */
+  margin-left: 0.5rem;
 }
 
 .tab-actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem; /* Adjusted gap */
+  gap: 0.25rem;
   margin-left: 0.75rem;
-}
-
-.countdown-timer {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  background-color: rgba(0, 0, 0, 0.2);
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  transition: color 0.3s ease;
-}
-
-.icao-tab:hover .countdown-timer {
-  color: var(--accent-purple);
-}
-
-.icao-tab.active .countdown-timer {
-  color: var(--accent-blue);
 }
 
 .refresh-btn,
