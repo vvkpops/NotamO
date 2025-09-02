@@ -88,14 +88,10 @@ body::before {
 
 /* Container with better spacing */
 .container {
-  max-width: 1900px;
+  max-width: 95%;
   margin: 0 auto;
   padding: 0 2rem;
   transition: max-width 0.5s ease;
-}
-
-.container.wide-mode {
-  max-width: 95%;
 }
 
 /* Premium header design with improved spacing */
@@ -570,6 +566,70 @@ body::before {
   color: var(--text-primary);
 }
 
+/* New Card Sizer Control */
+.card-sizer-control {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.5rem 1.5rem;
+  border-radius: 14px;
+  border: 2px solid var(--border-primary);
+  transition: all 0.3s ease;
+}
+.card-sizer-control:hover {
+  border-color: var(--accent-blue);
+}
+.sizer-icon {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+}
+.sizer-value {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent-blue);
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-width: 50px;
+}
+.card-size-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 150px;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 3px;
+  outline: none;
+  transition: opacity 0.2s;
+  cursor: pointer;
+}
+.card-size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--accent-blue);
+  border-radius: 50%;
+  border: 3px solid var(--primary-bg);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+  transition: transform 0.2s ease;
+}
+.card-size-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+.card-size-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--accent-blue);
+  border-radius: 50%;
+  border: 3px solid var(--primary-bg);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+.card-size-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
 /* Filter Modal - Enhanced spacing */
 .filter-modal-backdrop {
   position: fixed;
@@ -1042,14 +1102,10 @@ body::before {
 /* Revolutionary NOTAM grid with improved spacing */
 .notam-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--notam-card-size, 420px), 1fr));
   gap: var(--grid-gap);
   margin-top: 2.5rem;
   transition: grid-template-columns 0.5s ease;
-}
-
-.notam-grid.wide {
-  grid-template-columns: repeat(auto-fit, minmax(550px, 1fr));
 }
 
 /* Next-level NOTAM cards with enhanced spacing */
