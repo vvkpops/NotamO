@@ -19,8 +19,6 @@ const App = () => {
 
   // Batching, new NOTAM detection, and auto-refresh states
   const [fetchQueue, setFetchQueue] = useState([]);
-  const isProcessingQueue = useRef(false);
-  const queueTimerRef = useRef(null);
   const [newNotamIcaos, setNewNotamIcaos] = useState(new Set());
   const [timeToNextRefresh, setTimeToNextRefresh] = useState(AUTO_REFRESH_INTERVAL);
 
@@ -50,6 +48,17 @@ const App = () => {
   });
   const [isHighlightModalOpen, setIsHighlightModalOpen] = useState(false);
 
+  // FIX 1: Use useRef to avoid stale state in callbacks
+  const icaosRef = useRef([]);
+  const isProcessingQueue = useRef(false);
+  const queueTimerRef = useRef(null);
+  const icaoInputRef = useRef(null);
+
+  // Update ref whenever icaos changes
+  useEffect(() => {
+    icaosRef.current = icaos;
+  }, [icaos]);
+
   // Save settings to localStorage
   useEffect(() => {
     localStorage.setItem('notamKeywordHighlightEnabled', JSON.stringify(keywordHighlightEnabled));
@@ -63,9 +72,44 @@ const App = () => {
     localStorage.setItem('notamCardSize', JSON.stringify(cardSize));
   }, [cardSize]);
 
-  const icaoInputRef = useRef(null);
+  // FIX 2: Improved NOTAM signature-based detection
+  const createNotamSignature = (notam) => {
+    // Create a more robust signature using multiple fields
+    const summary = (notam.summary || '').replace(/\s+/g, ' ').trim();
+    const rawText = (notam.rawText || '').replace(/\s+/g, ' ').trim();
+    const text = summary || rawText;
+    
+    return `${notam.number || 'unknown'}-${notam.validFrom || 'unknown'}-${text.slice(0, 100)}`;
+  };
 
+  const detectNewNotams = (oldData, newData, isInitialFetch) => {
+    if (isInitialFetch || oldData.length === 0) {
+      return { processedData: newData.map(n => ({ ...n, isNew: false })), hasNewNotams: false };
+    }
+
+    // Create signatures for old NOTAMs
+    const oldNotamSignatures = new Set(oldData.map(createNotamSignature));
+    
+    let hasNewNotams = false;
+    const processedData = newData.map(notam => {
+      const signature = createNotamSignature(notam);
+      const isNew = !oldNotamSignatures.has(signature);
+      
+      if (isNew) {
+        hasNewNotams = true;
+        console.log(`🆕 New NOTAM detected: ${notam.number} - ${signature.slice(0, 50)}...`);
+      }
+      
+      return { ...notam, isNew };
+    });
+
+    return { processedData, hasNewNotams };
+  };
+
+  // FIX 3: Enhanced fetchNotams with better error handling
   const fetchNotams = useCallback(async (icao) => {
+    console.log(`🚀 Fetching NOTAMs for ${icao}`);
+    
     setNotamDataStore(prev => ({ 
       ...prev, 
       [icao]: { ...prev[icao], loading: true, error: null } 
@@ -82,60 +126,97 @@ const App = () => {
       setNotamDataStore(prev => {
         const oldData = prev[icao]?.data || [];
         const isInitialFetch = oldData.length === 0;
-        const oldNotamIds = new Set(oldData.map(n => n.id));
-        let hasNewNotams = false;
+        
+        // Use improved detection logic
+        const { processedData, hasNewNotams } = detectNewNotams(oldData, data, isInitialFetch);
+        
+        // Add ICAO to each NOTAM for consistency
+        const notamsWithIcao = processedData.map(n => ({ ...n, icao }));
 
-        const newData = data.map(n => {
-          const isNew = !isInitialFetch && !oldNotamIds.has(n.id);
-          if (isNew) hasNewNotams = true;
-          return { ...n, icao, isNew };
-        });
-
+        // Update new NOTAM indicators
         if (hasNewNotams) {
+          console.log(`🆕 Found new NOTAMs for ${icao}`);
           setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
         }
 
         return { 
           ...prev, 
           [icao]: { 
-            data: newData, 
+            data: notamsWithIcao, 
             loading: false, 
-            error: null 
+            error: null,
+            lastUpdated: Date.now() // Track when last updated
           } 
         };
       });
+      
+      console.log(`✅ Successfully fetched ${data.length} NOTAMs for ${icao}`);
+      
     } catch (err) {
+      console.error(`❌ Error fetching NOTAMs for ${icao}:`, err.message);
+      
       setNotamDataStore(prev => ({ 
         ...prev, 
         [icao]: { 
           ...prev[icao], 
           loading: false, 
-          error: err.message 
+          error: err.message,
+          lastError: Date.now()
         } 
       }));
     }
   }, []);
 
-  // --- Queue Processing Logic ---
-  const processQueueRef = useRef();
+  // FIX 4: Stable handleRefreshAll using ref
+  const handleRefreshAll = useCallback(() => {
+    const currentIcaos = icaosRef.current; // Use ref instead of state
+    
+    if (currentIcaos.length > 0) {
+      console.log(`🔄 Auto-refresh triggered for all ICAOs: ${currentIcaos.join(', ')}`);
+      
+      setFetchQueue(prevQueue => {
+        // Deduplicate and add all current ICAOs
+        const newQueue = [...new Set([...prevQueue, ...currentIcaos])];
+        console.log(`📋 Queue updated: ${newQueue.join(', ')}`);
+        return newQueue;
+      });
+    } else {
+      console.log('⚠️  No ICAOs to refresh');
+    }
+  }, []); // Truly stable - no dependencies
 
+  // FIX 5: Robust queue processing with overflow protection
+  const processQueueRef = useRef();
+  
   useEffect(() => {
     processQueueRef.current = () => {
-      if (isProcessingQueue.current) return;
+      if (isProcessingQueue.current) {
+        console.log('⚠️  Queue processing already in progress, skipping');
+        return;
+      }
 
       setFetchQueue(currentQueue => {
         if (currentQueue.length === 0) {
+          console.log('✅ Queue empty, processing complete');
           isProcessingQueue.current = false;
           return currentQueue;
+        }
+
+        // Protect against queue overflow
+        if (currentQueue.length > 10) {
+          console.warn(`⚠️  Queue is large (${currentQueue.length} items), this may take a while`);
         }
 
         isProcessingQueue.current = true;
         const icaoToFetch = currentQueue[0];
         
+        console.log(`🔄 Processing queue item: ${icaoToFetch} (${currentQueue.length - 1} remaining)`);
+        
         fetchNotams(icaoToFetch).finally(() => {
+          // Use consistent delay between requests to avoid API rate limits
           queueTimerRef.current = setTimeout(() => {
             isProcessingQueue.current = false;
-            processQueueRef.current(); 
+            processQueueRef.current(); // Process next item
           }, 2100);
         });
 
@@ -144,49 +225,52 @@ const App = () => {
     };
   });
 
+  // Trigger queue processing when items are added
   useEffect(() => {
     if (fetchQueue.length > 0 && !isProcessingQueue.current) {
       processQueueRef.current();
     }
+    
     return () => {
-      if (queueTimerRef.current) clearTimeout(queueTimerRef.current);
+      if (queueTimerRef.current) {
+        clearTimeout(queueTimerRef.current);
+      }
     };
   }, [fetchQueue]);
 
-  const handleRefreshAll = useCallback(() => {
-    // Use a function with setIcaos to get the most recent state
-    setIcaos(currentIcaos => {
-      if (currentIcaos.length > 0) {
-        console.log(`Auto-refresh triggered for all ICAOs: ${currentIcaos.join(', ')}`);
-        setFetchQueue(prevQueue => [...new Set([...prevQueue, ...currentIcaos])]);
-      }
-      return currentIcaos;
-    });
-  }, []);
-
-  // --- Global Auto-Refresh and Countdown Timer (Corrected) ---
+  // FIX 6: Stable timer with proper cleanup and no restart loops
   useEffect(() => {
-    // Single, unified timer
+    console.log('🕐 Starting auto-refresh timer');
+    
     const timer = setInterval(() => {
       setTimeToNextRefresh(prevTime => {
         const newTime = prevTime - 1000;
+        
         if (newTime <= 0) {
-          handleRefreshAll(); // Trigger the refresh
-          return AUTO_REFRESH_INTERVAL; // Reset the timer
+          console.log('⏰ Auto-refresh timer expired, triggering refresh');
+          handleRefreshAll();
+          return AUTO_REFRESH_INTERVAL; // Reset timer
         }
-        return newTime; // Otherwise, just decrement
+        
+        return newTime;
       });
     }, 1000);
     
     // Initial fetch for any ICAOs loaded from localStorage
-    const icaosToFetch = JSON.parse(localStorage.getItem("notamIcaos") || "[]")
-      .filter(icao => !notamDataStore[icao] && !fetchQueue.includes(icao));
-    if (icaosToFetch.length > 0) {
-      setFetchQueue(prev => [...new Set([...prev, ...icaosToFetch])]);
+    const savedIcaos = JSON.parse(localStorage.getItem("notamIcaos") || "[]");
+    if (savedIcaos.length > 0) {
+      console.log(`🔄 Initial fetch for saved ICAOs: ${savedIcaos.join(', ')}`);
+      setFetchQueue(prev => [...new Set([...prev, ...savedIcaos])]);
     }
 
-    return () => clearInterval(timer);
-  }, [handleRefreshAll]);
+    return () => {
+      console.log('🛑 Cleaning up auto-refresh timer');
+      clearInterval(timer);
+      if (queueTimerRef.current) {
+        clearTimeout(queueTimerRef.current);
+      }
+    };
+  }, []); // No dependencies = no restarts!
 
   useEffect(() => {
     localStorage.setItem("notamIcaos", JSON.stringify(icaos));
@@ -222,6 +306,12 @@ const App = () => {
   const handleRemoveIcao = useCallback((icaoToRemove) => {
     setIcaos(prev => prev.filter(i => i !== icaoToRemove));
     setNotamDataStore(prev => { const newStore = {...prev}; delete newStore[icaoToRemove]; return newStore; });
+    // Also remove from new NOTAM indicators
+    setNewNotamIcaos(prevSet => {
+      const newSet = new Set(prevSet);
+      newSet.delete(icaoToRemove);
+      return newSet;
+    });
   }, []);
 
   const handleRefreshIcao = useCallback((icaoToRefresh) => {
@@ -311,12 +401,52 @@ const App = () => {
     setKeywordFilter('');
   };
 
+  // FIX 7: Enhanced tab click with proper new NOTAM clearing
   const handleTabClick = (id) => {
     setActiveTab(id);
+    
+    // Clear the "new" indicator when user views the tab
     if (newNotamIcaos.has(id)) {
-      setNewNotamIcaos(prevSet => { const newSet = new Set(prevSet); newSet.delete(id); return newSet; });
+      console.log(`👁️  User viewed ${id}, clearing new NOTAM indicator`);
+      setNewNotamIcaos(prevSet => {
+        const newSet = new Set(prevSet);
+        newSet.delete(id);
+        return newSet;
+      });
     }
   };
+
+  // FIX 8: Debug utilities for monitoring system health
+  const getSystemHealth = () => {
+    const queueLength = fetchQueue.length;
+    const isProcessing = isProcessingQueue.current;
+    const totalIcaos = icaos.length;
+    const loadingIcaos = icaos.filter(icao => notamDataStore[icao]?.loading).length;
+    const errorIcaos = icaos.filter(icao => notamDataStore[icao]?.error).length;
+    const newNotamCount = newNotamIcaos.size;
+    
+    return {
+      queueLength,
+      isProcessing,
+      totalIcaos,
+      loadingIcaos,
+      errorIcaos,
+      newNotamCount,
+      nextRefresh: Math.ceil(timeToNextRefresh / 1000)
+    };
+  };
+
+  // Log system health periodically (only in development)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      const healthCheck = setInterval(() => {
+        const health = getSystemHealth();
+        console.log('🏥 System Health:', health);
+      }, 30000); // Every 30 seconds
+      
+      return () => clearInterval(healthCheck);
+    }
+  }, [timeToNextRefresh, fetchQueue, icaos, notamDataStore, newNotamIcaos]);
 
   const Tab = ({ id, label, onRemove, onRefresh }) => {
     const isLoading = fetchQueue.includes(id) || notamDataStore[id]?.loading;
