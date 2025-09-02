@@ -12,6 +12,7 @@ const NotamCard = ({ notam }) => {
 
   const headClass = getHeadClass(notam);
   const headTitle = getHeadTitle(notam);
+  
   // Use rawText for runway extraction to be consistent
   const runways = extractRunways(notam.rawText);
   
@@ -48,7 +49,7 @@ const NotamCard = ({ notam }) => {
   const copyToClipboard = async (e) => {
     e.stopPropagation();
     try {
-      // Always copy the rawText
+      // Always copy the rawText which should now be in ICAO format
       await navigator.clipboard.writeText(notam.rawText);
       e.target.textContent = '✓ Copied!';
       setTimeout(() => {
@@ -62,6 +63,9 @@ const NotamCard = ({ notam }) => {
       }, 2000);
     }
   };
+
+  // Ensure we have the ICAO formatted text to display
+  const displayText = notam.rawText || notam.summary || 'NOTAM text not available';
 
   return (
     <div className={cardClasses}>
@@ -82,7 +86,7 @@ const NotamCard = ({ notam }) => {
           <button 
             className="copy-btn" 
             onClick={copyToClipboard}
-            title="Copy NOTAM text"
+            title="Copy ICAO formatted NOTAM"
           >
             📋
           </button>
@@ -90,9 +94,9 @@ const NotamCard = ({ notam }) => {
       </div>
 
       <div className="notam-card-content">
-        {/* The raw text display - NO FALLBACK. Only use rawText. */}
+        {/* Display the ICAO formatted text */}
         <pre className="notam-raw-text">
-          {notam.rawText}
+          {displayText}
         </pre>
         
         <div className="notam-meta">
@@ -105,7 +109,7 @@ const NotamCard = ({ notam }) => {
               <span className="validity-label">To:</span>
               <span className="validity-value">{formatDate(notam.validTo)}</span>
             </div>
-             <div className="validity-row">
+            <div className="validity-row">
               <span className="validity-label">Source:</span>
               <span className="validity-value">{notam.source}</span>
             </div>
