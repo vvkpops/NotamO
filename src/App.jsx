@@ -68,7 +68,6 @@ const App = () => {
       .filter(s => s.length === 4 && /^[A-Z0-9]{4}$/.test(s));
     
     if (newIcaoInputs.length === 0) {
-      // Add shake animation for invalid input
       icaoInputRef.current.style.animation = 'shake 0.5s ease-in-out';
       setTimeout(() => {
         if (icaoInputRef.current) {
@@ -86,7 +85,6 @@ const App = () => {
       setIcaos(prev => [...prev, ...addedIcaos]);
       setActiveTab(addedIcaos[0]);
       
-      // Add success animation
       icaoInputRef.current.classList.add('success-flash');
       setTimeout(() => {
         if (icaoInputRef.current) {
@@ -174,8 +172,8 @@ const App = () => {
         <div className="icao-input-wrapper">
           <input 
             ref={icaoInputRef} 
-            placeholder="Enter ICAO codes (e.g., CYYT, KJFK, EGLL)" 
-            className="icao-input" 
+            placeholder="ICAO codes (e.g., CYYT, KJFK)" 
+            className="icao-input compact" 
             onKeyPress={handleIcaoInputKeyPress}
             disabled={isAdding}
           />
