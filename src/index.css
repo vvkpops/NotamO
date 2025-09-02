@@ -1209,3 +1209,335 @@ body::before {
 .font-normal { font-weight: 400; }
 .text-cyan-300 { color: #67e8f9; }
 .ml-2 { margin-left: 0.5rem; }
+/* Enhanced styles for draggable filter functionality */
+
+/* Filter order display */
+.filter-order-display {
+  background: rgba(0, 212, 255, 0.05);
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.filter-order-display h4 {
+  color: var(--accent-blue);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-order-display h4::before {
+  content: '📋';
+  font-size: 1.1rem;
+}
+
+.order-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.order-chip {
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  color: var(--accent-blue);
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.025em;
+}
+
+/* Enhanced draggable filter chips */
+.draggable-chips {
+  position: relative;
+  min-height: 60px; /* Prevent layout collapse during drag */
+}
+
+.draggable-chip {
+  position: relative;
+  cursor: grab;
+  user-select: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1;
+}
+
+.draggable-chip:active {
+  cursor: grabbing;
+}
+
+.draggable-chip.dragging {
+  z-index: 1000;
+  transform: rotate(5deg) scale(1.05);
+  opacity: 0.8;
+  box-shadow: 0 10px 30px rgba(0, 212, 255, 0.4);
+  animation: dragPulse 0.6s ease-in-out infinite alternate;
+}
+
+.draggable-chip.drag-over {
+  border-color: var(--accent-blue) !important;
+  background: rgba(0, 212, 255, 0.15) !important;
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(0, 212, 255, 0.3);
+}
+
+.draggable-chip.drag-over::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, transparent, rgba(0, 212, 255, 0.3), transparent);
+  border-radius: inherit;
+  z-index: -1;
+  animation: borderGlow 1s ease-in-out infinite alternate;
+}
+
+/* Drag handle enhancement */
+.drag-handle {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-right: 0.4rem;
+  cursor: grab;
+  user-select: none;
+  transition: all 0.2s ease;
+  transform: rotate(90deg);
+  font-weight: bold;
+  line-height: 1;
+}
+
+.draggable-chip:hover .drag-handle {
+  color: rgba(255, 255, 255, 0.7);
+  transform: rotate(90deg) scale(1.1);
+}
+
+.draggable-chip:active .drag-handle,
+.draggable-chip.dragging .drag-handle {
+  cursor: grabbing;
+  color: var(--accent-blue);
+  transform: rotate(90deg) scale(1.2);
+}
+
+/* Enhanced filter chip states for draggable chips */
+.draggable-chip.active .drag-handle {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Animations for drag interactions */
+@keyframes dragPulse {
+  0% { 
+    box-shadow: 0 10px 30px rgba(0, 212, 255, 0.4), 0 0 0 0 rgba(0, 212, 255, 0.4);
+  }
+  100% { 
+    box-shadow: 0 15px 40px rgba(0, 212, 255, 0.6), 0 0 0 10px rgba(0, 212, 255, 0);
+  }
+}
+
+@keyframes borderGlow {
+  0% { 
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  100% { 
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+}
+
+/* Drag feedback overlay */
+.draggable-chips::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, 
+    transparent 25%, 
+    rgba(0, 212, 255, 0.05) 25%, 
+    rgba(0, 212, 255, 0.05) 75%, 
+    transparent 75%
+  );
+  background-size: 20px 20px;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 12px;
+  transition: opacity 0.3s ease;
+}
+
+.draggable-chips:has(.dragging)::before {
+  opacity: 1;
+  animation: dragBackground 2s ease-in-out infinite;
+}
+
+@keyframes dragBackground {
+  0% { background-position: 0 0; }
+  100% { background-position: 20px 20px; }
+}
+
+/* Drop zone highlighting */
+.draggable-chips:has(.drag-over) {
+  background: rgba(0, 212, 255, 0.02);
+  border-radius: 12px;
+  padding: 0.5rem;
+  margin: -0.5rem;
+}
+
+/* Enhanced tooltips for draggable chips */
+.draggable-chip[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  z-index: 1000;
+  margin-bottom: 5px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.draggable-chip[title]:hover::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.9);
+  z-index: 1000;
+}
+
+/* Subtle card reordering animation */
+.notam-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: var(--grid-gap);
+  margin-top: 2rem;
+  transition: all 0.5s ease;
+}
+
+.notam-grid > * {
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Filter section enhancements */
+.filter-section h4 {
+  position: relative;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.filter-section:first-of-type h4::after {
+  content: '✋ Drag to reorder';
+  position: absolute;
+  right: 0;
+  top: 0;
+  font-size: 0.75rem;
+  color: var(--accent-blue);
+  opacity: 0.7;
+  font-weight: 400;
+  animation: subtle-pulse 2s ease-in-out infinite;
+}
+
+/* Mobile responsiveness for draggable elements */
+@media (max-width: 768px) {
+  .draggable-chip {
+    min-width: 120px;
+    justify-content: center;
+  }
+  
+  .drag-handle {
+    font-size: 1rem;
+    margin-right: 0.3rem;
+  }
+  
+  .filter-order-display {
+    padding: 1rem;
+  }
+  
+  .order-chips {
+    gap: 0.4rem;
+  }
+  
+  .order-chip {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.6rem;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .draggable-chip.dragging {
+    border: 3px solid var(--accent-blue);
+    background: var(--primary-bg);
+  }
+  
+  .draggable-chip.drag-over {
+    border: 3px solid var(--accent-green);
+    background: var(--primary-bg);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .draggable-chip,
+  .notam-grid > *,
+  .order-chip {
+    transition: none;
+  }
+  
+  .draggable-chip.dragging {
+    animation: none;
+    transform: scale(1.05);
+  }
+  
+  @keyframes dragPulse,
+  @keyframes borderGlow,
+  @keyframes dragBackground {
+    from, to { 
+      transform: none;
+      opacity: 1;
+    }
+  }
+}
+
+/* Focus states for accessibility */
+.draggable-chip:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+.draggable-chip:focus-visible .drag-handle {
+  color: var(--accent-blue);
+  transform: rotate(90deg) scale(1.2);
+}
+
+/* Print styles - hide drag functionality */
+@media print {
+  .drag-handle {
+    display: none;
+  }
+  
+  .draggable-chip {
+    cursor: default;
+  }
+  
+  .filter-order-display {
+    display: none;
+  }
+}
