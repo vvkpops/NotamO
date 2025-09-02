@@ -252,8 +252,7 @@ const NotamTabContent = ({
   onClearFilters, 
   filterOrder,
   keywordHighlightEnabled = false,
-  keywordCategories = {},
-  isWideMode = false
+  keywordCategories = {}
 }) => {
   if (loading) {
     return <LoadingState />;
@@ -293,7 +292,7 @@ const NotamTabContent = ({
     <div className="notam-tab-content">
       <div className="notam-results">
         {notams.length > 0 ? (
-          <div className={`notam-grid ${isWideMode ? 'wide' : ''}`}>
+          <div className="notam-grid">
             {notams.map((item) => renderNotamItem(item))}
           </div>
         ) : (
