@@ -88,6 +88,19 @@ function parseNotamDate(dateString) {
         const hour = dt.substring(6, 8);
         const minute = dt.substring(8, 10);
 
+        // Validate date components first
+        const yearNum = parseInt(year);
+        const monthNum = parseInt(month);
+        const dayNum = parseInt(day);
+        const hourNum = parseInt(hour);
+        const minuteNum = parseInt(minute);
+
+        if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31 || 
+            hourNum < 0 || hourNum > 23 || minuteNum < 0 || minuteNum > 59) {
+            console.warn(`Invalid date components: ${year}-${month}-${day}T${hour}:${minute}:00`);
+            return null;
+        }
+
         // Get timezone offset
         const offsetHours = TIMEZONE_OFFSETS[timezoneCode];
         if (offsetHours === undefined) {
@@ -96,23 +109,31 @@ function parseNotamDate(dateString) {
         
         const actualOffsetHours = offsetHours || 0;
         
-        // Create date in the specified timezone
-        const localDate = new Date(`${year}-${month}-${day}T${hour}:${minute}:00`);
+        // Create date in local timezone first, then convert to UTC
+        const localTimeString = `${year}-${month}-${day}T${hour}:${minute}:00`;
+        const localDate = new Date(localTimeString);
         
         if (isNaN(localDate.getTime())) {
-            console.warn(`Invalid date components: ${year}-${month}-${day}T${hour}:${minute}:00`);
+            console.warn(`Invalid local date: ${localTimeString}`);
             return null;
         }
         
         // Convert to UTC by subtracting the timezone offset
+        // If EST (-5), we ADD 5 hours to get UTC
         const utcTime = localDate.getTime() - (actualOffsetHours * 60 * 60 * 1000);
         const utcDate = new Date(utcTime);
         
-        console.log(`Timezone conversion: ${dateString} (${timezoneCode}) -> ${utcDate.toISOString()}`);
+        if (isNaN(utcDate.getTime())) {
+            console.warn(`Invalid UTC date after conversion: ${utcTime}`);
+            return null;
+        }
+        
+        console.log(`✅ Timezone conversion: ${dateString} (${timezoneCode}) -> ${utcDate.toISOString()}`);
         
         return utcDate.toISOString();
     }
     
+    console.warn(`Could not parse date: ${dateString}`);
     return null;
 }
 
@@ -264,11 +285,24 @@ export default async function handler(request, response) {
 
                     const parsed = parseRawNotam(originalRawText);
 
+                    // Debug NAV CANADA dates
+                    console.log(`🔍 NAV CANADA date debug for ${notam.pk}:`);
+                    console.log(`  - startValidity: ${notam.startValidity}`);
+                    console.log(`  - endValidity: ${notam.endValidity}`);
+                    console.log(`  - parsed.validFromRaw: ${parsed?.validFromRaw}`);
+                    console.log(`  - parsed.validToRaw: ${parsed?.validToRaw}`);
+
+                    const validFrom = parseNotamDate(parsed?.validFromRaw) || parseNotamDate(notam.startValidity);
+                    const validTo = parseNotamDate(parsed?.validToRaw) || parseNotamDate(notam.endValidity);
+
+                    console.log(`  - Final validFrom: ${validFrom}`);
+                    console.log(`  - Final validTo: ${validTo}`);
+
                     const notamObj = {
                         id: notam.pk || `${icao}-navcanada-${notam.startValidity}`,
-                        number: parsed.notamNumber || 'N/A',
-                        validFrom: parseNotamDate(parsed.validFromRaw) || parseNotamDate(notam.startValidity),
-                        validTo: parseNotamDate(parsed.validToRaw) || parseNotamDate(notam.endValidity),
+                        number: parsed?.notamNumber || 'N/A',
+                        validFrom: validFrom,
+                        validTo: validTo,
                         source: 'NAV CANADA',
                         isCancellation: parsed?.isCancellation || false,
                         cancels: parsed?.cancelsNotam || null,
