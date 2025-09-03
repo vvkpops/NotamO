@@ -41,6 +41,48 @@ const formatToIcaoDate = (isoDate) => {
     }
 };
 
+/**
+ * Parses a date string from a NOTAM, which can be in YYMMDDHHMM format,
+ * potentially with a timezone like EST. Defaults to UTC if no timezone is found.
+ * @param {string} dateString The date string from the NOTAM (e.g., "2509122359EST").
+ * @returns {string|null} ISO 8601 formatted date string or null.
+ */
+function parseNotamDate(dateString) {
+    if (!dateString || dateString.toUpperCase() === 'PERM') {
+        return 'PERMANENT';
+    }
+
+    // Match YYMMDDHHMM and an optional timezone
+    const match = dateString.match(/^(\d{10})([A-Z]{3,4})?$/);
+    if (!match) return null;
+
+    const [, dt, tz] = match;
+    const year = `20${dt.substring(0, 2)}`;
+    const month = dt.substring(2, 4);
+    const day = dt.substring(4, 6);
+    const hour = dt.substring(6, 8);
+    const minute = dt.substring(8, 10);
+
+    // Create a date string that's easier for new Date() to parse
+    let isoString = `${year}-${month}-${day}T${hour}:${minute}:00`;
+
+    // Simple timezone handling. EST is UTC-5, EDT is UTC-4. For simplicity,
+    // we'll treat EST/EDT as a North American time offset. This is an approximation.
+    // A more robust solution would use a timezone library.
+    if (tz === 'EST') {
+        isoString += '-05:00';
+    } else if (tz === 'EDT') {
+        isoString += '-04:00';
+    } else {
+        // Assume UTC if no recognized timezone is present
+        isoString += 'Z';
+    }
+
+    const date = new Date(isoString);
+    return isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+
 // Function to ensure NOTAM is in proper ICAO format
 const formatNotamToIcao = (notam, originalRawText) => {
     // First, try to use the original raw text if it's already in ICAO format
@@ -172,8 +214,9 @@ export default async function handler(request, response) {
                         id: notam.pk || `${icao}-navcanada-${notam.startValidity}`,
                         // Extract number from the raw text itself using the parser
                         number: parsed.notamNumber || 'N/A',
-                        validFrom: notam.startValidity,
-                        validTo: notam.endValidity,
+                        // Prioritize dates parsed from raw text as they contain timezones
+                        validFrom: parseNotamDate(parsed.validFromRaw) || notam.startValidity,
+                        validTo: parseNotamDate(parsed.validToRaw) || notam.endValidity,
                         source: 'NAV CANADA', // Set source to NAV CANADA
                         isCancellation: parsed?.isCancellation || false,
                         cancels: parsed?.cancelsNotam || null,
