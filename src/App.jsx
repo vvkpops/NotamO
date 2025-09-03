@@ -300,6 +300,11 @@ const App = () => {
     };
   }, [createNotamSignature]);
 
+  const handleRefreshIcao = useCallback((icaoToRefresh) => {
+    if (fetchQueue.includes(icaoToRefresh)) return;
+    setFetchQueue(prev => [...prev, icaoToRefresh]);
+  }, [fetchQueue]);
+
   // fetchNotams with smart incremental updates
   const fetchNotams = useCallback(async (icao) => {
     console.log(`🚀 Fetching NOTAMs for ${icao}`);
@@ -414,6 +419,15 @@ const App = () => {
       console.log('⚠️  No ICAOs to refresh');
     }
   }, []);
+
+  // Smart refresh handler for the main button
+  const handleSmartRefresh = useCallback(() => {
+    if (activeTab === 'ALL') {
+      handleRefreshAll();
+    } else if (icaos.includes(activeTab)) {
+      handleRefreshIcao(activeTab);
+    }
+  }, [activeTab, icaos, handleRefreshAll, handleRefreshIcao]);
 
   // Robust queue processing
   const processQueueRef = useRef();
@@ -546,11 +560,6 @@ const App = () => {
     });
   }, []);
 
-  const handleRefreshIcao = useCallback((icaoToRefresh) => {
-    if (fetchQueue.includes(icaoToRefresh)) return;
-    setFetchQueue(prev => [...prev, icaoToRefresh]);
-  }, [fetchQueue]);
-
   const handleIcaoInputKeyPress = (e) => {
     if (e.key === "Enter") handleAddIcao();
   };
@@ -653,7 +662,7 @@ const App = () => {
     }
   };
 
-  const Tab = ({ id, label, onRemove, onRefresh }) => {
+  const Tab = ({ id, label, onRemove }) => {
     const isLoading = notamDataStore[id]?.loading;
     const hasNew = newNotamIcaos.has(id);
     return (
@@ -661,9 +670,6 @@ const App = () => {
         <span>{label}</span>
         {isLoading ? <span className="loading-spinner tab-spinner"></span> :
           <div className="tab-actions">
-            {onRefresh && (
-              <button onClick={(e) => { e.stopPropagation(); onRefresh(id); }} className="refresh-btn" title={`Refresh ${id}`}>🔄</button>
-            )}
             {onRemove && (
               <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn" title={`Remove ${id}`}>×</button>
             )}
@@ -677,8 +683,10 @@ const App = () => {
     <div className="container" style={{ '--notam-card-size': `${cardSize}px` }}>
       <ModernHeader 
         timeToNextRefresh={timeToNextRefresh} 
-        onRefreshAll={handleRefreshAll}
+        onRefresh={handleSmartRefresh}
         onHistoryClick={() => setIsHistoryModalOpen(true)}
+        activeTab={activeTab}
+        autoRefreshAll={handleRefreshAll}
       />
       
       <div className="glass icao-input-container">
@@ -725,7 +733,7 @@ const App = () => {
             const count = notamDataStore[icao]?.data?.length || 0;
             const isLoading = notamDataStore[icao]?.loading;
             return (
-              <Tab key={icao} id={icao} label={isLoading ? `${icao}` : `${icao} (${count})`} onRemove={handleRemoveIcao} onRefresh={handleRefreshIcao} />
+              <Tab key={icao} id={icao} label={isLoading ? `${icao}` : `${icao} (${count})`} onRemove={handleRemoveIcao} />
             );
           })}
         </div>
@@ -740,7 +748,7 @@ const App = () => {
   );
 };
 
-const ModernHeader = ({ timeToNextRefresh, onRefreshAll, onHistoryClick }) => {
+const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab, autoRefreshAll }) => {
   const [utcTime, setUtcTime] = useState('');
   const [mounted, setMounted] = useState(false);
   
@@ -758,6 +766,11 @@ const ModernHeader = ({ timeToNextRefresh, onRefreshAll, onHistoryClick }) => {
   const minutes = Math.floor(timeToNextRefresh / 60000);
   const seconds = Math.floor((timeToNextRefresh % 60000) / 1000).toString().padStart(2, '0');
 
+  const buttonText = activeTab === 'ALL' ? 'Refresh All' : `Refresh ${activeTab}`;
+  const buttonTitle = activeTab === 'ALL' 
+    ? 'Fetch latest NOTAMs for all airports' 
+    : `Fetch latest NOTAMs for ${activeTab}`;
+
   return (
     <header className={`modern-header ${mounted ? 'mounted' : ''}`}>
       <h1>NOTAM Console</h1>
@@ -766,8 +779,10 @@ const ModernHeader = ({ timeToNextRefresh, onRefreshAll, onHistoryClick }) => {
           History
         </button>
         <div className="global-refresh" title={`Next auto-refresh in ${minutes}:${seconds}`}>
-          <button onClick={onRefreshAll} className="refresh-all-btn">Refresh All</button>
-          <span className="global-countdown">{minutes}:${seconds}</span>
+          <button onClick={onRefresh} className="refresh-all-btn" title={buttonTitle}>
+            {buttonText}
+          </button>
+          <span className="global-countdown" onClick={autoRefreshAll} title="Click to refresh all now">{minutes}:{seconds}</span>
         </div>
         <p className="utc-time">{utcTime}</p>
       </div>
