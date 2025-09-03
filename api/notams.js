@@ -152,30 +152,41 @@ export default async function handler(request, response) {
             console.log(`FAA returned no NOTAMs for Canadian ICAO ${icao}. Falling back to NAV CANADA.`);
             try {
                 const navUrl = `https://plan.navcanada.ca/weather/api/alpha/?site=${icao}&alpha=notam`;
-                const navRes = await axios.get(navUrl, { timeout: 5000 });
-                const navNotams = navRes.data?.Alpha?.notam || [];
+                const navRes = await axios.get(navUrl, { timeout: 10000 });
+                // Correctly access the data array
+                const navNotams = navRes.data?.data || [];
                 
                 notamsFromSource = navNotams.map(notam => {
-                    const originalRawText = notam.text?.replace(/\\n/g, '\n') || 'Full NOTAM text not available from source.';
+                    let originalRawText = 'Full NOTAM text not available from source.';
+                    // The 'text' field is a stringified JSON, so we must parse it first.
+                    try {
+                        const parsedText = JSON.parse(notam.text);
+                        originalRawText = parsedText.raw?.replace(/\\n/g, '\n') || originalRawText;
+                    } catch (e) {
+                        console.warn(`Could not parse nested JSON in NAV CANADA NOTAM text for PK ${notam.pk}`);
+                    }
+
                     const parsed = parseRawNotam(originalRawText);
 
                     const notamObj = {
-                        id: notam.id || `${icao}-navcanada-${notam.start}`,
-                        number: notam.id || 'N/A',
-                        validFrom: notam.start,
-                        validTo: notam.end,
+                        id: notam.pk || `${icao}-navcanada-${notam.startValidity}`,
+                        // Extract number from the raw text itself using the parser
+                        number: parsed.notamNumber || 'N/A',
+                        validFrom: notam.startValidity,
+                        validTo: notam.endValidity,
                         source: 'NAV CANADA', // Set source to NAV CANADA
                         isCancellation: parsed?.isCancellation || false,
                         cancels: parsed?.cancelsNotam || null,
                         icao: icao
                     };
-
-                    const formattedRawText = formatNotamToIcao(notamObj, originalRawText);
-                    notamObj.summary = formattedRawText;
-                    notamObj.rawText = formattedRawText;
+                    
+                    // The raw text is already in ICAO format, so we can use it directly.
+                    notamObj.summary = originalRawText;
+                    notamObj.rawText = originalRawText;
 
                     return notamObj;
-                });
+                }).filter(Boolean); // Filter out any potential nulls from failed parsing
+
             } catch (e) {
                 console.warn(`NAV CANADA fallback fetch for ${icao} also failed: ${e.message}`);
                 // If fallback also fails, notamsFromSource remains an empty array.
