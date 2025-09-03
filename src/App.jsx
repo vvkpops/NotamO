@@ -106,41 +106,130 @@ const App = () => {
     localStorage.setItem('notamCardSize', JSON.stringify(cardSize));
   }, [cardSize]);
 
-  // FIX 2: Improved NOTAM signature-based detection
+  // ENHANCED: Smart NOTAM signature generation for better detection
   const createNotamSignature = (notam) => {
-    // Create a more robust signature using multiple fields
+    const number = notam.number || 'unknown';
+    const validFrom = notam.validFrom || 'unknown';
+    const validTo = notam.validTo || 'unknown';
+    const source = notam.source || 'unknown';
+    
+    // Create content hash from summary/rawText
     const summary = (notam.summary || '').replace(/\s+/g, ' ').trim();
     const rawText = (notam.rawText || '').replace(/\s+/g, ' ').trim();
     const text = summary || rawText;
+    const contentHash = text.slice(0, 200); // Use more content for better matching
     
-    return `${notam.number || 'unknown'}-${notam.validFrom || 'unknown'}-${text.slice(0, 100)}`;
+    return `${number}-${validFrom}-${validTo}-${source}-${contentHash}`;
   };
 
-  const detectNewNotams = (oldData, newData, isInitialFetch) => {
+  // ENHANCED: Smart incremental NOTAM detection and merging
+  const smartNotamMerge = (oldData, newData, isInitialFetch) => {
     if (isInitialFetch || oldData.length === 0) {
-      return { processedData: newData.map(n => ({ ...n, isNew: false })), hasNewNotams: false };
+      console.log(`📋 Initial fetch: ${newData.length} NOTAMs loaded`);
+      return { 
+        processedData: newData.map(n => ({ ...n, isNew: false, userViewed: false })), 
+        hasNewNotams: false 
+      };
     }
 
-    // Create signatures for old NOTAMs
-    const oldNotamSignatures = new Set(oldData.map(createNotamSignature));
+    // Create signature maps for efficient lookup
+    const oldNotamMap = new Map();
+    const oldSignatures = new Set();
     
-    let hasNewNotams = false;
-    const processedData = newData.map(notam => {
+    oldData.forEach(notam => {
       const signature = createNotamSignature(notam);
-      const isNew = !oldNotamSignatures.has(signature);
-      
-      if (isNew) {
-        hasNewNotams = true;
-        console.log(`🆕 New NOTAM detected: ${notam.number} - ${signature.slice(0, 50)}...`);
-      }
-      
-      return { ...notam, isNew };
+      oldNotamMap.set(signature, notam);
+      oldSignatures.add(signature);
     });
 
-    return { processedData, hasNewNotams };
+    // Process new data
+    const newNotamMap = new Map();
+    const newSignatures = new Set();
+    
+    newData.forEach(notam => {
+      const signature = createNotamSignature(notam);
+      newNotamMap.set(signature, notam);
+      newSignatures.add(signature);
+    });
+
+    // Find truly new NOTAMs
+    const genuinelyNewSignatures = [...newSignatures].filter(sig => !oldSignatures.has(sig));
+    
+    // Find expired NOTAMs (removed from source)
+    const expiredSignatures = [...oldSignatures].filter(sig => !newSignatures.has(sig));
+    
+    // Find updated NOTAMs (same signature but potentially different content)
+    const existingSignatures = [...newSignatures].filter(sig => oldSignatures.has(sig));
+
+    console.log(`🔄 NOTAM Analysis:`, {
+      total: newData.length,
+      new: genuinelyNewSignatures.length,
+      expired: expiredSignatures.length,
+      existing: existingSignatures.length
+    });
+
+    // Build merged result
+    const mergedNotams = [];
+    let hasNewNotams = false;
+
+    // 1. Add existing NOTAMs (preserve user state)
+    existingSignatures.forEach(signature => {
+      const existingNotam = oldNotamMap.get(signature);
+      const updatedNotam = newNotamMap.get(signature);
+      
+      // Preserve user state from existing NOTAM
+      mergedNotams.push({
+        ...updatedNotam, // Use updated content
+        isNew: existingNotam.isNew, // Preserve new status
+        userViewed: existingNotam.userViewed, // Preserve viewed status
+        firstSeenAt: existingNotam.firstSeenAt, // Preserve first seen timestamp
+      });
+    });
+
+    // 2. Add genuinely new NOTAMs
+    genuinelyNewSignatures.forEach(signature => {
+      const newNotam = newNotamMap.get(signature);
+      hasNewNotams = true;
+      
+      console.log(`🆕 New NOTAM detected: ${newNotam.number}`);
+      
+      mergedNotams.push({
+        ...newNotam,
+        isNew: true,
+        userViewed: false,
+        firstSeenAt: Date.now(),
+      });
+    });
+
+    // 3. Log expired NOTAMs but don't include them
+    if (expiredSignatures.length > 0) {
+      console.log(`🗑️ Expired NOTAMs removed: ${expiredSignatures.length}`);
+      expiredSignatures.forEach(signature => {
+        const expiredNotam = oldNotamMap.get(signature);
+        console.log(`   - ${expiredNotam.number}`);
+      });
+    }
+
+    // Sort merged NOTAMs by validity date (newest first)
+    mergedNotams.sort((a, b) => {
+      const dateA = new Date(a.validFrom || 0);
+      const dateB = new Date(b.validFrom || 0);
+      return dateB - dateA;
+    });
+
+    return { 
+      processedData: mergedNotams, 
+      hasNewNotams,
+      stats: {
+        new: genuinelyNewSignatures.length,
+        expired: expiredSignatures.length,
+        existing: existingSignatures.length,
+        total: mergedNotams.length
+      }
+    };
   };
 
-  // FIX 3: Enhanced fetchNotams with better error handling
+  // ENHANCED: fetchNotams with smart incremental updates
   const fetchNotams = useCallback(async (icao) => {
     console.log(`🚀 Fetching NOTAMs for ${icao}`);
     
@@ -159,19 +248,21 @@ const App = () => {
       
       setNotamDataStore(prev => {
         const oldData = prev[icao]?.data || [];
-        const isInitialFetch = oldData.length === 0;
+        const isInitialFetch = oldData.length === 0 && !prev[icao]?.lastUpdated;
         
-        // Use improved detection logic
-        const { processedData, hasNewNotams } = detectNewNotams(oldData, data, isInitialFetch);
+        // Use smart incremental merge
+        const { processedData, hasNewNotams, stats } = smartNotamMerge(oldData, data, isInitialFetch);
         
         // Add ICAO to each NOTAM for consistency
         const notamsWithIcao = processedData.map(n => ({ ...n, icao }));
 
-        // Update new NOTAM indicators
+        // Update new NOTAM indicators only if there are genuinely new NOTAMs
         if (hasNewNotams) {
-          console.log(`🆕 Found new NOTAMs for ${icao}`);
+          console.log(`🆕 Found ${stats.new} new NOTAMs for ${icao}`);
           setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
         }
+
+        console.log(`✅ Successfully updated ${icao}: ${stats.total} NOTAMs (${stats.new} new, ${stats.expired} expired)`);
 
         return { 
           ...prev, 
@@ -179,12 +270,11 @@ const App = () => {
             data: notamsWithIcao, 
             loading: false, 
             error: null,
-            lastUpdated: Date.now() // Track when last updated
+            lastUpdated: Date.now(),
+            stats: stats
           } 
         };
       });
-      
-      console.log(`✅ Successfully fetched ${data.length} NOTAMs for ${icao}`);
       
     } catch (err) {
       console.error(`❌ Error fetching NOTAMs for ${icao}:`, err.message);
@@ -199,6 +289,27 @@ const App = () => {
         } 
       }));
     }
+  }, []);
+
+  // ENHANCED: Clear new status when user views NOTAMs
+  const markNotamsAsViewed = useCallback((icao) => {
+    setNotamDataStore(prev => {
+      if (!prev[icao]?.data) return prev;
+      
+      const updatedData = prev[icao].data.map(notam => ({
+        ...notam,
+        userViewed: true,
+        isNew: false // Clear new status when viewed
+      }));
+
+      return {
+        ...prev,
+        [icao]: {
+          ...prev[icao],
+          data: updatedData
+        }
+      };
+    });
   }, []);
 
   // FIX 4: Stable handleRefreshAll using ref
@@ -435,7 +546,7 @@ const App = () => {
     setKeywordFilter('');
   };
 
-  // FIX 7: Enhanced tab click with proper new NOTAM clearing
+  // ENHANCED: Tab click with smart new NOTAM clearing
   const handleTabClick = (id) => {
     setActiveTab(id);
     
@@ -447,10 +558,13 @@ const App = () => {
         newSet.delete(id);
         return newSet;
       });
+      
+      // Mark NOTAMs as viewed
+      markNotamsAsViewed(id);
     }
   };
 
-  // FIX 8: Debug utilities for monitoring system health
+  // ENHANCED: System health monitoring with detailed stats
   const getSystemHealth = () => {
     const queueLength = fetchQueue.length;
     const isProcessing = isProcessingQueue.current;
@@ -459,6 +573,13 @@ const App = () => {
     const errorIcaos = icaos.filter(icao => notamDataStore[icao]?.error).length;
     const newNotamCount = newNotamIcaos.size;
     
+    // Calculate total NOTAMs and stats
+    const totalNotams = Object.values(notamDataStore).reduce((sum, store) => 
+      sum + (store.data?.length || 0), 0);
+    
+    const totalNewNotams = Object.values(notamDataStore).reduce((sum, store) => 
+      sum + (store.data?.filter(n => n.isNew).length || 0), 0);
+
     return {
       queueLength,
       isProcessing,
@@ -466,16 +587,30 @@ const App = () => {
       loadingIcaos,
       errorIcaos,
       newNotamCount,
+      totalNotams,
+      totalNewNotams,
       nextRefresh: Math.ceil(timeToNextRefresh / 1000)
     };
   };
 
-  // Log system health periodically (only in development)
+  // Enhanced system health logging
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       const healthCheck = setInterval(() => {
         const health = getSystemHealth();
         console.log('🏥 System Health:', health);
+        
+        // Detailed NOTAM stats per ICAO
+        if (health.totalNotams > 0) {
+          console.log('📊 NOTAM Details:');
+          Object.entries(notamDataStore).forEach(([icao, store]) => {
+            if (store.data && store.data.length > 0) {
+              const newCount = store.data.filter(n => n.isNew).length;
+              const stats = store.stats;
+              console.log(`   ${icao}: ${store.data.length} total, ${newCount} new${stats ? ` (last update: +${stats.new} -${stats.expired})` : ''}`);
+            }
+          });
+        }
       }, 30000); // Every 30 seconds
       
       return () => clearInterval(healthCheck);
