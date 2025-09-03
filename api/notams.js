@@ -177,10 +177,10 @@ export default async function handler(request, response) {
                         console.log(`📋 Raw text dates: From="${parsed.validFromRaw}", To="${parsed.validToRaw}"`);
                     }
 
-                    // **CRITICAL: Parse dates with priority: raw text dates > API dates**
-                    // This ensures timezone handling works correctly
-                    const validFrom = parseNotamDate(parsed?.validFromRaw) || parseNotamDate(notam.startValidity);
-                    const validTo = parseNotamDate(parsed?.validToRaw) || parseNotamDate(notam.endValidity);
+                    // **FIXED LOGIC**: Prioritize parsed date, then fallback to API date.
+                    const validFrom = parseNotamDate(parsed?.validFromRaw) ?? parseNotamDate(notam.startValidity);
+                    const validTo = parseNotamDate(parsed?.validToRaw) ?? parseNotamDate(notam.endValidity);
+
 
                     console.log(`✅ Final dates: From=${validFrom}, To=${validTo}`);
 
