@@ -57,6 +57,7 @@ export function parseRawNotam(rawText) {
   const fieldRegex = /^([A-G])\)\s*(.*)/;
   let currentField = null;
   let eLineStarted = false;
+  let hasELine = lines.some(line => line.startsWith('E)'));
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -77,24 +78,18 @@ export function parseRawNotam(rawText) {
       // If we're inside a field continuation, add to current field
       if (currentField && !eLineStarted) {
         switch (currentField) {
-          case 'Q':
-            result.qLine += ` ${line}`;
-            break;
-          case 'A':
-            result.aerodrome += ` ${line}`;
-            break;
-          case 'B':
-            result.validFromRaw += ` ${line}`;
-            break;
-          case 'C':
-            result.validToRaw += ` ${line}`;
-            break;
-          case 'D':
-            result.schedule += ` ${line}`;
-            break;
+          case 'Q': result.qLine += ` ${line}`; break;
+          case 'A': result.aerodrome += ` ${line}`; break;
+          case 'B': result.validFromRaw += ` ${line}`; break;
+          case 'C': result.validToRaw += ` ${line}`; break;
+          case 'D': result.schedule += ` ${line}`; break;
         }
       } else if (eLineStarted) {
         result.body += `\n${line}`;
+      } else if (!hasELine && currentField === 'C') {
+        // If there's no E) line, anything after C) is the body
+        result.body += `${line}\n`;
+        eLineStarted = true;
       }
       continue;
     }
@@ -105,12 +100,15 @@ export function parseRawNotam(rawText) {
     switch (field) {
       case 'Q':
         result.qLine = value.trim();
+        eLineStarted = false;
         break;
       case 'A':
         result.aerodrome = value.trim();
+        eLineStarted = false;
         break;
       case 'B':
         result.validFromRaw = value.trim();
+        eLineStarted = false;
         break;
       case 'C':
         result.validToRaw = value.trim();
@@ -118,9 +116,11 @@ export function parseRawNotam(rawText) {
         if (result.validToRaw.toUpperCase().includes('PERM')) {
           result.validToRaw = 'PERM';
         }
+        eLineStarted = false;
         break;
       case 'D':
         result.schedule = value.trim();
+        eLineStarted = false;
         break;
       case 'E':
         result.body = value.trim();
@@ -161,9 +161,8 @@ export function isIcaoFormat(text) {
   // Look for the characteristic ICAO field markers
   const hasQLine = /Q\)\s*/.test(text);
   const hasALine = /A\)\s*/.test(text);
-  const hasELine = /E\)\s*/.test(text);
-  
-  return hasQLine && hasALine && hasELine;
+  // E line is not always present, so A and Q are better indicators
+  return hasQLine && hasALine;
 }
 
 /**
