@@ -9,6 +9,51 @@ const ALLOWED_ORIGIN = process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}` 
     : 'http://localhost:5173';
 
+// Comprehensive timezone offset registry (in hours from UTC)
+const TIMEZONE_OFFSETS = {
+    // Standard North American Timezones
+    'EST': -5,   // Eastern Standard Time
+    'CST': -6,   // Central Standard Time
+    'MST': -7,   // Mountain Standard Time
+    'PST': -8,   // Pacific Standard Time
+    'AST': -4,   // Atlantic Standard Time
+    'NST': -3.5, // Newfoundland Standard Time
+    'AKST': -9,  // Alaska Standard Time
+    'HST': -10,  // Hawaii Standard Time
+    
+    // Daylight Saving Time variants
+    'EDT': -4,   // Eastern Daylight Time
+    'CDT': -5,   // Central Daylight Time
+    'MDT': -6,   // Mountain Daylight Time
+    'PDT': -7,   // Pacific Daylight Time
+    'ADT': -3,   // Atlantic Daylight Time
+    'NDT': -2.5, // Newfoundland Daylight Time
+    'AKDT': -8,  // Alaska Daylight Time
+    
+    // UTC variants
+    'UTC': 0,
+    'GMT': 0,
+    'Z': 0,
+    'ZULU': 0,
+    
+    // European Timezones
+    'CET': 1,    // Central European Time
+    'EET': 2,    // Eastern European Time
+    'WET': 0,    // Western European Time
+    'CEST': 2,   // Central European Summer Time
+    'EEST': 3,   // Eastern European Summer Time
+    'WEST': 1,   // Western European Summer Time
+    'BST': 1,    // British Summer Time
+    
+    // Other common aviation timezones
+    'JST': 9,    // Japan Standard Time
+    'AEST': 10,  // Australian Eastern Standard Time
+    'AEDT': 11,  // Australian Eastern Daylight Time
+    'AWST': 8,   // Australian Western Standard Time
+    'NZST': 12,  // New Zealand Standard Time
+    'NZDT': 13,  // New Zealand Daylight Time
+};
+
 /**
  * Parses a date string from various NOTAM formats into a standard ISO 8601 string (UTC).
  * This function is the single source of truth for date parsing.
@@ -31,27 +76,45 @@ function parseNotamDate(dateString) {
         return isNaN(d.getTime()) ? null : d.toISOString();
     }
     
-    // Handle YYMMDDHHMM format, optionally followed by a timezone (e.g., 2511051800EST)
-    // Canadian NOTAMs may include timezone suffixes but are still interpreted as UTC
-    const match = upperDateString.match(/^(\d{10})(?:[A-Z]{2,4})?/);
+    // Handle YYMMDDHHMM format with optional timezone (e.g., 2511051800EST, 2511051800PST)
+    const match = upperDateString.match(/^(\d{10})([A-Z]{2,4})?$/);
     if (match) {
         const dt = match[1];
+        const timezoneCode = match[2] || 'UTC'; // Default to UTC if no timezone specified
+        
         const year = `20${dt.substring(0, 2)}`;
         const month = dt.substring(2, 4);
         const day = dt.substring(4, 6);
         const hour = dt.substring(6, 8);
         const minute = dt.substring(8, 10);
 
-        // Construct the date as UTC. The 'Z' suffix is critical for correct parsing.
-        const isoString = `${year}-${month}-${day}T${hour}:${minute}:00Z`;
-        const date = new Date(isoString);
+        // Get timezone offset
+        const offsetHours = TIMEZONE_OFFSETS[timezoneCode];
+        if (offsetHours === undefined) {
+            console.warn(`Unknown timezone: ${timezoneCode}, treating as UTC`);
+        }
         
-        return isNaN(date.getTime()) ? null : date.toISOString();
+        const actualOffsetHours = offsetHours || 0;
+        
+        // Create date in the specified timezone
+        const localDate = new Date(`${year}-${month}-${day}T${hour}:${minute}:00`);
+        
+        if (isNaN(localDate.getTime())) {
+            console.warn(`Invalid date components: ${year}-${month}-${day}T${hour}:${minute}:00`);
+            return null;
+        }
+        
+        // Convert to UTC by subtracting the timezone offset
+        const utcTime = localDate.getTime() - (actualOffsetHours * 60 * 60 * 1000);
+        const utcDate = new Date(utcTime);
+        
+        console.log(`Timezone conversion: ${dateString} (${timezoneCode}) -> ${utcDate.toISOString()}`);
+        
+        return utcDate.toISOString();
     }
     
     return null;
 }
-
 
 // Function to format dates for ICAO format (YYMMDDHHMM)
 const formatToIcaoDate = (isoDate) => {
