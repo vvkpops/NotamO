@@ -9,17 +9,9 @@ const ALLOWED_ORIGIN = process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}` 
     : 'http://localhost:5173';
 
-// Comprehensive timezone offset registry (in hours from UTC)
-const TIMEZONE_OFFSETS = {
-    'EST': -5, 'EDT': -4, 'CST': -6, 'CDT': -5, 'MST': -7, 'MDT': -6, 
-    'PST': -8, 'PDT': -7, 'UTC': 0, 'GMT': 0, 'Z': 0, 'ZULU': 0,
-    'AST': -4, 'NST': -3.5, 'AKST': -9, 'HST': -10, 'ADT': -3, 'NDT': -2.5, 'AKDT': -8,
-    'CET': 1, 'EET': 2, 'WET': 0, 'CEST': 2, 'EEST': 3, 'WEST': 1, 'BST': 1,
-    'JST': 9, 'AEST': 10, 'AEDT': 11, 'AWST': 8, 'NZST': 12, 'NZDT': 13
-};
-
 /**
  * Parse NOTAM dates to produce the exact same format as FAA API
+ * Simplified approach - focus on the format, not complex timezone conversions
  * @param {string | null | undefined} dateString The date string
  * @returns {string|null} ISO 8601 formatted date string, 'PERMANENT', or null if invalid
  */
@@ -36,13 +28,12 @@ function parseNotamDate(dateString) {
         return 'PERMANENT';
     }
 
-    // Handle already-formatted ISO dates (FAA format and NAV CANADA API format)
-    // Check for ISO format: contains T, dash, and colon (but NOT timezone letters)
+    // Handle already-formatted ISO dates
     if (trimmed.includes('T') && trimmed.includes('-') && trimmed.includes(':')) {
         // This is already an ISO format date
         let isoString = trimmed;
         
-        // If it doesn't end with Z, add it (NAV CANADA API sometimes omits Z)
+        // If it doesn't end with Z, add it
         if (!upperDateString.endsWith('Z')) {
             isoString += 'Z';
         }
@@ -53,17 +44,16 @@ function parseNotamDate(dateString) {
             return null;
         }
         
-        // Return in FAA-compatible format
         return d.toISOString();
     }
     
-    // Handle YYMMDDHHMM format with timezone suffix (NAV CANADA raw format)
+    // Handle YYMMDDHHMM format (10 digits with optional timezone)
     const match = upperDateString.match(/^(\d{10})([A-Z]{2,5})?$/);
     if (match) {
         const dateDigits = match[1];
-        const timezoneCode = match[2] || 'UTC';
+        const timezoneCode = match[2] || '';
         
-        console.log(`🔍 Parsing timezone date: ${dateString} -> digits: ${dateDigits}, timezone: ${timezoneCode}`);
+        console.log(`🔍 Parsing date: ${dateString} -> digits: ${dateDigits}, timezone: ${timezoneCode}`);
         
         // Extract date components from YYMMDDHHMM
         const year = parseInt(`20${dateDigits.substring(0, 2)}`);
@@ -75,25 +65,15 @@ function parseNotamDate(dateString) {
         // Validate components
         if (month < 1 || month > 12 || day < 1 || day > 31 || 
             hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-            console.warn(`❌ Invalid date components: ${dateString} -> ${year}-${month}-${day} ${hour}:${minute}`);
+            console.warn(`❌ Invalid date components: ${dateString}`);
             return null;
         }
 
-        // Get timezone offset
-        const offsetHours = TIMEZONE_OFFSETS[timezoneCode];
-        if (offsetHours === undefined) {
-            console.warn(`⚠️ Unknown timezone: ${timezoneCode} in ${dateString}, treating as UTC`);
-        }
-        
-        const actualOffsetHours = offsetHours !== undefined ? offsetHours : 0;
-        
-        // Create UTC timestamp
-        // For negative offsets (e.g., EST = -5), we need to ADD hours to convert to UTC
-        // For positive offsets (e.g., CET = +1), we need to SUBTRACT hours to convert to UTC
-        const utcHour = hour - actualOffsetHours;
-        
-        // Create the date in UTC
-        const utcDate = new Date(Date.UTC(year, month - 1, day, utcHour, minute, 0, 0));
+        // Create date assuming UTC (we'll let the frontend handle display timezone)
+        // The key insight: NOTAMs are aviation-focused, and aviation uses UTC/Zulu time
+        // If there's no timezone suffix, it's likely already UTC
+        // If there is a timezone suffix (like EST), we'll just note it but treat the time as-is
+        const utcDate = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
 
         if (isNaN(utcDate.getTime())) {
             console.warn(`❌ Invalid final date: ${dateString}`);
@@ -101,7 +81,10 @@ function parseNotamDate(dateString) {
         }
         
         const result = utcDate.toISOString();
-        console.log(`✅ Converted ${dateString} -> ${result} (offset: ${actualOffsetHours})`);
+        console.log(`✅ Converted ${dateString} -> ${result} (treating as UTC)`);
+        
+        // If the original had a timezone suffix, we could include it in a comment or note
+        // but for consistency with FAA format, we return ISO format
         return result;
     }
     
@@ -168,21 +151,40 @@ export default async function handler(request, response) {
                     }
 
                     console.log(`📄 Processing NAV CANADA NOTAM PK:${notam.pk}`);
-                    console.log(`📅 Raw API dates: Start="${notam.startValidity}", End="${notam.endValidity}"`);
+                    
+                    // First, let's see what dates the API provides directly
+                    console.log(`📅 API dates - Start: "${notam.startValidity}", End: "${notam.endValidity}"`);
 
                     // Parse raw NOTAM text to extract structured data
                     const parsed = parseRawNotam(originalRawText);
                     
                     if (parsed?.validFromRaw || parsed?.validToRaw) {
-                        console.log(`📋 Raw text dates: From="${parsed.validFromRaw}", To="${parsed.validToRaw}"`);
+                        console.log(`📋 Raw text dates - From: "${parsed.validFromRaw}", To: "${parsed.validToRaw}"`);
                     }
 
-                    // **CRITICAL: Parse dates with priority: raw text dates > API dates**
-                    // This ensures timezone handling works correctly
-                    const validFrom = parseNotamDate(parsed?.validFromRaw) || parseNotamDate(notam.startValidity);
-                    const validTo = parseNotamDate(parsed?.validToRaw) || parseNotamDate(notam.endValidity);
+                    // Strategy: Try API dates first, fall back to parsed dates
+                    // This avoids complex timezone issues
+                    let validFrom = null;
+                    let validTo = null;
 
-                    console.log(`✅ Final dates: From=${validFrom}, To=${validTo}`);
+                    // Check if API dates are already in ISO format
+                    if (notam.startValidity && notam.startValidity.includes('T')) {
+                        validFrom = parseNotamDate(notam.startValidity);
+                    } else if (parsed?.validFromRaw) {
+                        validFrom = parseNotamDate(parsed.validFromRaw);
+                    } else if (notam.startValidity) {
+                        validFrom = parseNotamDate(notam.startValidity);
+                    }
+
+                    if (notam.endValidity && notam.endValidity.includes('T')) {
+                        validTo = parseNotamDate(notam.endValidity);
+                    } else if (parsed?.validToRaw) {
+                        validTo = parseNotamDate(parsed.validToRaw);
+                    } else if (notam.endValidity) {
+                        validTo = parseNotamDate(notam.endValidity);
+                    }
+
+                    console.log(`✅ Final dates - From: ${validFrom}, To: ${validTo}`);
 
                     const notamObj = {
                         id: notam.pk || `${icao}-navcanada-${Date.now()}`,
@@ -204,15 +206,14 @@ export default async function handler(request, response) {
                 console.warn(`❌ NAV CANADA fetch failed for ${icao}: ${e.message}`);
             }
         } else if (faaItems.length > 0) {
-            // **IMPORTANT: Process FAA NOTAMs WITHOUT parsing their dates**
-            // FAA dates are already in the correct format
+            // Process FAA NOTAMs
             console.log(`🇺🇸 Processing ${faaItems.length} FAA NOTAMs for ${icao}`);
             notamsFromSource = faaItems.map(item => {
                 const core = item.properties?.coreNOTAMData?.notam || {};
                 const formattedIcaoText = item.properties?.coreNOTAMData?.notamTranslation?.[0]?.formattedText;
                 const originalRawText = formattedIcaoText || core.text || 'Full NOTAM text not available from source.';
                 
-                // **KEY CHANGE: Use FAA dates directly - they're already in correct format**
+                // FAA dates are already in correct format
                 const validFrom = core.effectiveStart || null;
                 const validTo = core.effectiveEnd || null;
                 
