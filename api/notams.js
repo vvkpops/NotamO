@@ -150,35 +150,13 @@ export default async function handler(request, response) {
                     }
 
                     const parsed = parseRawNotam(originalRawText);
-                    console.log(`🔍 NOTAM ${notam.pk} - API dates: start="${notam.startValidity}" end="${notam.endValidity}"`);
-                    console.log(`🔍 NOTAM ${notam.pk} - Parsed dates: from="${parsed?.validFromRaw}" to="${parsed?.validToRaw}"`);
-
-                    // **CORRECTED LOGIC**: API dates first, fallback to parsed dates
-                    let validFrom = null;
-                    let validTo = null;
-
-                    // For validFrom: prefer API date, fallback to parsed date
-                    if (notam.startValidity) {
-                        validFrom = parseNotamDate(notam.startValidity);
-                        console.log(`✅ Using API validFrom: ${notam.startValidity} -> ${validFrom}`);
-                    } else if (parsed?.validFromRaw) {
-                        validFrom = parseNotamDate(parsed.validFromRaw);
-                        console.log(`📋 Using parsed validFrom: ${parsed.validFromRaw} -> ${validFrom}`);
-                    } else {
-                        console.log(`⚠️ No validFrom available for NOTAM ${notam.pk}`);
-                    }
-
-                    // For validTo: prefer parsed date first if available, then fallback to API date.
-                    // This handles cases where API `endValidity` is null but the raw NOTAM has a date.
-                    if (parsed?.validToRaw) {
-                        validTo = parseNotamDate(parsed.validToRaw);
-                        console.log(`📋 Using parsed validTo: ${parsed.validToRaw} -> ${validTo}`);
-                    } else if (notam.endValidity) {
-                        validTo = parseNotamDate(notam.endValidity);
-                        console.log(`✅ Using API validTo: ${notam.endValidity} -> ${validTo}`);
-                    } else {
-                        console.log(`⚠️ No validTo available for NOTAM ${notam.pk} (API endValidity is null and no parsed date)`);
-                    }
+                    
+                    // Prioritize API dates, but use parsed dates as a fallback, especially for end dates.
+                    const validFrom = parseNotamDate(notam.startValidity) || parseNotamDate(parsed?.validFromRaw);
+                    
+                    // **THE FIX**: Prioritize the end date parsed from the NOTAM text (C field).
+                    // This is crucial for Canadian NOTAMs where `endValidity` from the API can be null.
+                    const validTo = parseNotamDate(parsed?.validToRaw) || parseNotamDate(notam.endValidity);
 
                     const notamObj = {
                         id: notam.pk || `${icao}-navcanada-${Date.now()}`,
@@ -193,7 +171,10 @@ export default async function handler(request, response) {
                         rawText: originalRawText,
                     };
                     
-                    console.log(`📋 Final NOTAM ${notam.pk}: validFrom=${validFrom}, validTo=${validTo}`);
+                    if (!validTo) {
+                        console.warn(`⚠️ Final validTo for NOTAM ${notam.pk} is null. API: "${notam.endValidity}", Parsed: "${parsed?.validToRaw}"`);
+                    }
+
                     return notamObj;
                 }).filter(Boolean);
 
