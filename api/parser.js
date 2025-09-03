@@ -117,12 +117,18 @@ export function parseRawNotam(rawText) {
         eLineStarted = false;
         break;
       case 'C':
-        // **REWRITTEN PERM LOGIC**: Aggressively check for PERM at the start of the C) line.
+        // **DEFINITIVE FIX**: This logic correctly isolates the date/time group.
         const cValue = value.trim().toUpperCase();
         if (cValue.startsWith('PERM')) {
           result.validToRaw = 'PERM';
         } else {
-          result.validToRaw = value.trim();
+          // Match the YYMMDDHHMM group and optional timezone, ignoring anything after.
+          const dateMatch = cValue.match(/^(\d{10}[A-Z]{0,4})/);
+          if (dateMatch) {
+            result.validToRaw = dateMatch[1];
+          } else {
+            result.validToRaw = value.trim(); // Fallback to original value if no match
+          }
         }
         eLineStarted = false;
         break;
