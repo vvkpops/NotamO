@@ -304,6 +304,7 @@ const App = () => {
   const fetchNotams = useCallback(async (icao) => {
     console.log(`🚀 Fetching NOTAMs for ${icao}`);
     
+    // Set loading state but preserve existing data
     setNotamDataStore(prev => ({ 
       ...prev, 
       [icao]: { ...prev[icao], loading: true, error: null } 
@@ -556,29 +557,31 @@ const App = () => {
 
   const allNotamsData = useMemo(() => {
     let combined = [];
-    let isLoading = icaos.some(icao => notamDataStore[icao]?.loading || fetchQueue.includes(icao));
+    // Show loading only if there's no data for ANY ICAO yet.
+    let hasAnyData = icaos.some(icao => notamDataStore[icao]?.data?.length > 0);
+    let isLoading = icaos.some(icao => notamDataStore[icao]?.loading) && !hasAnyData;
     let anyError = null;
-    let hasAnyData = false;
+
     [...icaos].sort().forEach(icao => {
       const storeEntry = notamDataStore[icao];
       if (storeEntry) {
         if (storeEntry.error) anyError = anyError || storeEntry.error;
         if (storeEntry.data && storeEntry.data.length > 0) {
-          hasAnyData = true;
           combined.push({ isIcaoHeader: true, icao: icao, id: `header-${icao}` });
           combined = combined.concat(storeEntry.data);
         }
       }
     });
-    return { data: combined, loading: isLoading && !hasAnyData, error: anyError };
-  }, [notamDataStore, icaos, fetchQueue]);
+    return { data: combined, loading: isLoading, error: anyError };
+  }, [notamDataStore, icaos]);
 
   const activeNotamData = useMemo(() => {
     if (activeTab === 'ALL') return allNotamsData;
     const storeEntry = notamDataStore[activeTab];
-    const isLoading = (storeEntry?.loading && !storeEntry?.data) || fetchQueue.includes(activeTab);
+    // Show loading spinner only if there's no data for this tab yet.
+    const isLoading = storeEntry?.loading && (!storeEntry.data || storeEntry.data.length === 0);
     return { data: storeEntry?.data || [], loading: isLoading, error: storeEntry?.error || null };
-  }, [activeTab, allNotamsData, notamDataStore, fetchQueue]);
+  }, [activeTab, allNotamsData, notamDataStore]);
 
   const { filteredNotams, typeCounts, hasActiveFilters, activeFilterCount } = useMemo(() => {
     const notams = activeNotamData.data;
@@ -651,7 +654,7 @@ const App = () => {
   };
 
   const Tab = ({ id, label, onRemove, onRefresh }) => {
-    const isLoading = fetchQueue.includes(id) || notamDataStore[id]?.loading;
+    const isLoading = notamDataStore[id]?.loading;
     const hasNew = newNotamIcaos.has(id);
     return (
       <div className={`icao-tab ${activeTab === id ? 'active' : ''} ${hasNew ? 'has-new-notams' : ''}`} onClick={() => handleTabClick(id)}>
@@ -720,7 +723,7 @@ const App = () => {
           <Tab id="ALL" label={`ALL (${icaos.length})`} />
           {icaos.map(icao => {
             const count = notamDataStore[icao]?.data?.length || 0;
-            const isLoading = fetchQueue.includes(icao) || notamDataStore[icao]?.loading;
+            const isLoading = notamDataStore[icao]?.loading;
             return (
               <Tab key={icao} id={icao} label={isLoading ? `${icao}` : `${icao} (${count})`} onRemove={handleRemoveIcao} onRefresh={handleRefreshIcao} />
             );
@@ -764,7 +767,7 @@ const ModernHeader = ({ timeToNextRefresh, onRefreshAll, onHistoryClick }) => {
         </button>
         <div className="global-refresh" title={`Next auto-refresh in ${minutes}:${seconds}`}>
           <button onClick={onRefreshAll} className="refresh-all-btn">Refresh All</button>
-          <span className="global-countdown">{minutes}:{seconds}</span>
+          <span className="global-countdown">{minutes}:${seconds}</span>
         </div>
         <p className="utc-time">{utcTime}</p>
       </div>
