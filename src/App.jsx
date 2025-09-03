@@ -3,6 +3,7 @@ import NotamTabContent, { FilterModal } from './NotamTabContent';
 import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
 import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKeywordHighlight.jsx';
 import ICAOSortingModal from './ICAOSortingModal.jsx';
+import NotamHistoryModal from './NotamHistoryModal.jsx';
 
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -79,6 +80,17 @@ const App = () => {
   // ICAO Sorting states
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
 
+  // New NOTAM history states
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [notamHistory, setNotamHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('notamHistory');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Use useRef to avoid stale state in callbacks
   const icaosRef = useRef([]);
   const isProcessingQueue = useRef(false);
@@ -144,6 +156,16 @@ const App = () => {
     }
   }, [cardSize]);
 
+  useEffect(() => {
+    try {
+      // Limit history to 100 entries
+      const limitedHistory = notamHistory.slice(0, 100);
+      localStorage.setItem('notamHistory', JSON.stringify(limitedHistory));
+    } catch (error) {
+      console.warn('Failed to save NOTAM history:', error);
+    }
+  }, [notamHistory]);
+
   // Enhanced NOTAM signature generation for better detection
   const createNotamSignature = useCallback((notam) => {
     const number = notam.number || 'unknown';
@@ -167,6 +189,7 @@ const App = () => {
       return { 
         processedData: newData.map(n => ({ ...n, isNew: false, userViewed: false })), 
         hasNewNotams: false,
+        newNotamsList: [],
         stats: {
           new: newData.length,
           expired: 0,
@@ -214,6 +237,7 @@ const App = () => {
 
     // Build merged result
     const mergedNotams = [];
+    const newNotamsList = [];
     let hasNewNotams = false;
 
     // 1. Add existing NOTAMs (preserve user state)
@@ -237,12 +261,14 @@ const App = () => {
       
       console.log(`🆕 New NOTAM detected: ${newNotam.number}`);
       
-      mergedNotams.push({
+      const newNotamObject = {
         ...newNotam,
         isNew: true,
         userViewed: false,
         firstSeenAt: Date.now(),
-      });
+      };
+      mergedNotams.push(newNotamObject);
+      newNotamsList.push(newNotamObject);
     });
 
     // 3. Log expired NOTAMs but don't include them
@@ -264,6 +290,7 @@ const App = () => {
     return { 
       processedData: mergedNotams, 
       hasNewNotams,
+      newNotamsList,
       stats: {
         new: genuinelyNewSignatures.length,
         expired: expiredSignatures.length,
@@ -300,15 +327,24 @@ const App = () => {
         const isInitialFetch = oldData.length === 0 && !prev[icao]?.lastUpdated;
         
         // Use smart incremental merge
-        const { processedData, hasNewNotams, stats } = smartNotamMerge(oldData, data, isInitialFetch);
+        const { processedData, hasNewNotams, newNotamsList, stats } = smartNotamMerge(oldData, data, isInitialFetch);
         
         // Add ICAO to each NOTAM for consistency
         const notamsWithIcao = processedData.map(n => ({ ...n, icao }));
 
-        // Update new NOTAM indicators only if there are genuinely new NOTAMs
+        // Update new NOTAM indicators and history if there are new NOTAMs
         if (hasNewNotams) {
           console.log(`🆕 Found ${stats.new} new NOTAMs for ${icao}`);
           setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
+          
+          const historyEntry = {
+            id: Date.now(),
+            icao: icao,
+            timestamp: new Date().toISOString(),
+            count: newNotamsList.length,
+            notams: newNotamsList.map(n => ({ number: n.number, summary: n.summary.substring(0, 100) + '...' }))
+          };
+          setNotamHistory(prevHistory => [historyEntry, ...prevHistory]);
         }
 
         console.log(`✅ Successfully updated ${icao}: ${stats.total} NOTAMs (${stats.new} new, ${stats.expired} expired)`);
@@ -540,7 +576,7 @@ const App = () => {
   const activeNotamData = useMemo(() => {
     if (activeTab === 'ALL') return allNotamsData;
     const storeEntry = notamDataStore[activeTab];
-    const isLoading = storeEntry?.loading || fetchQueue.includes(activeTab);
+    const isLoading = (storeEntry?.loading && !storeEntry?.data) || fetchQueue.includes(activeTab);
     return { data: storeEntry?.data || [], loading: isLoading, error: storeEntry?.error || null };
   }, [activeTab, allNotamsData, notamDataStore, fetchQueue]);
 
@@ -636,7 +672,11 @@ const App = () => {
 
   return (
     <div className="container" style={{ '--notam-card-size': `${cardSize}px` }}>
-      <ModernHeader timeToNextRefresh={timeToNextRefresh} onRefreshAll={handleRefreshAll} />
+      <ModernHeader 
+        timeToNextRefresh={timeToNextRefresh} 
+        onRefreshAll={handleRefreshAll}
+        onHistoryClick={() => setIsHistoryModalOpen(true)}
+      />
       
       <div className="glass icao-input-container">
         <div className="top-controls">
@@ -692,11 +732,12 @@ const App = () => {
       <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} filters={filters} onFilterChange={handleFilterChange} typeCounts={typeCounts} onClearAll={clearAllFilters} filterOrder={filterOrder} setFilterOrder={setFilterOrder} dragState={dragState} setDragState={setDragState} />
       <NotamKeywordHighlightManager isOpen={isHighlightModalOpen} onClose={() => setIsHighlightModalOpen(false)} keywordCategories={keywordCategories} setKeywordCategories={setKeywordCategories} keywordHighlightEnabled={keywordHighlightEnabled} setKeywordHighlightEnabled={setKeywordHighlightEnabled} />
       <ICAOSortingModal isOpen={isSortModalOpen} onClose={() => setIsSortModalOpen(false)} icaos={icaos} onReorder={handleIcaoReorder} />
+      <NotamHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} history={notamHistory} onClearHistory={() => setNotamHistory([])}/>
     </div>
   );
 };
 
-const ModernHeader = ({ timeToNextRefresh, onRefreshAll }) => {
+const ModernHeader = ({ timeToNextRefresh, onRefreshAll, onHistoryClick }) => {
   const [utcTime, setUtcTime] = useState('');
   const [mounted, setMounted] = useState(false);
   
@@ -718,6 +759,9 @@ const ModernHeader = ({ timeToNextRefresh, onRefreshAll }) => {
     <header className={`modern-header ${mounted ? 'mounted' : ''}`}>
       <h1>NOTAM Console</h1>
       <div className="header-meta">
+        <button onClick={onHistoryClick} className="refresh-all-btn" title="View New NOTAM History">
+          History
+        </button>
         <div className="global-refresh" title={`Next auto-refresh in ${minutes}:${seconds}`}>
           <button onClick={onRefreshAll} className="refresh-all-btn">Refresh All</button>
           <span className="global-countdown">{minutes}:{seconds}</span>
