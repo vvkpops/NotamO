@@ -30,46 +30,29 @@ export const getNotamType = (notam) => {
   const rawText = (notam.rawText || '').toUpperCase();
   const combinedText = `${text} ${rawText}`;
 
-  // Prioritize cancellation status
   if (flags.isCancelled) return 'cancelled';
-  
-  // Check for ILS/Nav aids FIRST (before runway check)
-  // This handles cases like "ILS RWY 09" which should be classified as ILS, not runway
   if (flags.isILS) {
     return 'ils';
   }
-  
-  // Check for navigation aids and approach systems
   if (/\b(VOR|DME|NDB|TACAN|RNAV|GPS|WAAS)\b/.test(combinedText)) {
-    return 'ils'; // Group all nav aids under ILS category
+    return 'ils';
   }
-  
-  // Check for approach-related NOTAMs
   if (/\b(APPROACH|APP|PRECISION|NON-PRECISION|CIRCLING)\b/.test(combinedText)) {
     return 'ils';
   }
-  
-  // Check for lighting systems that are approach-related
   if (/\b(PAPI|VASI|ALS|ALSF|MALSR|ODALS|RAIL|REIL)\b/.test(combinedText)) {
     return 'ils';
   }
-  
-  // Surface conditions take priority over runway classification
   if (flags.isRSC) return 'rsc';
   if (flags.isCRFI) return 'crfi';
-  
-  // Now check for runway (after ILS/Nav checks)
   if (flags.isRunway) {
-    // Double-check it's not actually an ILS-related runway NOTAM
     if (/\b(ILS|LOC|GS|GLIDESLOPE|LOCALIZER)\b/.test(combinedText)) {
       return 'ils';
     }
     return 'rwy';
   }
-  
   if (flags.isTaxiway) return 'twy';
   if (flags.isFuel) return 'fuel';
-  
   return 'other';
 };
 
@@ -114,7 +97,7 @@ export const needsExpansion = (summary) => {
 // --- Time-based Functions ---
 
 export const parseDate = (s) => {
-  if (!s || s === 'PERMANENT') return null;
+  if (!s || s === 'PERMANENT' || s === 'PERM') return null;
   let iso = s.trim().replace(' ', 'T');
   if (!/Z$|[+-]\d{2}:?\d{2}$/.test(iso)) iso += 'Z';
   const d = new Date(iso);
