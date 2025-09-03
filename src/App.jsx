@@ -166,7 +166,13 @@ const App = () => {
       console.log(`📋 Initial fetch: ${newData.length} NOTAMs loaded`);
       return { 
         processedData: newData.map(n => ({ ...n, isNew: false, userViewed: false })), 
-        hasNewNotams: false 
+        hasNewNotams: false,
+        stats: {
+          new: newData.length,
+          expired: 0,
+          existing: 0,
+          total: newData.length
+        }
       };
     }
 
