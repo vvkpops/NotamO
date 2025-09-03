@@ -70,9 +70,15 @@ function parseNotamDate(dateString) {
         return 'PERMANENT';
     }
 
-    // Handle standard ISO 8601 format (e.g., from FAA)
-    if (upperDateString.includes('T') && upperDateString.endsWith('Z')) {
-        const d = new Date(dateString);
+    // Handle standard ISO 8601 format (e.g., from FAA or ambiguous NAVCAN)
+    if (upperDateString.includes('T')) {
+        let isoString = dateString;
+        // If 'Z' is missing, append it to treat the date as UTC.
+        // This is crucial for handling NAV CANADA's ambiguous date format like "2025-08-26T17:31:00"
+        if (!upperDateString.endsWith('Z')) {
+            isoString += 'Z';
+        }
+        const d = new Date(isoString);
         return isNaN(d.getTime()) ? null : d.toISOString();
     }
     
@@ -272,15 +278,24 @@ export default async function handler(request, response) {
                 
                 notamsFromSource = navNotams.map(notam => {
                     let originalRawText = 'Full NOTAM text not available from source.';
+                    // Safely parse the nested JSON in the 'text' field
                     try {
                         const parsedText = JSON.parse(notam.text);
                         originalRawText = parsedText.raw?.replace(/\\n/g, '\n') || originalRawText;
                     } catch (e) {
-                        console.warn(`Could not parse nested JSON in NAV CANADA NOTAM text for PK ${notam.pk}`);
+                        // If 'text' is not JSON, use it directly as a fallback.
+                        if (typeof notam.text === 'string') {
+                            originalRawText = notam.text;
+                        }
+                        console.warn(`Could not parse nested JSON in NAV CANADA NOTAM text for PK ${notam.pk}. Fallback to raw text field.`);
                     }
 
+                    // The raw text is the single source of truth for dates.
                     const parsed = parseRawNotam(originalRawText);
 
+                    // **DEFINITIVE DATE PARSING LOGIC**
+                    // 1. Prioritize parsed raw dates.
+                    // 2. Fallback to top-level API dates only if raw parsing fails.
                     const validFrom = parseNotamDate(parsed?.validFromRaw) || parseNotamDate(notam.startValidity);
                     const validTo = parseNotamDate(parsed?.validToRaw) || parseNotamDate(notam.endValidity);
 
@@ -292,7 +307,7 @@ export default async function handler(request, response) {
                         source: 'NAV CANADA',
                         isCancellation: parsed?.isCancellation || false,
                         cancels: parsed?.cancelsNotam || null,
-                        icao: icao,
+                        icao: parsed?.aerodrome?.split(' ')[0] || icao, // Use parsed aerodrome if available
                         summary: originalRawText,
                         rawText: originalRawText,
                     };
