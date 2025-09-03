@@ -37,33 +37,24 @@ function parseNotamDate(dateString) {
     }
 
     // Handle already-formatted ISO dates (FAA format and NAV CANADA API format)
-    // Check for ISO format: contains T, dash, and colon (but NOT timezone letters)
     if (trimmed.includes('T') && trimmed.includes('-') && trimmed.includes(':')) {
-        // This is already an ISO format date
         let isoString = trimmed;
-        
-        // If it doesn't end with Z, add it (NAV CANADA API sometimes omits Z)
         if (!upperDateString.endsWith('Z') && !upperDateString.match(/[+-]\d{2}:\d{2}$/)) {
             isoString += 'Z';
         }
-        
         const d = new Date(isoString);
         if (isNaN(d.getTime())) {
             console.warn(`❌ Invalid ISO date: ${dateString}`);
             return null;
         }
-        
-        // Return in FAA-compatible format
         return d.toISOString();
     }
     
-    // Handle YYMMDDHHMM format with timezone suffix (NAV CANADA raw format)
+    // Handle YYMMDDHHMM with timezone suffix
     const match = upperDateString.match(/^(\d{10})\s*([A-Z]{2,5})?.*$/);
     if (match) {
         const dateDigits = match[1];
         const timezoneCode = match[2] || 'UTC';
-        
-        console.log(`🔍 Parsing timezone date: ${dateString} -> digits: ${dateDigits}, timezone: ${timezoneCode}`);
         
         // Extract date components from YYMMDDHHMM
         const year = parseInt(`20${dateDigits.substring(0, 2)}`);
@@ -72,37 +63,29 @@ function parseNotamDate(dateString) {
         const hour = parseInt(dateDigits.substring(6, 8));
         const minute = parseInt(dateDigits.substring(8, 10));
 
-        // Validate components
         if (month < 1 || month > 12 || day < 1 || day > 31 || 
             hour < 0 || hour > 23 || minute < 0 || minute > 59) {
             console.warn(`❌ Invalid date components: ${dateString} -> ${year}-${month}-${day} ${hour}:${minute}`);
             return null;
         }
 
-        // Get timezone offset
         const offsetHours = TIMEZONE_OFFSETS[timezoneCode];
         if (offsetHours === undefined) {
             console.warn(`⚠️ Unknown timezone: ${timezoneCode} in ${dateString}, treating as UTC`);
         }
-        
         const actualOffsetHours = offsetHours !== undefined ? offsetHours : 0;
-        
-        // Create UTC timestamp
-        // For negative offsets (e.g., EST = -5), we need to ADD hours to convert to UTC
-        // For positive offsets (e.g., CET = +1), we need to SUBTRACT hours to convert to UTC
-        const utcHour = hour - actualOffsetHours;
-        
-        // Create the date in UTC
-        const utcDate = new Date(Date.UTC(year, month - 1, day, utcHour, minute, 0, 0));
+
+        // Minute-precise conversion (handles half-hour zones like NST/NDT)
+        // Local time in TZ -> UTC = local - offset
+        const offsetMinutes = Math.round(actualOffsetHours * 60);
+        const utcMs = Date.UTC(year, month - 1, day, hour, minute) - (offsetMinutes * 60 * 1000);
+        const utcDate = new Date(utcMs);
 
         if (isNaN(utcDate.getTime())) {
             console.warn(`❌ Invalid final date: ${dateString}`);
             return null;
         }
-        
-        const result = utcDate.toISOString();
-        console.log(`✅ Converted ${dateString} -> ${result} (offset: ${actualOffsetHours})`);
-        return result;
+        return utcDate.toISOString();
     }
     
     console.warn(`❓ Unrecognized date format: ${dateString}`);
@@ -143,7 +126,7 @@ export default async function handler(request, response) {
             console.warn(`❌ FAA fetch failed for ${icao}: ${e.message}`);
         }
 
-        // *** FALLBACK LOGIC FOR CANADIAN ICAO ***
+        // Fallback for Canadian ICAO
         if (icao.startsWith('C') && faaItems.length === 0) {
             console.log(`🇨🇦 Trying NAV CANADA for Canadian ICAO ${icao}`);
             try {
@@ -156,7 +139,6 @@ export default async function handler(request, response) {
                 notamsFromSource = navNotams.map(notam => {
                     let originalRawText = 'Full NOTAM text not available from source.';
                     
-                    // Parse the nested JSON in the 'text' field
                     try {
                         const parsedText = JSON.parse(notam.text);
                         originalRawText = parsedText.raw?.replace(/\\n/g, '\n') || originalRawText;
@@ -167,22 +149,11 @@ export default async function handler(request, response) {
                         console.warn(`⚠️ Could not parse JSON for NOTAM PK ${notam.pk}`);
                     }
 
-                    console.log(`📄 Processing NAV CANADA NOTAM PK:${notam.pk}`);
-                    console.log(`📅 Raw API dates: Start="${notam.startValidity}", End="${notam.endValidity}"`);
-
-                    // Parse raw NOTAM text to extract structured data
                     const parsed = parseRawNotam(originalRawText);
-                    
-                    if (parsed?.validFromRaw || parsed?.validToRaw) {
-                        console.log(`📋 Raw text dates: From="${parsed.validFromRaw}", To="${parsed.validToRaw}"`);
-                    }
 
-                    // **FIXED LOGIC**: Prioritize parsed date, then fallback to API date.
+                    // Prioritize parsed date, then fallback to API date.
                     const validFrom = parseNotamDate(parsed?.validFromRaw) ?? parseNotamDate(notam.startValidity);
                     const validTo = parseNotamDate(parsed?.validToRaw) ?? parseNotamDate(notam.endValidity);
-
-
-                    console.log(`✅ Final dates: From=${validFrom}, To=${validTo}`);
 
                     const notamObj = {
                         id: notam.pk || `${icao}-navcanada-${Date.now()}`,
@@ -204,15 +175,13 @@ export default async function handler(request, response) {
                 console.warn(`❌ NAV CANADA fetch failed for ${icao}: ${e.message}`);
             }
         } else if (faaItems.length > 0) {
-            // **IMPORTANT: Process FAA NOTAMs WITHOUT parsing their dates**
-            // FAA dates are already in the correct format
             console.log(`🇺🇸 Processing ${faaItems.length} FAA NOTAMs for ${icao}`);
             notamsFromSource = faaItems.map(item => {
                 const core = item.properties?.coreNOTAMData?.notam || {};
                 const formattedIcaoText = item.properties?.coreNOTAMData?.notamTranslation?.[0]?.formattedText;
                 const originalRawText = formattedIcaoText || core.text || 'Full NOTAM text not available from source.';
                 
-                // **KEY CHANGE: Use FAA dates directly - they're already in correct format**
+                // Use FAA dates directly (already ISO)
                 const validFrom = core.effectiveStart || null;
                 const validTo = core.effectiveEnd || null;
                 
@@ -231,7 +200,7 @@ export default async function handler(request, response) {
             });
         }
         
-        // Filter out cancelled NOTAMs
+        // Filter out cancelled NOTAMs and expired (keeping PERMANENT)
         const cancelledNotamNumbers = new Set();
         notamsFromSource.forEach(n => {
             if (n.isCancellation && n.cancels) {
@@ -239,14 +208,12 @@ export default async function handler(request, response) {
             }
         });
 
-        // Filter and sort NOTAMs
         const now = new Date();
         const finalNotams = notamsFromSource
             .filter(n => {
                 if (cancelledNotamNumbers.has(n.number)) return false;
                 if (n.isCancellation) return true;
                 if (!n.validTo || n.validTo === 'PERMANENT') return true;
-                
                 try {
                     const validToDate = new Date(n.validTo);
                     return isNaN(validToDate.getTime()) ? true : validToDate >= now;
@@ -257,7 +224,6 @@ export default async function handler(request, response) {
             .sort((a, b) => {
                 if (a.validFrom === 'PERMANENT') return 1;
                 if (b.validFrom === 'PERMANENT') return -1;
-                
                 try {
                     const dateA = new Date(a.validFrom || 0);
                     const dateB = new Date(b.validFrom || 0);
@@ -270,13 +236,6 @@ export default async function handler(request, response) {
             });
 
         console.log(`📋 Returning ${finalNotams.length} processed NOTAMs for ${icao}`);
-        
-        // Log a sample NOTAM for debugging
-        if (finalNotams.length > 0) {
-            const sample = finalNotams[0];
-            console.log(`📄 Sample NOTAM: ${sample.number} | From: ${sample.validFrom} | To: ${sample.validTo} | Source: ${sample.source}`);
-        }
-
         response.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
         return response.status(200).json(finalNotams);
 
