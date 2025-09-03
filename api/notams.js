@@ -10,11 +10,10 @@ const ALLOWED_ORIGIN = process.env.VERCEL_URL
     : 'http://localhost:5173';
 
 /**
- * Parses a date string from a NOTAM, which can be in YYMMDDHHMM format,
- * potentially with a timezone like EST. Defaults to UTC if no timezone is found.
- * Also handles standard ISO 8601 strings from the FAA API.
- * @param {string} dateString The date string from the NOTAM (e.g., "2509122359EST" or "2025-09-02T12:08:00Z").
- * @returns {string|null} ISO 8601 formatted date string or 'PERMANENT' or null.
+ * Parses a date string from a NOTAM. It handles FAA's ISO format and
+ * the YYMMDDHHMM format from raw NOTAM text, correctly interpreting it as UTC.
+ * @param {string} dateString The date string (e.g., "2509122359EST" or "2025-09-02T12:08:00Z").
+ * @returns {string|null} ISO 8601 formatted date string, 'PERMANENT', or null.
  */
 function parseNotamDate(dateString) {
     if (!dateString || typeof dateString !== 'string') return null;
@@ -24,37 +23,31 @@ function parseNotamDate(dateString) {
         return 'PERMANENT';
     }
 
-    // Check if it's already a valid ISO-like format from FAA
+    // Handle standard ISO 8601 format from FAA
     if (upperDateString.includes('T') && upperDateString.includes('Z')) {
         const d = new Date(dateString);
         return isNaN(d.getTime()) ? null : d.toISOString();
     }
     
-    // Match YYMMDDHHMM and an optional timezone (like EST, EDT, UTC, GMT, Z)
-    const match = upperDateString.match(/^(\d{10})([A-Z]{3,4})?$/);
+    // Handle YYMMDDHHMM format from raw text (e.g., 2509122359EST)
+    // The regex now correctly extracts only the 10-digit time group.
+    const match = upperDateString.match(/^(\d{10})/);
     if (!match) {
-        // Fallback for dates that might already be ISO but missing 'Z'
+        // Fallback for other potential formats
         const d = new Date(upperDateString.endsWith('Z') ? upperDateString : upperDateString + 'Z');
         return isNaN(d.getTime()) ? null : d.toISOString();
     }
 
-    const [, dt, tz] = match;
+    const dt = match[1];
     const year = `20${dt.substring(0, 2)}`;
     const month = dt.substring(2, 4);
     const day = dt.substring(4, 6);
     const hour = dt.substring(6, 8);
     const minute = dt.substring(8, 10);
 
-    let isoString = `${year}-${month}-${day}T${hour}:${minute}:00`;
-
-    // Handle timezones. Default to UTC (Z) if not specified or not recognized.
-    if (tz === 'EST') {
-        isoString += '-05:00'; // Eastern Standard Time
-    } else if (tz === 'EDT') {
-        isoString += '-04:00'; // Eastern Daylight Time
-    } else {
-        isoString += 'Z'; // Assume UTC for Z, UTC, GMT, or unspecified
-    }
+    // Construct the date as UTC, which is the standard for aviation.
+    // The 'Z' suffix denotes UTC.
+    const isoString = `${year}-${month}-${day}T${hour}:${minute}:00Z`;
 
     const date = new Date(isoString);
     return isNaN(date.getTime()) ? null : date.toISOString();
