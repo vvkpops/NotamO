@@ -34,7 +34,7 @@ function parseNotamDate(dateString) {
     const upperDateString = trimmed.toUpperCase();
     
     // **PRIORITY 1: Handle PERM explicitly and return immediately.**
-    if (upperDateString.startsWith('PERM')) {
+    if (upperDateString === 'PERM' || upperDateString === 'PERMANENT') {
         return 'PERM';
     }
 
@@ -49,27 +49,25 @@ function parseNotamDate(dateString) {
     }
     
     // **PRIORITY 3: Deconstruct YYMMDDHHMM format with timezone.**
-    // This is a more robust method than a single regex.
-    let datePart = '';
-    let tzPart = '';
-
-    // Separate digits from letters
-    for (const char of upperDateString) {
-        if (char >= '0' && char <= '9') {
-            datePart += char;
-        } else if (char >= 'A' && char <= 'Z') {
-            tzPart += char;
-        }
+    // Extract just the first 10 digits
+    const digitMatch = upperDateString.match(/^(\d{10})/);
+    if (!digitMatch) {
+        return null;
     }
-
-    // We must have exactly 10 digits for the date.
-    if (datePart.length !== 10) {
-        // Fallback for cases where a valid date might be followed by junk
-        const simpleMatch = upperDateString.match(/^(\d{10})/);
-        if (simpleMatch) {
-            datePart = simpleMatch[1];
-        } else {
-            return null;
+    
+    const datePart = digitMatch[1];
+    
+    // Extract timezone from the remainder
+    const remainder = upperDateString.substring(10);
+    let timezoneCode = 'UTC'; // Default to UTC
+    
+    // Check for timezone in the remainder
+    if (remainder) {
+        for (const tz in TIMEZONE_OFFSETS) {
+            if (remainder.includes(tz)) {
+                timezoneCode = tz;
+                break;
+            }
         }
     }
 
@@ -85,18 +83,7 @@ function parseNotamDate(dateString) {
         return null; // Invalid date components
     }
 
-    // Find a valid timezone in the text part, or default to UTC
-    let timezoneCode = 'UTC';
-    if (tzPart) {
-        for (const tz in TIMEZONE_OFFSETS) {
-            if (tzPart.includes(tz)) {
-                timezoneCode = tz;
-                break; // Found the first matching timezone
-            }
-        }
-    }
-
-    const offsetHours = TIMEZONE_OFFSETS[timezoneCode];
+    const offsetHours = TIMEZONE_OFFSETS[timezoneCode] || 0;
     const offsetMinutes = Math.round(offsetHours * 60);
     const utcMs = Date.UTC(year, month - 1, day, hour, minute) - (offsetMinutes * 60 * 1000);
     const utcDate = new Date(utcMs);
@@ -171,9 +158,16 @@ export default async function handler(request, response) {
                     if (parsedEndDate) {
                         validTo = parsedEndDate;
                         console.log(`[${parsed?.notamNumber || notam.pk}] Using date from C) line: "${parsed.validToRaw}" -> ${validTo}`);
-                    } else {
+                    } else if (apiEndDate) {
                         validTo = apiEndDate;
                         console.log(`[${parsed?.notamNumber || notam.pk}] Using date from API: "${notam.endValidity}" -> ${validTo}`);
+                    } else {
+                        // If both are null, check if it's actually supposed to be PERM
+                        if (parsed?.validToRaw === 'PERM') {
+                            validTo = 'PERM';
+                        } else {
+                            validTo = null;
+                        }
                     }
                     // --- END OF FIX ---
 
