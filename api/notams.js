@@ -88,20 +88,13 @@ function parseNotamDate(dateString) {
         const hour = dt.substring(6, 8);
         const minute = dt.substring(8, 10);
 
-        // Validate date components first
-        const yearNum = parseInt(year);
-        const monthNum = parseInt(month);
-        const dayNum = parseInt(day);
-        const hourNum = parseInt(hour);
-        const minuteNum = parseInt(minute);
-
-        if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31 || 
-            hourNum < 0 || hourNum > 23 || minuteNum < 0 || minuteNum > 59) {
-            console.warn(`Invalid date components: ${year}-${month}-${day}T${hour}:${minute}:00`);
+        // Validate date components
+        if (parseInt(month) < 1 || parseInt(month) > 12 || parseInt(day) < 1 || parseInt(day) > 31 || 
+            parseInt(hour) < 0 || parseInt(hour) > 23 || parseInt(minute) < 0 || parseInt(minute) > 59) {
+            console.warn(`Invalid date components in string: ${dateString}`);
             return null;
         }
 
-        // Get timezone offset
         const offsetHours = TIMEZONE_OFFSETS[timezoneCode];
         if (offsetHours === undefined) {
             console.warn(`Unknown timezone: ${timezoneCode}, treating as UTC`);
@@ -109,26 +102,29 @@ function parseNotamDate(dateString) {
         
         const actualOffsetHours = offsetHours || 0;
         
-        // Create date in local timezone first, then convert to UTC
-        const localTimeString = `${year}-${month}-${day}T${hour}:${minute}:00`;
-        const localDate = new Date(localTimeString);
-        
-        if (isNaN(localDate.getTime())) {
-            console.warn(`Invalid local date: ${localTimeString}`);
+        // Construct a UTC date by applying the offset manually
+        // This avoids issues with the server's local timezone
+        const tempDate = new Date(Date.UTC(
+            parseInt(year),
+            parseInt(month) - 1, // Month is 0-indexed
+            parseInt(day),
+            parseInt(hour),
+            parseInt(minute)
+        ));
+
+        if (isNaN(tempDate.getTime())) {
+            console.warn(`Could not form a valid temporary date from: ${dateString}`);
             return null;
         }
         
-        // Convert to UTC by subtracting the timezone offset
-        // If EST (-5), we ADD 5 hours to get UTC
-        const utcTime = localDate.getTime() - (actualOffsetHours * 60 * 60 * 1000);
+        // Adjust for the timezone offset. If EST (-5), we ADD 5 hours to get to UTC.
+        const utcTime = tempDate.getTime() - (actualOffsetHours * 60 * 60 * 1000);
         const utcDate = new Date(utcTime);
-        
+
         if (isNaN(utcDate.getTime())) {
-            console.warn(`Invalid UTC date after conversion: ${utcTime}`);
+            console.warn(`Invalid UTC date after conversion for: ${dateString}`);
             return null;
         }
-        
-        console.log(`✅ Timezone conversion: ${dateString} (${timezoneCode}) -> ${utcDate.toISOString()}`);
         
         return utcDate.toISOString();
     }
@@ -285,18 +281,8 @@ export default async function handler(request, response) {
 
                     const parsed = parseRawNotam(originalRawText);
 
-                    // Debug NAV CANADA dates
-                    console.log(`🔍 NAV CANADA date debug for ${notam.pk}:`);
-                    console.log(`  - startValidity: ${notam.startValidity}`);
-                    console.log(`  - endValidity: ${notam.endValidity}`);
-                    console.log(`  - parsed.validFromRaw: ${parsed?.validFromRaw}`);
-                    console.log(`  - parsed.validToRaw: ${parsed?.validToRaw}`);
-
                     const validFrom = parseNotamDate(parsed?.validFromRaw) || parseNotamDate(notam.startValidity);
                     const validTo = parseNotamDate(parsed?.validToRaw) || parseNotamDate(notam.endValidity);
-
-                    console.log(`  - Final validFrom: ${validFrom}`);
-                    console.log(`  - Final validTo: ${validTo}`);
 
                     const notamObj = {
                         id: notam.pk || `${icao}-navcanada-${notam.startValidity}`,
