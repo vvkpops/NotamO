@@ -19,9 +19,9 @@ const TIMEZONE_OFFSETS = {
 };
 
 /**
- * **REWRITTEN Date Parser**
- * This function first checks for PERM. If it's not PERM, it tries to parse a date.
- * This prevents PERM from ever being processed as a date.
+ * **REWRITTEN & DECONSTRUCTED Date Parser**
+ * This function deconstructs the date string to reliably parse YYMMDDHHMM and timezone.
+ * It prioritizes PERM, then ISO, then the deconstructed format.
  * @param {string | null | undefined} dateString The date string to parse.
  * @returns {string|null} ISO 8601 formatted date, the string 'PERM', or null if invalid.
  */
@@ -48,33 +48,60 @@ function parseNotamDate(dateString) {
         return isNaN(d.getTime()) ? null : d.toISOString();
     }
     
-    // **PRIORITY 3: Handle YYMMDDHHMM format with optional timezone.**
-    const match = upperDateString.match(/^(\d{10})\s*([A-Z]{2,5})?.*$/);
-    if (match) {
-        const dateDigits = match[1];
-        const timezoneCode = match[2] || 'UTC';
-        
-        const year = parseInt(`20${dateDigits.substring(0, 2)}`);
-        const month = parseInt(dateDigits.substring(2, 4));
-        const day = parseInt(dateDigits.substring(4, 6));
-        const hour = parseInt(dateDigits.substring(6, 8));
-        const minute = parseInt(dateDigits.substring(8, 10));
+    // **PRIORITY 3: Deconstruct YYMMDDHHMM format with timezone.**
+    // This is a more robust method than a single regex.
+    let datePart = '';
+    let tzPart = '';
 
-        if (month < 1 || month > 12 || day < 1 || day > 31 || 
-            hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-            return null; // Invalid date components
+    // Separate digits from letters
+    for (const char of upperDateString) {
+        if (char >= '0' && char <= '9') {
+            datePart += char;
+        } else if (char >= 'A' && char <= 'Z') {
+            tzPart += char;
         }
-
-        const offsetHours = TIMEZONE_OFFSETS[timezoneCode] !== undefined ? TIMEZONE_OFFSETS[timezoneCode] : 0;
-        const offsetMinutes = Math.round(offsetHours * 60);
-        const utcMs = Date.UTC(year, month - 1, day, hour, minute) - (offsetMinutes * 60 * 1000);
-        const utcDate = new Date(utcMs);
-
-        return isNaN(utcDate.getTime()) ? null : utcDate.toISOString();
     }
-    
-    // Return null if no format matches
-    return null;
+
+    // We must have exactly 10 digits for the date.
+    if (datePart.length !== 10) {
+        // Fallback for cases where a valid date might be followed by junk
+        const simpleMatch = upperDateString.match(/^(\d{10})/);
+        if (simpleMatch) {
+            datePart = simpleMatch[1];
+        } else {
+            return null;
+        }
+    }
+
+    const year = parseInt(`20${datePart.substring(0, 2)}`);
+    const month = parseInt(datePart.substring(2, 4));
+    const day = parseInt(datePart.substring(4, 6));
+    const hour = parseInt(datePart.substring(6, 8));
+    const minute = parseInt(datePart.substring(8, 10));
+
+    if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hour) || isNaN(minute) ||
+        month < 1 || month > 12 || day < 1 || day > 31 || 
+        hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+        return null; // Invalid date components
+    }
+
+    // Find a valid timezone in the text part, or default to UTC
+    let timezoneCode = 'UTC';
+    if (tzPart) {
+        for (const tz in TIMEZONE_OFFSETS) {
+            if (tzPart.includes(tz)) {
+                timezoneCode = tz;
+                break; // Found the first matching timezone
+            }
+        }
+    }
+
+    const offsetHours = TIMEZONE_OFFSETS[timezoneCode];
+    const offsetMinutes = Math.round(offsetHours * 60);
+    const utcMs = Date.UTC(year, month - 1, day, hour, minute) - (offsetMinutes * 60 * 1000);
+    const utcDate = new Date(utcMs);
+
+    return isNaN(utcDate.getTime()) ? null : utcDate.toISOString();
 }
 
 export default async function handler(request, response) {
@@ -134,8 +161,6 @@ export default async function handler(request, response) {
                     const parsed = parseRawNotam(originalRawText);
                     
                     const validFrom = parseNotamDate(notam.startValidity) || parseNotamDate(parsed?.validFromRaw);
-                    // **REWRITTEN LOGIC**: Prioritize the parsed C) field, then the API end date.
-                    // The new parseNotamDate handles PERM correctly.
                     const validTo = parseNotamDate(parsed?.validToRaw) || parseNotamDate(notam.endValidity);
 
                     return {
