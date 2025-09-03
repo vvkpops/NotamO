@@ -151,8 +151,21 @@ export default async function handler(request, response) {
 
                     const parsed = parseRawNotam(originalRawText);
                     
+                    // Determine start date, preferring API value
                     const validFrom = parseNotamDate(notam.startValidity) || parseNotamDate(parsed?.validFromRaw);
-                    const validTo = parseNotamDate(parsed?.validToRaw) || parseNotamDate(notam.endValidity);
+                    
+                    // Determine end date, explicitly prioritizing parsed C) field value
+                    let validTo;
+                    const parsedEndDate = parseNotamDate(parsed?.validToRaw);
+                    const apiEndDate = parseNotamDate(notam.endValidity);
+
+                    if (parsedEndDate) {
+                        validTo = parsedEndDate;
+                        console.log(`📋 Using parsed C) field for end date: "${parsed.validToRaw}" -> ${validTo}`);
+                    } else {
+                        validTo = apiEndDate;
+                        console.log(`✅ Using API end date: "${notam.endValidity}" -> ${validTo}`);
+                    }
 
                     const notamObj = {
                         id: notam.pk || `${icao}-navcanada-${Date.now()}`,
