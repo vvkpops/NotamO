@@ -132,6 +132,8 @@ export default async function handler(request, response) {
 
     try {
         let faaItems = [];
+        let notamsFromSource = [];
+        
         try {
             const faaUrl = `https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${icao}&responseFormat=geoJson&pageSize=250`;
             const notamRes = await axios.get(faaUrl, {
@@ -141,55 +143,19 @@ export default async function handler(request, response) {
             faaItems = notamRes.data?.items || [];
         } catch (e) {
             console.warn(`FAA fetch for ${icao} failed. Message: ${e.message}.`);
+            // Continue execution, fallback might be triggered
         }
 
-        let combinedNotams = faaItems.map(item => {
-            const core = item.properties?.coreNOTAMData?.notam || {};
-            
-            // Use the formatted ICAO text if available, otherwise fall back to the raw text
-            const formattedIcaoText = item.properties?.coreNOTAMData?.notamTranslation?.[0]?.formattedText;
-            const originalRawText = formattedIcaoText || core.text || 'Full NOTAM text not available from source.';
-            
-            const parsed = parseRawNotam(originalRawText);
-
-            // Create the NOTAM object
-            const notamObj = {
-                id: core.id || `${core.number}-${core.icaoLocation}`,
-                number: core.number || 'N/A',
-                validFrom: core.effectiveStart,
-                validTo: core.effectiveEnd,
-                source: 'FAA',
-                isCancellation: parsed?.isCancellation || false,
-                cancels: parsed?.cancelsNotam || null,
-                icao: core.icaoLocation || icao
-            };
-
-            // If we have the formatted ICAO text, use it directly
-            if (formattedIcaoText) {
-                notamObj.summary = formattedIcaoText;
-                notamObj.rawText = formattedIcaoText;
-            } else if (originalRawText && originalRawText.includes('Q)') && originalRawText.includes('A)') && originalRawText.includes('E)')) {
-                // Already in ICAO format, use as-is
-                notamObj.summary = originalRawText;
-                notamObj.rawText = originalRawText;
-            } else {
-                // Format to ICAO standard and set both summary and rawText
-                const formattedRawText = formatNotamToIcao(notamObj, originalRawText);
-                notamObj.summary = formattedRawText;
-                notamObj.rawText = formattedRawText;
-            }
-
-            return notamObj;
-        });
-
-        // Handle NAV CANADA data for Canadian airports
-        if (icao.startsWith('C')) {
+        // *** FALLBACK LOGIC FOR CANADIAN ICAO ***
+        // If the ICAO is Canadian AND the FAA fetch returned zero results, try NAV CANADA.
+        if (icao.startsWith('C') && faaItems.length === 0) {
+            console.log(`FAA returned no NOTAMs for Canadian ICAO ${icao}. Falling back to NAV CANADA.`);
             try {
                 const navUrl = `https://plan.navcanada.ca/weather/api/alpha/?site=${icao}&alpha=notam`;
                 const navRes = await axios.get(navUrl, { timeout: 5000 });
                 const navNotams = navRes.data?.Alpha?.notam || [];
                 
-                const navParsed = navNotams.map(notam => {
+                notamsFromSource = navNotams.map(notam => {
                     const originalRawText = notam.text?.replace(/\\n/g, '\n') || 'Full NOTAM text not available from source.';
                     const parsed = parseRawNotam(originalRawText);
 
@@ -198,40 +164,66 @@ export default async function handler(request, response) {
                         number: notam.id || 'N/A',
                         validFrom: notam.start,
                         validTo: notam.end,
-                        source: 'NAV CANADA',
+                        source: 'NAV CANADA', // Set source to NAV CANADA
                         isCancellation: parsed?.isCancellation || false,
                         cancels: parsed?.cancelsNotam || null,
                         icao: icao
                     };
 
-                    // Format to ICAO standard and set both summary and rawText
                     const formattedRawText = formatNotamToIcao(notamObj, originalRawText);
                     notamObj.summary = formattedRawText;
                     notamObj.rawText = formattedRawText;
 
                     return notamObj;
                 });
-                
-                // Only add NAV CANADA NOTAMs that aren't already in FAA data
-                const faaNumbers = new Set(combinedNotams.map(n => n.number));
-                const uniqueNavNotams = navParsed.filter(n => !faaNumbers.has(n.number));
-                combinedNotams.push(...uniqueNavNotams);
-
             } catch (e) {
-                console.warn(`NAV CANADA fetch for ${icao} failed: ${e.message}`);
+                console.warn(`NAV CANADA fallback fetch for ${icao} also failed: ${e.message}`);
+                // If fallback also fails, notamsFromSource remains an empty array.
             }
+        } else {
+            // Default behavior: Process FAA NOTAMs
+            notamsFromSource = faaItems.map(item => {
+                const core = item.properties?.coreNOTAMData?.notam || {};
+                const formattedIcaoText = item.properties?.coreNOTAMData?.notamTranslation?.[0]?.formattedText;
+                const originalRawText = formattedIcaoText || core.text || 'Full NOTAM text not available from source.';
+                const parsed = parseRawNotam(originalRawText);
+
+                const notamObj = {
+                    id: core.id || `${core.number}-${core.icaoLocation}`,
+                    number: core.number || 'N/A',
+                    validFrom: core.effectiveStart,
+                    validTo: core.effectiveEnd,
+                    source: 'FAA', // Set source to FAA
+                    isCancellation: parsed?.isCancellation || false,
+                    cancels: parsed?.cancelsNotam || null,
+                    icao: core.icaoLocation || icao
+                };
+
+                if (formattedIcaoText) {
+                    notamObj.summary = formattedIcaoText;
+                    notamObj.rawText = formattedIcaoText;
+                } else if (originalRawText && originalRawText.includes('Q)') && originalRawText.includes('A)') && originalRawText.includes('E)')) {
+                    notamObj.summary = originalRawText;
+                    notamObj.rawText = originalRawText;
+                } else {
+                    const formattedRawText = formatNotamToIcao(notamObj, originalRawText);
+                    notamObj.summary = formattedRawText;
+                    notamObj.rawText = formattedRawText;
+                }
+                return notamObj;
+            });
         }
         
         // Identify which NOTAMs are cancelled by another NOTAM
         const cancelledNotamNumbers = new Set();
-        combinedNotams.forEach(n => {
+        notamsFromSource.forEach(n => {
             if (n.isCancellation && n.cancels) {
                 cancelledNotamNumbers.add(n.cancels);
             }
         });
 
         const now = new Date();
-        const finalNotams = combinedNotams
+        const finalNotams = notamsFromSource
             .filter(n => {
                 // Remove NOTAMs that have been explicitly cancelled
                 if (cancelledNotamNumbers.has(n.number)) {
