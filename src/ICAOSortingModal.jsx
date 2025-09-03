@@ -142,6 +142,14 @@ const ICAOSortingModal = ({
 
   if (!isOpen) return null;
 
+  // Create modal root if it doesn't exist
+  let modalRoot = document.getElementById('modal-root');
+  if (!modalRoot) {
+    modalRoot = document.createElement('div');
+    modalRoot.id = 'modal-root';
+    document.body.appendChild(modalRoot);
+  }
+
   return ReactDOM.createPortal(
     <div className="icao-sort-backdrop" onClick={handleBackdropClick}>
       <div className="icao-sort-modal" ref={modalRef}>
@@ -214,7 +222,7 @@ const ICAOSortingModal = ({
         </div>
       </div>
     </div>,
-    document.getElementById('modal-root')
+    modalRoot
   );
 };
 
