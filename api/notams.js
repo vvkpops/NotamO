@@ -32,8 +32,8 @@ function parseNotamDate(dateString) {
     }
     
     // Handle YYMMDDHHMM format, optionally followed by a timezone (e.g., 2511051800EST)
-    // This regex correctly captures the 10-digit time group.
-    const match = upperDateString.match(/^(\d{10})/);
+    // Canadian NOTAMs may include timezone suffixes but are still interpreted as UTC
+    const match = upperDateString.match(/^(\d{10})(?:[A-Z]{2,4})?/);
     if (match) {
         const dt = match[1];
         const year = `20${dt.substring(0, 2)}`;
