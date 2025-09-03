@@ -121,6 +121,8 @@ export function parseRawNotam(rawText) {
         // Handle PERM variations properly. Only treat as PERM if it's the only content.
         if (result.validToRaw.toUpperCase().trim() === 'PERM' || result.validToRaw.toUpperCase().trim() === 'PERMANENT') {
           result.validToRaw = 'PERM';
+        } else if (result.validToRaw.toUpperCase().includes(' EST')) {
+          result.validToRaw = result.validToRaw.toUpperCase().replace(' EST', 'EST');
         }
         eLineStarted = false;
         break;
