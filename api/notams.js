@@ -87,11 +87,13 @@ function parseNotamDate(dateString) {
         
         const actualOffsetHours = offsetHours !== undefined ? offsetHours : 0;
         
-        // Create UTC timestamp and adjust for timezone
-        // FIXED: For EST (-5), the time is 5 hours BEHIND UTC, so we need to ADD 5 hours to get UTC
-        // The offset is negative, so subtracting a negative offset adds the hours
-        const utcTimestamp = Date.UTC(year, month - 1, day, hour - actualOffsetHours, minute, 0, 0);
-        const utcDate = new Date(utcTimestamp);
+        // Create UTC timestamp
+        // For negative offsets (e.g., EST = -5), we need to ADD hours to convert to UTC
+        // For positive offsets (e.g., CET = +1), we need to SUBTRACT hours to convert to UTC
+        const utcHour = hour - actualOffsetHours;
+        
+        // Create the date in UTC
+        const utcDate = new Date(Date.UTC(year, month - 1, day, utcHour, minute, 0, 0));
 
         if (isNaN(utcDate.getTime())) {
             console.warn(`❌ Invalid final date: ${dateString}`);
@@ -99,7 +101,7 @@ function parseNotamDate(dateString) {
         }
         
         const result = utcDate.toISOString();
-        console.log(`✅ Converted ${dateString} -> ${result}`);
+        console.log(`✅ Converted ${dateString} -> ${result} (offset: ${actualOffsetHours})`);
         return result;
     }
     
