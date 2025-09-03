@@ -151,11 +151,7 @@ export default async function handler(request, response) {
 
                     const parsed = parseRawNotam(originalRawText);
                     
-                    // Prioritize API dates, but use parsed dates as a fallback, especially for end dates.
                     const validFrom = parseNotamDate(notam.startValidity) || parseNotamDate(parsed?.validFromRaw);
-                    
-                    // **THE FIX**: Prioritize the end date parsed from the NOTAM text (C field).
-                    // This is crucial for Canadian NOTAMs where `endValidity` from the API can be null.
                     const validTo = parseNotamDate(parsed?.validToRaw) || parseNotamDate(notam.endValidity);
 
                     const notamObj = {
@@ -163,6 +159,8 @@ export default async function handler(request, response) {
                         number: parsed?.notamNumber || 'N/A',
                         validFrom: validFrom,
                         validTo: validTo,
+                        validFromRaw: parsed?.validFromRaw || null,
+                        validToRaw: parsed?.validToRaw || null,
                         source: 'NAV CANADA',
                         isCancellation: parsed?.isCancellation || false,
                         cancels: parsed?.cancelsNotam || null,
@@ -188,18 +186,18 @@ export default async function handler(request, response) {
                 const formattedIcaoText = item.properties?.coreNOTAMData?.notamTranslation?.[0]?.formattedText;
                 const originalRawText = formattedIcaoText || core.text || 'Full NOTAM text not available from source.';
                 
-                // Use FAA dates directly (already ISO)
-                const validFrom = core.effectiveStart || null;
-                const validTo = core.effectiveEnd || null;
+                const parsed = parseRawNotam(originalRawText);
                 
                 return {
                     id: core.id || `${core.number}-${core.icaoLocation}`,
                     number: core.number || 'N/A',
-                    validFrom: validFrom,
-                    validTo: validTo,
+                    validFrom: core.effectiveStart || null,
+                    validTo: core.effectiveEnd || null,
+                    validFromRaw: parsed?.validFromRaw || null,
+                    validToRaw: parsed?.validToRaw || null,
                     source: 'FAA',
-                    isCancellation: parseRawNotam(originalRawText)?.isCancellation || false,
-                    cancels: parseRawNotam(originalRawText)?.cancelsNotam || null,
+                    isCancellation: parsed?.isCancellation || false,
+                    cancels: parsed?.cancelsNotam || null,
                     icao: core.icaoLocation || icao,
                     summary: originalRawText,
                     rawText: originalRawText,
@@ -216,7 +214,7 @@ export default async function handler(request, response) {
         });
 
         const now = new Date();
-        const finalNotams = notamsFromSource
+        const finalNotams = notamSource
             .filter(n => {
                 if (cancelledNotamNumbers.has(n.number)) return false;
                 if (n.isCancellation) return true;
