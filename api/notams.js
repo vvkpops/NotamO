@@ -10,10 +10,10 @@ const ALLOWED_ORIGIN = process.env.VERCEL_URL
     : 'http://localhost:5173';
 
 /**
- * Parses a date string from a NOTAM. It handles FAA's ISO format and
- * the YYMMDDHHMM format from raw NOTAM text, correctly interpreting it as UTC.
- * @param {string} dateString The date string (e.g., "2511051800EST" or "2025-09-02T12:08:00Z").
- * @returns {string|null} ISO 8601 formatted date string, 'PERMANENT', or null.
+ * Parses a date string from various NOTAM formats into a standard ISO 8601 string (UTC).
+ * This function is the single source of truth for date parsing.
+ * @param {string | null | undefined} dateString The date string (e.g., "2511051800EST", "2025-09-02T12:08:00Z").
+ * @returns {string|null} ISO 8601 formatted date string, 'PERMANENT', or null if invalid.
  */
 function parseNotamDate(dateString) {
     if (!dateString || typeof dateString !== 'string') {
@@ -31,8 +31,8 @@ function parseNotamDate(dateString) {
         return isNaN(d.getTime()) ? null : d.toISOString();
     }
     
-    // Handle YYMMDDHHMM format, optionally followed by a timezone abbreviation (e.g., 2511051800EST)
-    // The regex captures the 10-digit date-time group, ignoring any trailing characters like 'EST'.
+    // Handle YYMMDDHHMM format, optionally followed by a timezone (e.g., 2511051800EST)
+    // This regex correctly captures the 10-digit time group.
     const match = upperDateString.match(/^(\d{10})/);
     if (match) {
         const dt = match[1];
@@ -42,16 +42,13 @@ function parseNotamDate(dateString) {
         const hour = dt.substring(6, 8);
         const minute = dt.substring(8, 10);
 
-        // Construct the date as UTC, which is the standard for aviation.
-        // The 'Z' suffix denotes UTC and is critical for correct parsing.
+        // Construct the date as UTC. The 'Z' suffix is critical for correct parsing.
         const isoString = `${year}-${month}-${day}T${hour}:${minute}:00Z`;
         const date = new Date(isoString);
         
-        // Final check to ensure the constructed date is valid
         return isNaN(date.getTime()) ? null : date.toISOString();
     }
     
-    // Return null if no valid format is matched
     return null;
 }
 
@@ -191,12 +188,10 @@ export default async function handler(request, response) {
             try {
                 const navUrl = `https://plan.navcanada.ca/weather/api/alpha/?site=${icao}&alpha=notam`;
                 const navRes = await axios.get(navUrl, { timeout: 10000 });
-                // Correctly access the data array
                 const navNotams = navRes.data?.data || [];
                 
                 notamsFromSource = navNotams.map(notam => {
                     let originalRawText = 'Full NOTAM text not available from source.';
-                    // The 'text' field is a stringified JSON, so we must parse it first.
                     try {
                         const parsedText = JSON.parse(notam.text);
                         originalRawText = parsedText.raw?.replace(/\\n/g, '\n') || originalRawText;
@@ -208,27 +203,22 @@ export default async function handler(request, response) {
 
                     const notamObj = {
                         id: notam.pk || `${icao}-navcanada-${notam.startValidity}`,
-                        // Extract number from the raw text itself using the parser
                         number: parsed.notamNumber || 'N/A',
-                        // Prioritize dates parsed from raw text as they contain timezones
                         validFrom: parseNotamDate(parsed.validFromRaw) || parseNotamDate(notam.startValidity),
                         validTo: parseNotamDate(parsed.validToRaw) || parseNotamDate(notam.endValidity),
-                        source: 'NAV CANADA', // Set source to NAV CANADA
+                        source: 'NAV CANADA',
                         isCancellation: parsed?.isCancellation || false,
                         cancels: parsed?.cancelsNotam || null,
-                        icao: icao
+                        icao: icao,
+                        summary: originalRawText,
+                        rawText: originalRawText,
                     };
                     
-                    // The raw text is already in ICAO format, so we can use it directly.
-                    notamObj.summary = originalRawText;
-                    notamObj.rawText = originalRawText;
-
                     return notamObj;
-                }).filter(Boolean); // Filter out any potential nulls from failed parsing
+                }).filter(Boolean);
 
             } catch (e) {
                 console.warn(`NAV CANADA fallback fetch for ${icao} also failed: ${e.message}`);
-                // If fallback also fails, notamsFromSource remains an empty array.
             }
         } else {
             // Default behavior: Process FAA NOTAMs
@@ -236,35 +226,22 @@ export default async function handler(request, response) {
                 const core = item.properties?.coreNOTAMData?.notam || {};
                 const formattedIcaoText = item.properties?.coreNOTAMData?.notamTranslation?.[0]?.formattedText;
                 const originalRawText = formattedIcaoText || core.text || 'Full NOTAM text not available from source.';
-                const parsed = parseRawNotam(originalRawText);
-
-                const notamObj = {
+                
+                return {
                     id: core.id || `${core.number}-${core.icaoLocation}`,
                     number: core.number || 'N/A',
                     validFrom: parseNotamDate(core.effectiveStart),
                     validTo: parseNotamDate(core.effectiveEnd),
-                    source: 'FAA', // Set source to FAA
-                    isCancellation: parsed?.isCancellation || false,
-                    cancels: parsed?.cancelsNotam || null,
-                    icao: core.icaoLocation || icao
+                    source: 'FAA',
+                    isCancellation: parseRawNotam(originalRawText)?.isCancellation || false,
+                    cancels: parseRawNotam(originalRawText)?.cancelsNotam || null,
+                    icao: core.icaoLocation || icao,
+                    summary: originalRawText,
+                    rawText: originalRawText,
                 };
-
-                if (formattedIcaoText) {
-                    notamObj.summary = formattedIcaoText;
-                    notamObj.rawText = formattedIcaoText;
-                } else if (originalRawText && originalRawText.includes('Q)') && originalRawText.includes('A)') && originalRawText.includes('E)')) {
-                    notamObj.summary = originalRawText;
-                    notamObj.rawText = originalRawText;
-                } else {
-                    const formattedRawText = formatNotamToIcao(notamObj, originalRawText);
-                    notamObj.summary = formattedRawText;
-                    notamObj.rawText = formattedRawText;
-                }
-                return notamObj;
             });
         }
         
-        // Identify which NOTAMs are cancelled by another NOTAM
         const cancelledNotamNumbers = new Set();
         notamsFromSource.forEach(n => {
             if (n.isCancellation && n.cancels) {
@@ -275,25 +252,13 @@ export default async function handler(request, response) {
         const now = new Date();
         const finalNotams = notamsFromSource
             .filter(n => {
-                // Remove NOTAMs that have been explicitly cancelled
-                if (cancelledNotamNumbers.has(n.number)) {
-                    return false;
-                }
-                // Keep cancellation NOTAMs for now; they will be filtered on the client
-                if (n.isCancellation) {
-                    return true;
-                }
-                // Keep NOTAMs that are permanent or have no end date
-                if (!n.validTo || n.validTo === 'PERMANENT') {
-                    return true;
-
-                }
-                // Keep NOTAMs that have not expired yet
+                if (cancelledNotamNumbers.has(n.number)) return false;
+                if (n.isCancellation) return true;
+                if (!n.validTo || n.validTo === 'PERMANENT') return true;
                 const validToDate = new Date(n.validTo);
                 return isNaN(validToDate.getTime()) ? true : validToDate >= now;
             })
             .sort((a, b) => {
-                // Handle permanent NOTAMs during sorting
                 if (a.validFrom === 'PERMANENT') return 1;
                 if (b.validFrom === 'PERMANENT') return -1;
                 const dateA = new Date(a.validFrom || 0);
