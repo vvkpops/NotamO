@@ -9,14 +9,57 @@ const ALLOWED_ORIGIN = process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}` 
     : 'http://localhost:5173';
 
-// A more robust date parser
-const parseDate = (s) => {
-    if (!s || s === 'PERMANENT') return null;
-    let iso = s.trim().replace(' ', 'T');
-    if (!/Z$|[+-]\d{2}:?\d{2}$/.test(iso)) iso += 'Z';
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? null : d;
-};
+/**
+ * Parses a date string from a NOTAM, which can be in YYMMDDHHMM format,
+ * potentially with a timezone like EST. Defaults to UTC if no timezone is found.
+ * Also handles standard ISO 8601 strings from the FAA API.
+ * @param {string} dateString The date string from the NOTAM (e.g., "2509122359EST" or "2025-09-02T12:08:00Z").
+ * @returns {string|null} ISO 8601 formatted date string or 'PERMANENT' or null.
+ */
+function parseNotamDate(dateString) {
+    if (!dateString || typeof dateString !== 'string') return null;
+    
+    const upperDateString = dateString.toUpperCase();
+    if (upperDateString === 'PERM' || upperDateString === 'PERMANENT') {
+        return 'PERMANENT';
+    }
+
+    // Check if it's already a valid ISO-like format from FAA
+    if (upperDateString.includes('T') && upperDateString.includes('Z')) {
+        const d = new Date(dateString);
+        return isNaN(d.getTime()) ? null : d.toISOString();
+    }
+    
+    // Match YYMMDDHHMM and an optional timezone (like EST, EDT, UTC, GMT, Z)
+    const match = upperDateString.match(/^(\d{10})([A-Z]{3,4})?$/);
+    if (!match) {
+        // Fallback for dates that might already be ISO but missing 'Z'
+        const d = new Date(upperDateString.endsWith('Z') ? upperDateString : upperDateString + 'Z');
+        return isNaN(d.getTime()) ? null : d.toISOString();
+    }
+
+    const [, dt, tz] = match;
+    const year = `20${dt.substring(0, 2)}`;
+    const month = dt.substring(2, 4);
+    const day = dt.substring(4, 6);
+    const hour = dt.substring(6, 8);
+    const minute = dt.substring(8, 10);
+
+    let isoString = `${year}-${month}-${day}T${hour}:${minute}:00`;
+
+    // Handle timezones. Default to UTC (Z) if not specified or not recognized.
+    if (tz === 'EST') {
+        isoString += '-05:00'; // Eastern Standard Time
+    } else if (tz === 'EDT') {
+        isoString += '-04:00'; // Eastern Daylight Time
+    } else {
+        isoString += 'Z'; // Assume UTC for Z, UTC, GMT, or unspecified
+    }
+
+    const date = new Date(isoString);
+    return isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 
 // Function to format dates for ICAO format (YYMMDDHHMM)
 const formatToIcaoDate = (isoDate) => {
@@ -40,48 +83,6 @@ const formatToIcaoDate = (isoDate) => {
         return isoDate;
     }
 };
-
-/**
- * Parses a date string from a NOTAM, which can be in YYMMDDHHMM format,
- * potentially with a timezone like EST. Defaults to UTC if no timezone is found.
- * @param {string} dateString The date string from the NOTAM (e.g., "2509122359EST").
- * @returns {string|null} ISO 8601 formatted date string or null.
- */
-function parseNotamDate(dateString) {
-    if (!dateString || dateString.toUpperCase() === 'PERM') {
-        return 'PERMANENT';
-    }
-
-    // Match YYMMDDHHMM and an optional timezone
-    const match = dateString.match(/^(\d{10})([A-Z]{3,4})?$/);
-    if (!match) return null;
-
-    const [, dt, tz] = match;
-    const year = `20${dt.substring(0, 2)}`;
-    const month = dt.substring(2, 4);
-    const day = dt.substring(4, 6);
-    const hour = dt.substring(6, 8);
-    const minute = dt.substring(8, 10);
-
-    // Create a date string that's easier for new Date() to parse
-    let isoString = `${year}-${month}-${day}T${hour}:${minute}:00`;
-
-    // Simple timezone handling. EST is UTC-5, EDT is UTC-4. For simplicity,
-    // we'll treat EST/EDT as a North American time offset. This is an approximation.
-    // A more robust solution would use a timezone library.
-    if (tz === 'EST') {
-        isoString += '-05:00';
-    } else if (tz === 'EDT') {
-        isoString += '-04:00';
-    } else {
-        // Assume UTC if no recognized timezone is present
-        isoString += 'Z';
-    }
-
-    const date = new Date(isoString);
-    return isNaN(date.getTime()) ? null : date.toISOString();
-}
-
 
 // Function to ensure NOTAM is in proper ICAO format
 const formatNotamToIcao = (notam, originalRawText) => {
@@ -215,8 +216,8 @@ export default async function handler(request, response) {
                         // Extract number from the raw text itself using the parser
                         number: parsed.notamNumber || 'N/A',
                         // Prioritize dates parsed from raw text as they contain timezones
-                        validFrom: parseNotamDate(parsed.validFromRaw) || notam.startValidity,
-                        validTo: parseNotamDate(parsed.validToRaw) || notam.endValidity,
+                        validFrom: parseNotamDate(parsed.validFromRaw) || parseNotamDate(notam.startValidity),
+                        validTo: parseNotamDate(parsed.validToRaw) || parseNotamDate(notam.endValidity),
                         source: 'NAV CANADA', // Set source to NAV CANADA
                         isCancellation: parsed?.isCancellation || false,
                         cancels: parsed?.cancelsNotam || null,
@@ -245,8 +246,8 @@ export default async function handler(request, response) {
                 const notamObj = {
                     id: core.id || `${core.number}-${core.icaoLocation}`,
                     number: core.number || 'N/A',
-                    validFrom: core.effectiveStart,
-                    validTo: core.effectiveEnd,
+                    validFrom: parseNotamDate(core.effectiveStart),
+                    validTo: parseNotamDate(core.effectiveEnd),
                     source: 'FAA', // Set source to FAA
                     isCancellation: parsed?.isCancellation || false,
                     cancels: parsed?.cancelsNotam || null,
@@ -290,16 +291,20 @@ export default async function handler(request, response) {
                 // Keep NOTAMs that are permanent or have no end date
                 if (!n.validTo || n.validTo === 'PERMANENT') {
                     return true;
+
                 }
                 // Keep NOTAMs that have not expired yet
-                const validToDate = parseDate(n.validTo);
-                return validToDate ? validToDate >= now : true;
+                const validToDate = new Date(n.validTo);
+                return isNaN(validToDate.getTime()) ? true : validToDate >= now;
             })
             .sort((a, b) => {
-                const dateA = parseDate(a.validFrom);
-                const dateB = parseDate(b.validFrom);
-                if (!dateA) return 1;
-                if (!dateB) return -1;
+                // Handle permanent NOTAMs during sorting
+                if (a.validFrom === 'PERMANENT') return 1;
+                if (b.validFrom === 'PERMANENT') return -1;
+                const dateA = new Date(a.validFrom || 0);
+                const dateB = new Date(b.validFrom || 0);
+                if (isNaN(dateA.getTime())) return 1;
+                if (isNaN(dateB.getTime())) return -1;
                 return dateB - dateA;
             });
 
