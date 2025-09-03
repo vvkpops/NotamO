@@ -50,7 +50,7 @@ function parseNotamDate(dateString) {
         return d.toISOString();
     }
     
-    // Handle YYMMDDHHMM with timezone suffix
+    // Handle YYMMDDHHMM with optional timezone suffix
     const match = upperDateString.match(/^(\d{10})\s*([A-Z]{2,5})?.*$/);
     if (match) {
         const dateDigits = match[1];
@@ -168,13 +168,14 @@ export default async function handler(request, response) {
                         console.log(`⚠️ No validFrom available for NOTAM ${notam.pk}`);
                     }
 
-                    // For validTo: prefer API date, fallback to parsed date (especially when API endValidity is null)
-                    if (notam.endValidity) {
-                        validTo = parseNotamDate(notam.endValidity);
-                        console.log(`✅ Using API validTo: ${notam.endValidity} -> ${validTo}`);
-                    } else if (parsed?.validToRaw) {
+                    // For validTo: prefer parsed date first if available, then fallback to API date.
+                    // This handles cases where API `endValidity` is null but the raw NOTAM has a date.
+                    if (parsed?.validToRaw) {
                         validTo = parseNotamDate(parsed.validToRaw);
                         console.log(`📋 Using parsed validTo: ${parsed.validToRaw} -> ${validTo}`);
+                    } else if (notam.endValidity) {
+                        validTo = parseNotamDate(notam.endValidity);
+                        console.log(`✅ Using API validTo: ${notam.endValidity} -> ${validTo}`);
                     } else {
                         console.log(`⚠️ No validTo available for NOTAM ${notam.pk} (API endValidity is null and no parsed date)`);
                     }
