@@ -28,6 +28,8 @@ const App = () => {
   });
   const [activeTab, setActiveTab] = useState('ALL');
   const [notamDataStore, setNotamDataStore] = useState({});
+  // TEMPORARY DEBUGGING LINE
+    window.notamDataStore = notamDataStore;
   const [isAdding, setIsAdding] = useState(false);
   const [cardSize, setCardSize] = useState(() => {
     try {
