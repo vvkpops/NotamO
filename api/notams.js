@@ -43,7 +43,7 @@ function parseNotamDate(dateString) {
         let isoString = trimmed;
         
         // If it doesn't end with Z, add it (NAV CANADA API sometimes omits Z)
-        if (!upperDateString.endsWith('Z')) {
+        if (!upperDateString.endsWith('Z') && !upperDateString.match(/[+-]\d{2}:\d{2}$/)) {
             isoString += 'Z';
         }
         
@@ -58,7 +58,7 @@ function parseNotamDate(dateString) {
     }
     
     // Handle YYMMDDHHMM format with timezone suffix (NAV CANADA raw format)
-    const match = upperDateString.match(/^(\d{10})([A-Z]{2,5})?$/);
+    const match = upperDateString.match(/^(\d{10})\s*([A-Z]{2,5})?.*$/);
     if (match) {
         const dateDigits = match[1];
         const timezoneCode = match[2] || 'UTC';
