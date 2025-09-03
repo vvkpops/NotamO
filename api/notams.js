@@ -33,9 +33,12 @@ function parseNotamDate(dateString) {
     // The regex now correctly extracts only the 10-digit time group.
     const match = upperDateString.match(/^(\d{10})/);
     if (!match) {
-        // Fallback for other potential formats
-        const d = new Date(upperDateString.endsWith('Z') ? upperDateString : upperDateString + 'Z');
-        return isNaN(d.getTime()) ? null : d.toISOString();
+        // Fallback for other potential formats, ensuring they are valid before parsing
+        if (Date.parse(upperDateString.endsWith('Z') ? upperDateString : upperDateString + 'Z')) {
+            const d = new Date(upperDateString.endsWith('Z') ? upperDateString : upperDateString + 'Z');
+            return d.toISOString();
+        }
+        return null; // Return null if format is not recognized
     }
 
     const dt = match[1];
