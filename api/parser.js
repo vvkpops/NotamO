@@ -117,19 +117,10 @@ export function parseRawNotam(rawText) {
         eLineStarted = false;
         break;
       case 'C':
-        // **DEFINITIVE FIX**: This logic correctly isolates the date/time group.
-        const cValue = value.trim().toUpperCase();
-        if (cValue.startsWith('PERM')) {
-          result.validToRaw = 'PERM';
-        } else {
-          // Match the YYMMDDHHMM group and optional timezone, ignoring anything after.
-          const dateMatch = cValue.match(/^(\d{10}[A-Z]{0,4})/);
-          if (dateMatch) {
-            result.validToRaw = dateMatch[1];
-          } else {
-            result.validToRaw = value.trim(); // Fallback to original value if no match
-          }
-        }
+        // FIX: Store the full C) line value without trying to extract date here
+        // The date extraction should happen in the parseNotamDate function
+        const cValue = value.trim();
+        result.validToRaw = cValue;
         eLineStarted = false;
         break;
       case 'D':

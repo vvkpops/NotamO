@@ -19,9 +19,8 @@ const TIMEZONE_OFFSETS = {
 };
 
 /**
- * **REWRITTEN & DECONSTRUCTED Date Parser**
- * This function deconstructs the date string to reliably parse YYMMDDHHMM and timezone.
- * It prioritizes PERM, then ISO, then the deconstructed format.
+ * **FIXED Date Parser**
+ * This function handles YYMMDDHHMM format with optional timezone.
  * @param {string | null | undefined} dateString The date string to parse.
  * @returns {string|null} ISO 8601 formatted date, the string 'PERM', or null if invalid.
  */
@@ -33,12 +32,13 @@ function parseNotamDate(dateString) {
     const trimmed = dateString.trim();
     const upperDateString = trimmed.toUpperCase();
     
-    // **PRIORITY 1: Handle PERM explicitly and return immediately.**
+    // Handle PERM explicitly
     if (upperDateString === 'PERM' || upperDateString === 'PERMANENT') {
+        console.log(`📅 Detected PERM date`);
         return 'PERM';
     }
 
-    // **PRIORITY 2: Handle standard ISO date formats.**
+    // Handle standard ISO date formats
     if (trimmed.includes('T') && trimmed.includes('-') && trimmed.includes(':')) {
         let isoString = trimmed;
         if (!upperDateString.endsWith('Z') && !upperDateString.match(/[+-]\d{2}:\d{2}$/)) {
@@ -48,28 +48,30 @@ function parseNotamDate(dateString) {
         return isNaN(d.getTime()) ? null : d.toISOString();
     }
     
-    // **PRIORITY 3: Deconstruct YYMMDDHHMM format with timezone.**
-    // Extract just the first 10 digits
-    const digitMatch = upperDateString.match(/^(\d{10})/);
-    if (!digitMatch) {
+    // Extract YYMMDDHHMM format with timezone
+    // Match 10 digits optionally followed by timezone
+    const dateMatch = upperDateString.match(/^(\d{10})([A-Z]{0,4})?/);
+    if (!dateMatch) {
+        console.log(`❌ No date pattern found in: "${dateString}"`);
         return null;
     }
     
-    const datePart = digitMatch[1];
+    const datePart = dateMatch[1];
+    const timezonePart = dateMatch[2] || '';
     
-    // Extract timezone from the remainder
-    const remainder = upperDateString.substring(10);
+    // Find timezone
     let timezoneCode = 'UTC'; // Default to UTC
-    
-    // Check for timezone in the remainder
-    if (remainder) {
+    if (timezonePart) {
+        // Check if the timezone part matches any known timezone
         for (const tz in TIMEZONE_OFFSETS) {
-            if (remainder.includes(tz)) {
+            if (timezonePart === tz || timezonePart.includes(tz)) {
                 timezoneCode = tz;
                 break;
             }
         }
     }
+    
+    console.log(`📅 Parsing: "${dateString}" -> Date: ${datePart}, TZ: ${timezoneCode}`);
 
     const year = parseInt(`20${datePart.substring(0, 2)}`);
     const month = parseInt(datePart.substring(2, 4));
@@ -80,7 +82,8 @@ function parseNotamDate(dateString) {
     if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hour) || isNaN(minute) ||
         month < 1 || month > 12 || day < 1 || day > 31 || 
         hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-        return null; // Invalid date components
+        console.log(`❌ Invalid date components: Y:${year} M:${month} D:${day} H:${hour} MIN:${minute}`);
+        return null;
     }
 
     const offsetHours = TIMEZONE_OFFSETS[timezoneCode] || 0;
@@ -88,7 +91,9 @@ function parseNotamDate(dateString) {
     const utcMs = Date.UTC(year, month - 1, day, hour, minute) - (offsetMinutes * 60 * 1000);
     const utcDate = new Date(utcMs);
 
-    return isNaN(utcDate.getTime()) ? null : utcDate.toISOString();
+    const result = isNaN(utcDate.getTime()) ? null : utcDate.toISOString();
+    console.log(`✅ Parsed "${dateString}" -> ${result}`);
+    return result;
 }
 
 export default async function handler(request, response) {
@@ -147,29 +152,25 @@ export default async function handler(request, response) {
 
                     const parsed = parseRawNotam(originalRawText);
                     
+                    // Parse dates with better logging
                     const validFrom = parseNotamDate(notam.startValidity) || parseNotamDate(parsed?.validFromRaw);
                     
-                    // --- THE ACTUAL FUCKING FIX ---
-                    // This logic correctly prioritizes the parsed C) field and falls back to the API's end date.
                     let validTo;
-                    const parsedEndDate = parseNotamDate(parsed?.validToRaw);
-                    const apiEndDate = parseNotamDate(notam.endValidity);
-
-                    if (parsedEndDate) {
-                        validTo = parsedEndDate;
-                        console.log(`[${parsed?.notamNumber || notam.pk}] Using date from C) line: "${parsed.validToRaw}" -> ${validTo}`);
-                    } else if (apiEndDate) {
-                        validTo = apiEndDate;
-                        console.log(`[${parsed?.notamNumber || notam.pk}] Using date from API: "${notam.endValidity}" -> ${validTo}`);
-                    } else {
-                        // If both are null, check if it's actually supposed to be PERM
-                        if (parsed?.validToRaw === 'PERM') {
-                            validTo = 'PERM';
-                        } else {
-                            validTo = null;
+                    // First try the parsed C) line value
+                    if (parsed?.validToRaw) {
+                        console.log(`[${parsed?.notamNumber || notam.pk}] Trying to parse C) line: "${parsed.validToRaw}"`);
+                        validTo = parseNotamDate(parsed.validToRaw);
+                        
+                        if (!validTo && parsed.validToRaw !== 'PERM') {
+                            console.log(`[${parsed?.notamNumber || notam.pk}] Failed to parse C) line, trying API value`);
+                            validTo = parseNotamDate(notam.endValidity);
                         }
+                    } else {
+                        // Fall back to API value
+                        validTo = parseNotamDate(notam.endValidity);
                     }
-                    // --- END OF FIX ---
+
+                    console.log(`[${parsed?.notamNumber || notam.pk}] Final dates - From: ${validFrom}, To: ${validTo}`);
 
                     return {
                         id: notam.pk || `${icao}-navcanada-${Date.now()}`,
@@ -201,7 +202,7 @@ export default async function handler(request, response) {
                     id: core.id || `${core.number}-${core.icaoLocation}`,
                     number: core.number || 'N/A',
                     validFrom: parseNotamDate(core.effectiveStart),
-                    validTo: parseNotamDate(core.effectiveEnd), // Use new parser for consistency
+                    validTo: parseNotamDate(core.effectiveEnd),
                     validFromRaw: parsed?.validFromRaw || null,
                     validToRaw: parsed?.validToRaw || null,
                     source: 'FAA',
