@@ -150,10 +150,31 @@ export default async function handler(request, response) {
                     }
 
                     const parsed = parseRawNotam(originalRawText);
+                    console.log(`🔍 NOTAM ${notam.pk} parsed dates: From="${parsed?.validFromRaw}" To="${parsed?.validToRaw}"`);
 
-                    // Prioritize parsed date, then fallback to API date.
-                    const validFrom = parseNotamDate(parsed?.validFromRaw) ?? parseNotamDate(notam.startValidity);
-                    const validTo = parseNotamDate(parsed?.validToRaw) ?? parseNotamDate(notam.endValidity);
+                    // **FIXED LOGIC**: Prioritize parsed dates, especially when API dates are null
+                    let validFrom = null;
+                    let validTo = null;
+
+                    // For validFrom: prefer parsed date, fallback to API date
+                    if (parsed?.validFromRaw) {
+                        validFrom = parseNotamDate(parsed.validFromRaw);
+                        console.log(`✅ Using parsed validFrom: ${parsed.validFromRaw} -> ${validFrom}`);
+                    } else if (notam.startValidity) {
+                        validFrom = parseNotamDate(notam.startValidity);
+                        console.log(`⚠️ Using API validFrom: ${notam.startValidity} -> ${validFrom}`);
+                    }
+
+                    // For validTo: prefer parsed date, especially when API endValidity is null
+                    if (parsed?.validToRaw) {
+                        validTo = parseNotamDate(parsed.validToRaw);
+                        console.log(`✅ Using parsed validTo: ${parsed.validToRaw} -> ${validTo}`);
+                    } else if (notam.endValidity) {
+                        validTo = parseNotamDate(notam.endValidity);
+                        console.log(`⚠️ Using API validTo: ${notam.endValidity} -> ${validTo}`);
+                    } else {
+                        console.log(`⚠️ No validTo available for NOTAM ${notam.pk} (API endValidity is null)`);
+                    }
 
                     const notamObj = {
                         id: notam.pk || `${icao}-navcanada-${Date.now()}`,
@@ -168,6 +189,7 @@ export default async function handler(request, response) {
                         rawText: originalRawText,
                     };
                     
+                    console.log(`📋 Final NOTAM ${notam.pk}: validFrom=${validFrom}, validTo=${validTo}`);
                     return notamObj;
                 }).filter(Boolean);
 
