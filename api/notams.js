@@ -214,7 +214,7 @@ export default async function handler(request, response) {
         });
 
         const now = new Date();
-        const finalNotams = notamSource
+        const finalNotams = notamsFromSource
             .filter(n => {
                 if (cancelledNotamNumbers.has(n.number)) return false;
                 if (n.isCancellation) return true;
