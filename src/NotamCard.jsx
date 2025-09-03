@@ -19,10 +19,30 @@ const NotamCard = ({
   const headTitle = getHeadTitle(notam);
   const runways = extractRunways(notam.rawText);
 
-  const formatDate = (dateStr) => {
-    if (!dateStr || dateStr === 'PERMANENT' || dateStr === 'PERM') return 'PERM';
+  // Formats a date string, prioritizing the raw value from the NOTAM text.
+  const formatDisplayDate = (rawDate, fallbackDate) => {
+    if (rawDate) {
+      const upperRawDate = rawDate.toUpperCase();
+      // Check if a known timezone is already in the string
+      const hasTimeZone = /\b(UTC|GMT|Z|ZULU|EST|EDT|CST|CDT|MST|MDT|PST|PDT)\b/.test(upperRawDate);
+      if (upperRawDate === 'PERM' || upperRawDate === 'PERMANENT') {
+        return 'PERM';
+      }
+      // If it's just the 10 digits, it's Zulu. Append 'ZULU'.
+      if (/^\d{10}$/.test(rawDate)) {
+        return `${rawDate} ZULU`;
+      }
+      // If no explicit timezone, assume Zulu.
+      if (!hasTimeZone) {
+        return `${rawDate} ZULU`;
+      }
+      return rawDate;
+    }
+
+    // Fallback for FAA NOTAMs or if raw parsing fails
+    if (!fallbackDate || fallbackDate === 'PERMANENT' || fallbackDate === 'PERM') return 'PERM';
     try {
-      const date = new Date(dateStr);
+      const date = new Date(fallbackDate);
       return date.toLocaleString('en-GB', { 
         timeZone: 'UTC', 
         year: 'numeric', 
@@ -32,7 +52,7 @@ const NotamCard = ({
         minute: '2-digit' 
       }) + 'Z';
     } catch { 
-      return dateStr; 
+      return fallbackDate; 
     }
   };
 
@@ -132,11 +152,11 @@ const NotamCard = ({
           <div className="validity-info">
             <div className="validity-row">
               <span className="validity-label">From:</span>
-              <span className="validity-value">{formatDate(notam.validFrom)}</span>
+              <span className="validity-value">{formatDisplayDate(notam.validFromRaw, notam.validFrom)}</span>
             </div>
             <div className="validity-row">
               <span className="validity-label">To:</span>
-              <span className="validity-value">{formatDate(notam.validTo)}</span>
+              <span className="validity-value">{formatDisplayDate(notam.validToRaw, notam.validTo)}</span>
             </div>
             <div className="validity-row">
               <span className="validity-label">Source:</span>
