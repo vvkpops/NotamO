@@ -3,6 +3,7 @@ import NotamTabContent from './NotamTabContent';
 import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
 import { FilterModal } from './NotamTabContent';
 import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKeywordHighlight.jsx';
+import ICAOSortingModal from './ICAOSortingModal.jsx';
 
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -48,6 +49,9 @@ const App = () => {
   });
   const [isHighlightModalOpen, setIsHighlightModalOpen] = useState(false);
 
+  // ICAO Sorting states
+  const [isSortModalOpen, setIsSortModalOpen] = useState(false);
+
   // FIX 1: Use useRef to avoid stale state in callbacks
   const icaosRef = useRef([]);
   const isProcessingQueue = useRef(false);
@@ -58,6 +62,36 @@ const App = () => {
   useEffect(() => {
     icaosRef.current = icaos;
   }, [icaos]);
+
+  // Load custom ICAO order on app start
+  useEffect(() => {
+    const savedOrder = localStorage.getItem('icaoCustomOrder');
+    if (savedOrder) {
+      try {
+        const parsedOrder = JSON.parse(savedOrder);
+        // Ensure all saved ICAOs are still valid and add any new ones
+        const currentIcaos = JSON.parse(localStorage.getItem("notamIcaos") || "[]");
+        const orderedIcaos = [...parsedOrder.filter(icao => currentIcaos.includes(icao))];
+        const newIcaos = currentIcaos.filter(icao => !orderedIcaos.includes(icao));
+        const finalOrder = [...orderedIcaos, ...newIcaos];
+        
+        if (finalOrder.length > 0 && JSON.stringify(finalOrder) !== JSON.stringify(currentIcaos)) {
+          setIcaos(finalOrder);
+          localStorage.setItem("notamIcaos", JSON.stringify(finalOrder));
+        }
+      } catch (error) {
+        console.warn('Failed to load custom ICAO order:', error);
+      }
+    }
+  }, []);
+
+  // Handle ICAO reordering
+  const handleIcaoReorder = useCallback((newOrder) => {
+    setIcaos(newOrder);
+    localStorage.setItem("notamIcaos", JSON.stringify(newOrder));
+    localStorage.setItem('icaoCustomOrder', JSON.stringify(newOrder));
+    console.log('🔄 ICAO order updated:', newOrder);
+  }, []);
 
   // Save settings to localStorage
   useEffect(() => {
@@ -489,6 +523,9 @@ const App = () => {
               <span className="filter-icon">💡</span><span className="filter-text">HIGHLIGHT</span>
               {keywordHighlightEnabled && (<span className="filter-badge">ON</span>)}
             </button>
+            <button className="filter-toggle-btn" onClick={() => setIsSortModalOpen(true)} disabled={icaos.length === 0}>
+              <span className="filter-icon">↕️</span><span className="filter-text">SORT</span>
+            </button>
           </div>
         </div>
         <div className="bottom-controls">
@@ -522,6 +559,7 @@ const App = () => {
 
       <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} filters={filters} onFilterChange={handleFilterChange} typeCounts={typeCounts} onClearAll={clearAllFilters} filterOrder={filterOrder} setFilterOrder={setFilterOrder} dragState={dragState} setDragState={setDragState} />
       <NotamKeywordHighlightManager isOpen={isHighlightModalOpen} onClose={() => setIsHighlightModalOpen(false)} keywordCategories={keywordCategories} setKeywordCategories={setKeywordCategories} keywordHighlightEnabled={keywordHighlightEnabled} setKeywordHighlightEnabled={setKeywordHighlightEnabled} />
+      <ICAOSortingModal isOpen={isSortModalOpen} onClose={() => setIsSortModalOpen(false)} icaos={icaos} onReorder={handleIcaoReorder} />
     </div>
   );
 };
