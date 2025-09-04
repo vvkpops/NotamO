@@ -374,6 +374,7 @@ export default async function handler(request, response) {
                 return {
                     id: core.id || `${core.number}-${core.icaoLocation}`,
                     number: core.number || 'N/A',
+                    classification: core.classification, // Pass the classification from the API
                     validFrom: parseNotamDateEnhanced(core.effectiveStart),
                     validTo: parseNotamDateEnhanced(core.effectiveEnd),
                     source: 'FAA',
