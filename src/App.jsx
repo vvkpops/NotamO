@@ -4,7 +4,7 @@ import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
 import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKeywordHighlight.jsx';
 import ICAOSortingModal from './ICAOSortingModal.jsx';
 import NotamHistoryModal from './NotamHistoryModal.jsx';
-import { useAutoResponsiveSize, useResponsiveCSS } from './useAutoResponsiveSize';
+import { useAutoResponsiveSize, useResponsiveCSS } from './useAutoResponsiveSize.jsx';
 
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
