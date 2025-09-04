@@ -4,7 +4,6 @@ import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
 import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKeywordHighlight.jsx';
 import ICAOSortingModal from './ICAOSortingModal.jsx';
 import NotamHistoryModal from './NotamHistoryModal.jsx';
-import { useAutoResponsiveSize, useResponsiveCSS } from './useAutoResponsiveSize.jsx';
 
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -19,31 +18,6 @@ const App = () => {
     }
   }, []);
 
-  // ENHANCED AUTO-RESPONSIVE SIZING SYSTEM FOR WIDE SCREENS
-  const {
-    cardSize,
-    isAutoMode,
-    enableAutoMode,
-    setManualCardSize,
-    toggleAutoMode,
-    shouldHideCardSizer,
-    isSmallScreen,
-    isMobileLayout,
-    isWideScreen,
-    isUltraWide,
-    breakpoint,
-    columnsTarget,
-    utilization,
-    canShowMoreInfo,
-    shouldUseCompactLayout,
-    optimalGap,
-    efficiencyScore,
-    _debug
-  } = useAutoResponsiveSize(420);
-
-  // Apply enhanced CSS custom properties for wide screens
-  useResponsiveCSS(cardSize, breakpoint, columnsTarget, utilization);
-
   // State Management
   const [icaos, setIcaos] = useState(() => {
     try {
@@ -55,10 +29,14 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('ALL');
   const [notamDataStore, setNotamDataStore] = useState({});
   const [isAdding, setIsAdding] = useState(false);
-
-  // Enhanced card size management for wide screens
-  const [manualCardSizeOverride, setManualCardSizeOverride] = useState(null);
-  const effectiveCardSize = isAutoMode ? cardSize : (manualCardSizeOverride || cardSize);
+  const [cardSize, setCardSize] = useState(() => {
+    try {
+      const saved = localStorage.getItem('notamCardSize');
+      return saved ? JSON.parse(saved) : 420;
+    } catch {
+      return 420;
+    }
+  });
 
   // Batching, new NOTAM detection, and auto-refresh states
   const [fetchQueue, setFetchQueue] = useState([]);
@@ -124,131 +102,34 @@ const App = () => {
     icaosRef.current = icaos;
   }, [icaos]);
 
-  // Enhanced logging for wide-screen responsive changes
+  // Load custom ICAO order on app start
   useEffect(() => {
-    if (isWideScreen) {
-      console.log(`🖥️ Wide-Screen Layout Active:`, {
-        breakpoint,
-        cardSize: `${cardSize}px`,
-        columns: columnsTarget,
-        efficiency: `${efficiencyScore}%`,
-        ultraWide: isUltraWide,
-        gap: `${optimalGap}rem`
-      });
-    }
-  }, [breakpoint, cardSize, columnsTarget, isWideScreen, isUltraWide, efficiencyScore, optimalGap]);
-
-  // Enhanced card size handler for wide screens
-  const handleCardSizeChange = useCallback((newSize) => {
-    const size = parseInt(newSize);
-    if (isAutoMode) {
-      setManualCardSize(size);
-      setManualCardSizeOverride(size);
-    } else {
-      setManualCardSizeOverride(size);
-      setManualCardSize(size);
-    }
-  }, [isAutoMode, setManualCardSize]);
-
-  // Toggle auto/manual sizing mode with wide-screen awareness
-  const handleToggleAutoMode = useCallback(() => {
-    if (isAutoMode) {
-      setManualCardSizeOverride(cardSize);
-      setManualCardSize(cardSize);
-      console.log(`🎛️ Switched to manual mode with ${cardSize}px cards (${breakpoint})`);
-    } else {
-      setManualCardSizeOverride(null);
-      enableAutoMode();
-      console.log(`🤖 Switched to auto mode for ${breakpoint} screen`);
-    }
-  }, [isAutoMode, cardSize, setManualCardSize, enableAutoMode, breakpoint]);
-
-  // Save manual size to localStorage with wide-screen context
-  useEffect(() => {
-    try {
-      if (!isAutoMode && manualCardSizeOverride) {
-        localStorage.setItem('notamCardSize', JSON.stringify(manualCardSizeOverride));
-        localStorage.setItem('notamAutoSizeMode', JSON.stringify(false));
-      } else if (isAutoMode) {
-        localStorage.setItem('notamAutoSizeMode', JSON.stringify(true));
-      }
-    } catch (error) {
-      console.warn('Failed to save card size settings:', error);
-    }
-  }, [isAutoMode, manualCardSizeOverride]);
-
-  // Load saved preferences with wide-screen considerations
-  useEffect(() => {
-    try {
-      const savedAutoMode = localStorage.getItem('notamAutoSizeMode');
-      const savedSize = localStorage.getItem('notamCardSize');
-      
-      if (savedAutoMode && savedSize) {
-        const autoMode = JSON.parse(savedAutoMode);
-        const size = JSON.parse(savedSize);
+    const savedOrder = localStorage.getItem('icaoCustomOrder');
+    if (savedOrder) {
+      try {
+        const parsedOrder = JSON.parse(savedOrder);
+        const currentIcaos = JSON.parse(localStorage.getItem("notamIcaos") || "[]");
+        const orderedIcaos = [...parsedOrder.filter(icao => currentIcaos.includes(icao))];
+        const newIcaos = currentIcaos.filter(icao => !orderedIcaos.includes(icao));
+        const finalOrder = [...orderedIcaos, ...newIcaos];
         
-        if (!autoMode && size) {
-          setManualCardSize(size);
-          setManualCardSizeOverride(size);
+        if (finalOrder.length > 0 && JSON.stringify(finalOrder) !== JSON.stringify(currentIcaos)) {
+          setIcaos(finalOrder);
+          localStorage.setItem("notamIcaos", JSON.stringify(finalOrder));
         }
+      } catch (error) {
+        console.warn('Failed to load custom ICAO order:', error);
       }
-    } catch (error) {
-      console.warn('Failed to load card size settings:', error);
     }
-  }, [setManualCardSize]);
+  }, []);
 
-  // Enhanced Card Sizer Control with wide-screen features
-  const CardSizerControl = () => {
-    if (shouldHideCardSizer) return null;
-    
-    return (
-      <div className={`card-sizer-control ${isWideScreen ? 'wide-screen' : ''}`}>
-        <span className="sizer-icon" title={`Layout efficiency: ${efficiencyScore}%`}>
-          {isUltraWide ? '🖥️' : isWideScreen ? '💻' : '📱'}
-        </span>
-        <button 
-          className={`auto-toggle-btn ${isAutoMode ? 'auto-enabled' : 'manual-enabled'}`}
-          onClick={handleToggleAutoMode}
-          title={isAutoMode ? 
-            `Auto mode: ${columnsTarget} cols, ${efficiencyScore}% efficient` : 
-            'Switch to automatic sizing'}
-        >
-          {isAutoMode ? 'AUTO' : 'MANUAL'}
-        </button>
-        {!isAutoMode && (
-          <>
-            <input 
-              type="range" 
-              min="280" 
-              max={isUltraWide ? "700" : "600"} 
-              step="10" 
-              value={effectiveCardSize} 
-              onChange={(e) => handleCardSizeChange(e.target.value)} 
-              className="card-size-slider" 
-              title={`Card width: ${effectiveCardSize}px`} 
-            />
-            <span className="sizer-value manual-size">{effectiveCardSize}px</span>
-          </>
-        )}
-        {isAutoMode && (
-          <span className="sizer-value auto-info" title={`${columnsTarget} columns, ${efficiencyScore}% screen utilization`}>
-            {cardSize}px
-            {canShowMoreInfo && (
-              <span className="efficiency-indicator"> • {efficiencyScore}%</span>
-            )}
-          </span>
-        )}
-      </div>
-    );
-  };
-
-  // Handle ICAO reordering with wide-screen optimization
+  // Handle ICAO reordering
   const handleIcaoReorder = useCallback((newOrder) => {
     setIcaos(newOrder);
     localStorage.setItem("notamIcaos", JSON.stringify(newOrder));
     localStorage.setItem('icaoCustomOrder', JSON.stringify(newOrder));
-    console.log(`🔄 ICAO order updated for ${breakpoint} layout:`, newOrder);
-  }, [breakpoint]);
+    console.log('🔄 ICAO order updated:', newOrder);
+  }, []);
 
   // Save settings to localStorage with error handling
   useEffect(() => {
@@ -266,9 +147,18 @@ const App = () => {
       console.warn('Failed to save keyword categories:', error);
     }
   }, [keywordCategories]);
+  
+  useEffect(() => {
+    try {
+      localStorage.setItem('notamCardSize', JSON.stringify(cardSize));
+    } catch (error) {
+      console.warn('Failed to save card size:', error);
+    }
+  }, [cardSize]);
 
   useEffect(() => {
     try {
+      // Limit history to 100 entries
       const limitedHistory = notamHistory.slice(0, 100);
       localStorage.setItem('notamHistory', JSON.stringify(limitedHistory));
     } catch (error) {
@@ -276,13 +166,14 @@ const App = () => {
     }
   }, [notamHistory]);
 
-  // Enhanced NOTAM signature generation
+  // Enhanced NOTAM signature generation for better detection
   const createNotamSignature = useCallback((notam) => {
     const number = notam.number || 'unknown';
     const validFrom = notam.validFrom || 'unknown';
     const validTo = notam.validTo || 'unknown';
     const source = notam.source || 'unknown';
     
+    // Create content hash from summary/rawText
     const summary = (notam.summary || '').replace(/\s+/g, ' ').trim();
     const rawText = (notam.rawText || '').replace(/\s+/g, ' ').trim();
     const text = summary || rawText;
@@ -308,6 +199,7 @@ const App = () => {
       };
     }
 
+    // Create signature maps for efficient lookup
     const oldNotamMap = new Map();
     const oldSignatures = new Set();
     
@@ -317,6 +209,7 @@ const App = () => {
       oldSignatures.add(signature);
     });
 
+    // Process new data
     const newNotamMap = new Map();
     const newSignatures = new Set();
     
@@ -326,34 +219,42 @@ const App = () => {
       newSignatures.add(signature);
     });
 
+    // Find truly new NOTAMs
     const genuinelyNewSignatures = [...newSignatures].filter(sig => !oldSignatures.has(sig));
+    
+    // Find expired NOTAMs (removed from source)
     const expiredSignatures = [...oldSignatures].filter(sig => !newSignatures.has(sig));
+    
+    // Find updated NOTAMs (same signature but potentially different content)
     const existingSignatures = [...newSignatures].filter(sig => oldSignatures.has(sig));
 
-    console.log(`🔄 NOTAM Analysis (${breakpoint}):`, {
+    console.log(`🔄 NOTAM Analysis:`, {
       total: newData.length,
       new: genuinelyNewSignatures.length,
       expired: expiredSignatures.length,
-      existing: existingSignatures.length,
-      efficiency: `${efficiencyScore}%`
+      existing: existingSignatures.length
     });
 
+    // Build merged result
     const mergedNotams = [];
     const newNotamsList = [];
     let hasNewNotams = false;
 
+    // 1. Add existing NOTAMs (preserve user state)
     existingSignatures.forEach(signature => {
       const existingNotam = oldNotamMap.get(signature);
       const updatedNotam = newNotamMap.get(signature);
       
+      // Preserve user state from existing NOTAM
       mergedNotams.push({
-        ...updatedNotam,
-        isNew: existingNotam.isNew,
-        userViewed: existingNotam.userViewed,
-        firstSeenAt: existingNotam.firstSeenAt,
+        ...updatedNotam, // Use updated content
+        isNew: existingNotam.isNew, // Preserve new status
+        userViewed: existingNotam.userViewed, // Preserve viewed status
+        firstSeenAt: existingNotam.firstSeenAt, // Preserve first seen timestamp
       });
     });
 
+    // 2. Add genuinely new NOTAMs
     genuinelyNewSignatures.forEach(signature => {
       const newNotam = newNotamMap.get(signature);
       hasNewNotams = true;
@@ -370,10 +271,16 @@ const App = () => {
       newNotamsList.push(newNotamObject);
     });
 
+    // 3. Log expired NOTAMs but don't include them
     if (expiredSignatures.length > 0) {
       console.log(`🗑️ Expired NOTAMs removed: ${expiredSignatures.length}`);
+      expiredSignatures.forEach(signature => {
+        const expiredNotam = oldNotamMap.get(signature);
+        console.log(`   - ${expiredNotam.number}`);
+      });
     }
 
+    // Sort merged NOTAMs by validity date (newest first)
     mergedNotams.sort((a, b) => {
       const dateA = new Date(a.validFrom || 0);
       const dateB = new Date(b.validFrom || 0);
@@ -391,17 +298,18 @@ const App = () => {
         total: mergedNotams.length
       }
     };
-  }, [createNotamSignature, breakpoint, efficiencyScore]);
+  }, [createNotamSignature]);
 
   const handleRefreshIcao = useCallback((icaoToRefresh) => {
     if (fetchQueue.includes(icaoToRefresh)) return;
     setFetchQueue(prev => [...prev, icaoToRefresh]);
   }, [fetchQueue]);
 
-  // fetchNotams with enhanced wide-screen logging
+  // fetchNotams with smart incremental updates
   const fetchNotams = useCallback(async (icao) => {
-    console.log(`🚀 Fetching NOTAMs for ${icao} (${breakpoint} layout)`);
+    console.log(`🚀 Fetching NOTAMs for ${icao}`);
     
+    // Set loading state but preserve existing data
     setNotamDataStore(prev => ({ 
       ...prev, 
       [icao]: { ...prev[icao], loading: true, error: null } 
@@ -424,12 +332,15 @@ const App = () => {
         const oldData = prev[icao]?.data || [];
         const isInitialFetch = oldData.length === 0 && !prev[icao]?.lastUpdated;
         
+        // Use smart incremental merge
         const { processedData, hasNewNotams, newNotamsList, stats } = smartNotamMerge(oldData, data, isInitialFetch);
         
+        // Add ICAO to each NOTAM for consistency
         const notamsWithIcao = processedData.map(n => ({ ...n, icao }));
 
+        // Update new NOTAM indicators and history if there are new NOTAMs
         if (hasNewNotams) {
-          console.log(`🆕 Found ${stats.new} new NOTAMs for ${icao} (displaying in ${columnsTarget} columns)`);
+          console.log(`🆕 Found ${stats.new} new NOTAMs for ${icao}`);
           setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
           
           const historyEntry = {
@@ -469,7 +380,7 @@ const App = () => {
         } 
       }));
     }
-  }, [smartNotamMerge, breakpoint, columnsTarget]);
+  }, [smartNotamMerge]);
 
   // Clear new status when user views NOTAMs
   const markNotamsAsViewed = useCallback((icao) => {
@@ -479,7 +390,7 @@ const App = () => {
       const updatedData = prev[icao].data.map(notam => ({
         ...notam,
         userViewed: true,
-        isNew: false
+        isNew: false // Clear new status when viewed
       }));
 
       return {
@@ -492,11 +403,12 @@ const App = () => {
     });
   }, []);
 
+  // Stable handleRefreshAll using ref
   const handleRefreshAll = useCallback(() => {
     const currentIcaos = icaosRef.current;
     
     if (currentIcaos.length > 0) {
-      console.log(`🔄 Auto-refresh triggered for all ICAOs (${breakpoint} layout): ${currentIcaos.join(', ')}`);
+      console.log(`🔄 Auto-refresh triggered for all ICAOs: ${currentIcaos.join(', ')}`);
       
       setFetchQueue(prevQueue => {
         const newQueue = [...new Set([...prevQueue, ...currentIcaos])];
@@ -506,8 +418,9 @@ const App = () => {
     } else {
       console.log('⚠️  No ICAOs to refresh');
     }
-  }, [breakpoint]);
+  }, []);
 
+  // Smart refresh handler for the main button
   const handleSmartRefresh = useCallback(() => {
     if (activeTab === 'ALL') {
       handleRefreshAll();
@@ -554,6 +467,7 @@ const App = () => {
     };
   });
 
+  // Trigger queue processing when items are added
   useEffect(() => {
     if (fetchQueue.length > 0 && !isProcessingQueue.current) {
       processQueueRef.current();
@@ -566,8 +480,9 @@ const App = () => {
     };
   }, [fetchQueue]);
 
+  // Stable timer with proper cleanup
   useEffect(() => {
-    console.log(`🕐 Starting auto-refresh timer (${breakpoint} layout)`);
+    console.log('🕐 Starting auto-refresh timer');
     
     const timer = setInterval(() => {
       setTimeToNextRefresh(prevTime => {
@@ -583,9 +498,10 @@ const App = () => {
       });
     }, 1000);
     
+    // Initial fetch for any ICAOs loaded from localStorage
     const savedIcaos = JSON.parse(localStorage.getItem("notamIcaos") || "[]");
     if (savedIcaos.length > 0) {
-      console.log(`🔄 Initial fetch for saved ICAOs (${breakpoint}): ${savedIcaos.join(', ')}`);
+      console.log(`🔄 Initial fetch for saved ICAOs: ${savedIcaos.join(', ')}`);
       setFetchQueue(prev => [...new Set([...prev, ...savedIcaos])]);
     }
 
@@ -596,7 +512,7 @@ const App = () => {
         clearTimeout(queueTimerRef.current);
       }
     };
-  }, [handleRefreshAll, breakpoint]);
+  }, [handleRefreshAll]);
 
   useEffect(() => {
     try {
@@ -650,6 +566,7 @@ const App = () => {
 
   const allNotamsData = useMemo(() => {
     let combined = [];
+    // Show loading only if there's no data for ANY ICAO yet.
     let hasAnyData = icaos.some(icao => notamDataStore[icao]?.data?.length > 0);
     let isLoading = icaos.some(icao => notamDataStore[icao]?.loading) && !hasAnyData;
     let anyError = null;
@@ -670,6 +587,7 @@ const App = () => {
   const activeNotamData = useMemo(() => {
     if (activeTab === 'ALL') return allNotamsData;
     const storeEntry = notamDataStore[activeTab];
+    // Show loading spinner only if there's no data for this tab yet.
     const isLoading = storeEntry?.loading && (!storeEntry.data || storeEntry.data.length === 0);
     return { data: storeEntry?.data || [], loading: isLoading, error: storeEntry?.error || null };
   }, [activeTab, allNotamsData, notamDataStore]);
@@ -726,18 +644,20 @@ const App = () => {
     setKeywordFilter('');
   };
 
-  // Enhanced tab click with smart new NOTAM clearing
+  // Tab click with smart new NOTAM clearing
   const handleTabClick = (id) => {
     setActiveTab(id);
     
+    // Clear the "new" indicator when user views the tab
     if (newNotamIcaos.has(id)) {
-      console.log(`👁️  User viewed ${id} (${breakpoint} layout), clearing new NOTAM indicator`);
+      console.log(`👁️  User viewed ${id}, clearing new NOTAM indicator`);
       setNewNotamIcaos(prevSet => {
         const newSet = new Set(prevSet);
         newSet.delete(id);
         return newSet;
       });
       
+      // Mark NOTAMs as viewed
       markNotamsAsViewed(id);
     }
   };
@@ -759,82 +679,55 @@ const App = () => {
     );
   };
 
-  // Enhanced container with wide-screen awareness
-  const containerClassName = `container ${isWideScreen ? 'wide-screen' : ''} ${isUltraWide ? 'ultra-wide' : ''} ${shouldUseCompactLayout ? 'compact' : ''}`;
-
   return (
-    <div className={containerClassName} style={{ 
-      '--notam-card-size': `${effectiveCardSize}px`,
-      '--dynamic-columns': columnsTarget,
-      '--optimal-gap': `${optimalGap}rem`,
-      '--layout-efficiency': `${efficiencyScore}%`
-    }}>
+    <div className="container" style={{ '--notam-card-size': `${cardSize}px` }}>
       <ModernHeader 
         timeToNextRefresh={timeToNextRefresh} 
         onRefresh={handleSmartRefresh}
         onHistoryClick={() => setIsHistoryModalOpen(true)}
         activeTab={activeTab}
         autoRefreshAll={handleRefreshAll}
-        breakpoint={breakpoint}
-        isWideScreen={isWideScreen}
-        columnsTarget={columnsTarget}
-        efficiencyScore={efficiencyScore}
       />
       
-      <div className={`glass icao-input-container ${isWideScreen ? 'wide-layout' : ''}`}>
-        <div className={`top-controls ${isWideScreen ? 'wide-screen-controls' : ''}`}>
+      <div className="glass icao-input-container">
+        <div className="top-controls">
           <div className="icao-input-wrapper">
-            <input 
-              ref={icaoInputRef} 
-              placeholder={isWideScreen ? "Enter ICAO codes (e.g., CYYT, KJFK, EGLL)" : "ICAO codes (e.g., CYYT, KJFK)"} 
-              className={`icao-input ${shouldUseCompactLayout ? 'compact' : ''}`} 
-              onKeyPress={handleIcaoInputKeyPress} 
-              disabled={isAdding} 
-            />
+            <input ref={icaoInputRef} placeholder="ICAO codes (e.g., CYYT, KJFK)" className="icao-input compact" onKeyPress={handleIcaoInputKeyPress} disabled={isAdding} />
             <button onClick={handleAddIcao} className={`add-button ${isAdding ? 'loading' : ''}`} disabled={isAdding}>
               {isAdding ? (<><span className="loading-spinner"></span>Adding...</>) : 'Add ICAO'}
             </button>
           </div>
           <div className="filter-controls">
             <button className="filter-toggle-btn" onClick={() => setIsFilterModalOpen(true)}>
-              <span className="filter-icon">🎯</span>
-              <span className="filter-text">FILTER</span>
+              <span className="filter-icon">🎯</span><span className="filter-text">FILTER</span>
               {activeFilterCount > 0 && (<span className="filter-badge">{activeFilterCount}</span>)}
             </button>
-            <button 
-              className="filter-toggle-btn" 
-              onClick={() => setIsHighlightModalOpen(true)} 
-              style={{background: keywordHighlightEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'}}
-            >
-              <span className="filter-icon">💡</span>
-              <span className="filter-text">HIGHLIGHT</span>
+            <button className="filter-toggle-btn" onClick={() => setIsHighlightModalOpen(true)} style={{background: keywordHighlightEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'}}>
+              <span className="filter-icon">💡</span><span className="filter-text">HIGHLIGHT</span>
               {keywordHighlightEnabled && (<span className="filter-badge">ON</span>)}
             </button>
             <button className="filter-toggle-btn" onClick={() => setIsSortModalOpen(true)} disabled={icaos.length === 0}>
-              <span className="filter-icon">↕️</span>
-              <span className="filter-text">SORT</span>
+              <span className="filter-icon">↕️</span><span className="filter-text">SORT</span>
             </button>
           </div>
         </div>
-        <div className={`bottom-controls ${isWideScreen ? 'wide-screen-bottom' : ''}`}>
+        <div className="bottom-controls">
           <div className="search-input-wrapper">
             <span className="search-icon">🔍</span>
-            <input 
-              type="text" 
-              placeholder={isWideScreen ? "Filter current results by keyword, runway, equipment..." : "Filter by keyword..."} 
-              className="search-input" 
-              value={keywordFilter} 
-              onChange={(e) => setKeywordFilter(e.target.value)} 
-            />
+            <input type="text" placeholder="Filter current results by keyword..." className="search-input" value={keywordFilter} onChange={(e) => setKeywordFilter(e.target.value)} />
             {keywordFilter && (<button className="clear-search-btn" onClick={() => setKeywordFilter('')} title="Clear search">✕</button>)}
           </div>
-          <CardSizerControl />
+          <div className="card-sizer-control">
+            <span className="sizer-icon">↔️</span>
+            <input type="range" min="420" max="800" step="10" value={cardSize} onChange={(e) => setCardSize(e.target.value)} className="card-size-slider" title={`Adjust card width: ${cardSize}px`} />
+            <span className="sizer-value">{cardSize}px</span>
+          </div>
           {hasActiveFilters && (<button className="quick-clear-btn" onClick={clearAllFilters}>Clear All Filters</button>)}
         </div>
       </div>
       
-      <div className={`glass ${isWideScreen ? 'wide-content' : ''}`}>
-        <div className={`icao-tabs ${isWideScreen ? 'wide-tabs' : ''}`}>
+      <div className="glass">
+        <div className="icao-tabs">
           <Tab id="ALL" label={`ALL (${icaos.length})`} />
           {icaos.map(icao => {
             const count = notamDataStore[icao]?.data?.length || 0;
@@ -844,69 +737,18 @@ const App = () => {
             );
           })}
         </div>
-        <NotamTabContent 
-          icao={activeTab} 
-          notams={filteredNotams} 
-          loading={activeNotamData.loading} 
-          error={activeNotamData.error} 
-          hasActiveFilters={hasActiveFilters} 
-          onClearFilters={clearAllFilters} 
-          filterOrder={filterOrder} 
-          keywordHighlightEnabled={keywordHighlightEnabled} 
-          keywordCategories={keywordCategories}
-          isWideScreen={isWideScreen}
-          columnsTarget={columnsTarget}
-        />
+        <NotamTabContent icao={activeTab} notams={filteredNotams} loading={activeNotamData.loading} error={activeNotamData.error} hasActiveFilters={hasActiveFilters} onClearFilters={clearAllFilters} filterOrder={filterOrder} keywordHighlightEnabled={keywordHighlightEnabled} keywordCategories={keywordCategories} />
       </div>
 
-      <FilterModal 
-        isOpen={isFilterModalOpen} 
-        onClose={() => setIsFilterModalOpen(false)} 
-        filters={filters} 
-        onFilterChange={handleFilterChange} 
-        typeCounts={typeCounts} 
-        onClearAll={clearAllFilters} 
-        filterOrder={filterOrder} 
-        setFilterOrder={setFilterOrder} 
-        dragState={dragState} 
-        setDragState={setDragState} 
-      />
-      <NotamKeywordHighlightManager 
-        isOpen={isHighlightModalOpen} 
-        onClose={() => setIsHighlightModalOpen(false)} 
-        keywordCategories={keywordCategories} 
-        setKeywordCategories={setKeywordCategories} 
-        keywordHighlightEnabled={keywordHighlightEnabled} 
-        setKeywordHighlightEnabled={setKeywordHighlightEnabled} 
-      />
-      <ICAOSortingModal 
-        isOpen={isSortModalOpen} 
-        onClose={() => setIsSortModalOpen(false)} 
-        icaos={icaos} 
-        onReorder={handleIcaoReorder} 
-      />
-      <NotamHistoryModal 
-        isOpen={isHistoryModalOpen} 
-        onClose={() => setIsHistoryModalOpen(false)} 
-        history={notamHistory} 
-        onClearHistory={() => setNotamHistory([])}
-      />
+      <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} filters={filters} onFilterChange={handleFilterChange} typeCounts={typeCounts} onClearAll={clearAllFilters} filterOrder={filterOrder} setFilterOrder={setFilterOrder} dragState={dragState} setDragState={setDragState} />
+      <NotamKeywordHighlightManager isOpen={isHighlightModalOpen} onClose={() => setIsHighlightModalOpen(false)} keywordCategories={keywordCategories} setKeywordCategories={setKeywordCategories} keywordHighlightEnabled={keywordHighlightEnabled} setKeywordHighlightEnabled={setKeywordHighlightEnabled} />
+      <ICAOSortingModal isOpen={isSortModalOpen} onClose={() => setIsSortModalOpen(false)} icaos={icaos} onReorder={handleIcaoReorder} />
+      <NotamHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} history={notamHistory} onClearHistory={() => setNotamHistory([])}/>
     </div>
   );
 };
 
-// Enhanced ModernHeader with wide-screen features
-const ModernHeader = ({ 
-  timeToNextRefresh, 
-  onRefresh, 
-  onHistoryClick, 
-  activeTab, 
-  autoRefreshAll,
-  breakpoint,
-  isWideScreen,
-  columnsTarget,
-  efficiencyScore
-}) => {
+const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab, autoRefreshAll }) => {
   const [utcTime, setUtcTime] = useState('');
   const [mounted, setMounted] = useState(false);
   
@@ -926,20 +768,12 @@ const ModernHeader = ({
 
   const buttonText = activeTab === 'ALL' ? 'Refresh All' : `Refresh ${activeTab}`;
   const buttonTitle = activeTab === 'ALL' 
-    ? `Fetch latest NOTAMs for all airports (${breakpoint} layout)` 
+    ? 'Fetch latest NOTAMs for all airports' 
     : `Fetch latest NOTAMs for ${activeTab}`;
 
   return (
-    <header className={`modern-header ${mounted ? 'mounted' : ''} ${isWideScreen ? 'wide-screen-header' : ''}`}>
-      <div className="header-left">
-        <h1>NOTAM Console</h1>
-        {isWideScreen && (
-          <div className="layout-info" title={`${columnsTarget} columns, ${efficiencyScore}% efficiency`}>
-            <span className="layout-badge">{breakpoint.toUpperCase()}</span>
-            <span className="efficiency-badge">{efficiencyScore}%</span>
-          </div>
-        )}
-      </div>
+    <header className={`modern-header ${mounted ? 'mounted' : ''}`}>
+      <h1>NOTAM Console</h1>
       <div className="header-meta">
         <button onClick={onHistoryClick} className="refresh-all-btn" title="View New NOTAM History">
           History
@@ -948,9 +782,7 @@ const ModernHeader = ({
           <button onClick={onRefresh} className="refresh-all-btn" title={buttonTitle}>
             {buttonText}
           </button>
-          <span className="global-countdown" onClick={autoRefreshAll} title="Click to refresh all now">
-            {minutes}:{seconds}
-          </span>
+          <span className="global-countdown" onClick={autoRefreshAll} title="Click to refresh all now">{minutes}:{seconds}</span>
         </div>
         <p className="utc-time">{utcTime}</p>
       </div>

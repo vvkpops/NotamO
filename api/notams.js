@@ -301,55 +301,6 @@ const formatToIcaoDate = (isoDate) => {
     }
 };
 
-// Add a new function to fetch FIR NOTAMs
-async function fetchFIRNotams(fir, clientId, clientSecret) {
-  if (!fir || !/^[A-Z]{4}$/.test(fir)) {
-    console.log(`❌ Invalid FIR code: ${fir}`);
-    return [];
-  }
-  
-  try {
-    console.log(`🌐 Fetching FIR NOTAMs for ${fir}`);
-    const faaUrl = `https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${fir}&responseFormat=geoJson&pageSize=250`;
-    
-    const response = await axios.get(faaUrl, {
-      headers: { 
-        'client_id': clientId, 
-        'client_secret': clientSecret 
-      },
-      timeout: 10000
-    });
-    
-    const items = response.data?.items || [];
-    console.log(`✅ Found ${items.length} FIR NOTAMs for ${fir}`);
-    
-    // Process FIR NOTAMs
-    return items.map(item => {
-      const core = item.properties?.coreNOTAMData?.notam || {};
-      const formattedIcaoText = item.properties?.coreNOTAMData?.notamTranslation?.[0]?.formattedText;
-      const originalRawText = formattedIcaoText || core.text || 'Full NOTAM text not available from source.';
-      
-      return {
-        id: core.id || `${core.number}-${fir}`,
-        number: core.number || 'N/A',
-        validFrom: parseNotamDateEnhanced(core.effectiveStart),
-        validTo: parseNotamDateEnhanced(core.effectiveEnd),
-        source: 'FAA',
-        isCancellation: parseRawNotam(originalRawText)?.isCancellation || false,
-        cancels: parseRawNotam(originalRawText)?.cancelsNotam || null,
-        icao: core.icaoLocation || fir,
-        summary: originalRawText,
-        rawText: originalRawText,
-        isFIRNotam: true, // Mark as FIR NOTAM
-        fir: fir
-      };
-    });
-  } catch (error) {
-    console.error(`❌ Error fetching FIR NOTAMs for ${fir}:`, error.message);
-    return [];
-  }
-}
-
 // Main handler function
 export default async function handler(request, response) {
     response.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
@@ -362,32 +313,6 @@ export default async function handler(request, response) {
     }
 
     const icao = (request.query.icao || '').toUpperCase();
-    const firCode = (request.query.fir || '').toUpperCase(); // New parameter
-    
-    // If requesting FIR NOTAMs specifically
-    if (firCode) {
-      console.log(`📡 FIR NOTAM request for: ${firCode}`);
-      
-      try {
-        const firNotams = await fetchFIRNotams(firCode, CLIENT_ID, CLIENT_SECRET);
-        
-        // Filter and sort as usual
-        const now = new Date();
-        const filtered = firNotams.filter(n => {
-          if (!n.validTo || n.validTo === 'PERMANENT') return true;
-          const validToDate = new Date(n.validTo);
-          return isNaN(validToDate.getTime()) || validToDate >= now;
-        });
-        
-        response.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=1200');
-        return response.status(200).json(filtered);
-      } catch (error) {
-        console.error(`[FIR API ERROR] for ${firCode}:`, error.message);
-        return response.status(500).json({ error: "Failed to fetch FIR NOTAMs" });
-      }
-    }
-    
-    // Original ICAO logic continues...
     if (!icao || !/^[A-Z0-9]{4}$/.test(icao)) {
         return response.status(400).json({ error: "Invalid ICAO code provided" });
     }
