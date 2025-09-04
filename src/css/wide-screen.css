@@ -1,0 +1,439 @@
+/* Wide-Screen Component Enhancement Styles */
+
+/* 1. ENHANCED HEADER FOR WIDE SCREENS */
+.modern-header.wide-screen-header {
+  padding: 2.5rem 0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.layout-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-left: 1rem;
+}
+
+.layout-badge, .efficiency-badge {
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.05em;
+}
+
+.layout-badge {
+  background: rgba(0, 212, 255, 0.15);
+  color: var(--accent-blue);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+}
+
+.efficiency-badge {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-green);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* 2. WIDE-SCREEN CONTROL LAYOUTS */
+.icao-input-container.wide-layout {
+  padding: 2.5rem 3rem;
+}
+
+.top-controls.wide-screen-controls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3rem;
+  align-items: flex-start;
+}
+
+.bottom-controls.wide-screen-bottom {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 2.5rem;
+  align-items: center;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* 3. ENHANCED CARD SIZER FOR WIDE SCREENS */
+.card-sizer-control.wide-screen {
+  padding: 0.75rem 1.5rem;
+  gap: 1.5rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid var(--border-primary);
+  min-width: 280px;
+}
+
+.card-sizer-control.wide-screen:hover {
+  border-color: var(--accent-blue);
+  background: rgba(0, 0, 0, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.2);
+}
+
+.efficiency-indicator {
+  font-size: 0.8rem;
+  color: var(--accent-green);
+  font-weight: 700;
+}
+
+.manual-size {
+  color: var(--accent-orange);
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+/* 4. WIDE-SCREEN TAB ENHANCEMENTS */
+.icao-tabs.wide-tabs {
+  padding: 2rem 3rem;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.glass.wide-content {
+  border-radius: 24px;
+  backdrop-filter: blur(25px) saturate(200%);
+}
+
+/* 5. ENHANCED SEARCH FOR WIDE SCREENS */
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+}
+
+@media (min-width: 1440px) {
+  .search-input {
+    padding: 1rem 1.5rem 1rem 3.5rem;
+    font-size: 1rem;
+    border-radius: 16px;
+  }
+  
+  .search-icon {
+    left: 1.5rem;
+    font-size: 1.1rem;
+  }
+}
+
+/* 6. ULTRA-WIDE SPECIFIC STYLES */
+@media (min-width: 2560px) {
+  .icao-input-container.wide-layout {
+    padding: 3.5rem 4rem;
+  }
+  
+  .top-controls.wide-screen-controls {
+    gap: 4rem;
+  }
+  
+  .bottom-controls.wide-screen-bottom {
+    gap: 3.5rem;
+    margin-top: 2.5rem;
+    padding-top: 2.5rem;
+  }
+  
+  .icao-tabs.wide-tabs {
+    padding: 2.5rem 4rem;
+    gap: 2rem;
+  }
+}
+
+/* 7. CONTAINER VARIANTS */
+.container.wide-screen {
+  transition: all 0.3s ease;
+}
+
+.container.ultra-wide {
+  max-width: 100%;
+}
+
+.container.compact {
+  max-width: 95%;
+}
+
+/* 8. HIGH DENSITY LAYOUT OPTIMIZATIONS */
+.high-density .notam-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.high-density .notam-card:hover {
+  transform: translateY(-4px) scale(1.01);
+}
+
+.high-density .card-head {
+  padding: 1.5rem 2rem;
+  min-height: 75px;
+}
+
+.high-density .notam-card-content {
+  padding: 2rem;
+  gap: 1.5rem;
+}
+
+/* 9. ULTRA-WIDE LAYOUT ENHANCEMENTS */
+.ultra-wide .notam-grid {
+  justify-content: flex-start;
+  max-width: none;
+}
+
+.ultra-wide .icao-header-card {
+  padding: 3rem 4rem;
+  margin: 2.5rem 0;
+}
+
+.ultra-wide .icao-header-content h3 {
+  font-size: 2.2rem;
+}
+
+.ultra-wide .header-stat {
+  font-size: 1.2rem;
+  padding: 0.875rem 1.5rem;
+}
+
+/* 10. DYNAMIC GRID UTILIZATION INDICATORS */
+.container[data-efficiency="100"] .glass::before {
+  background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.6), transparent);
+}
+
+.container[data-efficiency^="9"] .glass::before {
+  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.6), transparent);
+}
+
+.container[data-efficiency^="8"] .glass::before {
+  background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.6), transparent);
+}
+
+.container[data-efficiency^="7"], 
+.container[data-efficiency^="6"] .glass::before {
+  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.4), transparent);
+}
+
+/* 11. ENHANCED FILTER CONTROLS FOR WIDE SCREENS */
+@media (min-width: 1440px) {
+  .filter-controls {
+    display: flex;
+    gap: 2rem;
+    flex-shrink: 0;
+  }
+  
+  .filter-toggle-btn {
+    padding: 1rem 2.5rem;
+    min-width: 180px;
+    font-size: 1rem;
+  }
+  
+  .filter-icon {
+    font-size: 1.3rem;
+  }
+  
+  .filter-badge {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.85rem;
+  }
+}
+
+/* 12. RESPONSIVE MODAL SIZING FOR WIDE SCREENS */
+@media (min-width: 1440px) {
+  .filter-modal, .hm-modal, .icao-sort-modal, .nh-modal {
+    width: min(1200px, 90vw);
+    max-width: 1200px;
+  }
+}
+
+@media (min-width: 1920px) {
+  .filter-modal, .hm-modal, .icao-sort-modal, .nh-modal {
+    width: min(1400px, 85vw);
+    max-width: 1400px;
+  }
+}
+
+@media (min-width: 2560px) {
+  .filter-modal, .hm-modal, .icao-sort-modal, .nh-modal {
+    width: min(1600px, 80vw);
+    max-width: 1600px;
+  }
+}
+
+/* 13. ENHANCED BUTTON LAYOUTS */
+@media (min-width: 1440px) {
+  .add-button {
+    padding: 1rem 2.5rem;
+    font-size: 1rem;
+    min-width: 180px;
+  }
+  
+  .quick-clear-btn {
+    padding: 1rem 2rem;
+    font-size: 1rem;
+    min-width: 160px;
+  }
+}
+
+/* 14. IMPROVED INPUT SCALING */
+@media (min-width: 1440px) {
+  .icao-input.compact {
+    max-width: 600px;
+    font-size: 1.05rem;
+    padding: 1rem 1.5rem;
+  }
+}
+
+/* 15. TAB SYSTEM ENHANCEMENTS */
+@media (min-width: 1440px) {
+  .icao-tab {
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+    border-radius: 16px;
+  }
+  
+  .tab-actions {
+    gap: 0.5rem;
+  }
+  
+  .refresh-btn, .remove-btn {
+    padding: 0.5rem;
+    font-size: 1.2rem;
+  }
+}
+
+/* 16. WIDE-SCREEN SPECIFIC ANIMATIONS */
+@media (min-width: 1440px) {
+  .notam-card {
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .notam-card:hover {
+    transform: translateY(-8px) scale(1.015);
+  }
+  
+  .glass {
+    transition: all 0.4s ease;
+  }
+  
+  .glass:hover {
+    backdrop-filter: blur(25px) saturate(200%);
+  }
+}
+
+/* 17. PERFORMANCE OPTIMIZATIONS FOR HIGH COLUMN COUNTS */
+.high-density .notam-card {
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.high-density .notam-grid {
+  contain: layout style paint;
+}
+
+/* 18. ULTRA-WIDE MONITOR SPECIFIC (3440px+) */
+@media (min-width: 3440px) {
+  .container {
+    padding: 0 6rem;
+  }
+  
+  .icao-input-container.wide-layout {
+    padding: 4rem 5rem;
+  }
+  
+  .modern-header.wide-screen-header {
+    padding: 3rem 0;
+  }
+  
+  .layout-badge, .efficiency-badge {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .top-controls.wide-screen-controls {
+    gap: 5rem;
+  }
+  
+  .icao-tabs.wide-tabs {
+    padding: 3rem 5rem;
+    gap: 2.5rem;
+  }
+}
+
+/* 19. ACCESSIBILITY ENHANCEMENTS FOR WIDE SCREENS */
+@media (min-width: 1440px) and (prefers-reduced-motion: reduce) {
+  .notam-card,
+  .glass,
+  .card-sizer-control {
+    transition: none;
+  }
+  
+  .notam-card:hover {
+    transform: none;
+    box-shadow: var(--shadow-hover);
+  }
+}
+
+/* 20. HIGH CONTRAST MODE SUPPORT */
+@media (prefers-contrast: high) and (min-width: 1440px) {
+  .layout-badge {
+    border: 2px solid var(--accent-blue);
+    background: rgba(0, 212, 255, 0.25);
+  }
+  
+  .efficiency-badge {
+    border: 2px solid var(--accent-green);
+    background: rgba(16, 185, 129, 0.25);
+  }
+  
+  .card-sizer-control.wide-screen {
+    border: 2px solid var(--border-primary);
+  }
+  
+  .card-sizer-control.wide-screen:hover {
+    border: 2px solid var(--accent-blue);
+  }
+}
+
+/* 21. PRINT STYLES FOR WIDE LAYOUTS */
+@media print and (min-width: 1440px) {
+  .container.wide-screen,
+  .container.ultra-wide {
+    max-width: 100%;
+    padding: 0;
+  }
+  
+  .layout-info,
+  .card-sizer-control,
+  .filter-controls {
+    display: none !important;
+  }
+  
+  .notam-grid {
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1rem;
+  }
+}
+
+/* 22. CUSTOM SCROLLBARS FOR WIDE SCREENS */
+@media (min-width: 1440px) {
+  .icao-tabs::-webkit-scrollbar {
+    height: 8px;
+    background: transparent;
+  }
+  
+  .icao-tabs::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+  }
+  
+  .icao-tabs::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .icao-tabs::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, rgba(0, 212, 255, 0.8), rgba(139, 92, 246, 0.8));
+  }
+}
