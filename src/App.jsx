@@ -1067,16 +1067,24 @@ const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab,
     <header className={`modern-header ${mounted ? 'mounted' : ''}`}>
       <h1>NOTAM Console</h1>
       <div className="header-meta">
-        <button onClick={onHistoryClick} className="refresh-all-btn" title="View New NOTAM History">
-          History
-        </button>
-        <div className="global-refresh" title={`Next auto-refresh in ${minutes}:${seconds}`}>
-          <button onClick={onRefresh} className="refresh-all-btn" title={buttonTitle}>
+        <div className="header-primary-actions">
+          <button onClick={onRefresh} className="primary-action-btn" title={buttonTitle}>
+            <span className="btn-icon">🔄</span>
             {buttonText}
           </button>
-          <span className="global-countdown" onClick={autoRefreshAll} title="Click to refresh all now">{minutes}:{seconds}</span>
+          <div className="refresh-timer" onClick={autoRefreshAll} title="Click to refresh all now">
+            <span className="timer-label">Next in</span>
+            <span className="timer-value">{minutes}:{seconds}</span>
+          </div>
         </div>
-        <p className="utc-time">{utcTime}</p>
+        
+        <div className="header-secondary-actions">
+          <button onClick={onHistoryClick} className="secondary-action-btn" title="View NOTAM History">
+            <span className="btn-icon">📜</span>
+            <span>History</span>
+          </button>
+          <span className="utc-time">{utcTime}</span>
+        </div>
       </div>
       
       {/* Progress bar */}
@@ -1096,5 +1104,4 @@ const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab,
     </header>
   );
 };
-
 export default App;
