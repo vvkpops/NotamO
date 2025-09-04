@@ -867,7 +867,7 @@ const fetchNotams = useCallback(async (icao) => {
       if (a.isIcaoHeader || b.isIcaoHeader) return 0;
       const aPrio = filterOrder.indexOf(getNotamType(a)), bPrio = filterOrder.indexOf(getNotamType(b));
       if (aPrio !== bPrio) return aPrio - bPrio;
-      return new Date(b.validFrom) - new Date(b.validFrom);
+      return new Date(b.validFrom) - new Date(a.validFrom);
     };
     let results = notams.filter(filterFunc).sort(sortFunc);
     if (activeTab === 'ALL') {
@@ -939,7 +939,6 @@ const fetchNotams = useCallback(async (icao) => {
         autoRefreshAll={handleRefreshAll}
         currentlyFetching={currentlyFetching}
         fetchProgress={fetchProgress}
-        isQueueProcessing={isProcessingQueue.current || fetchQueue.length > 0}
       />
       
       <div className="glass icao-input-container">
@@ -1037,97 +1036,65 @@ const fetchNotams = useCallback(async (icao) => {
   );
 };
 
-const ModernHeader = ({ 
-    timeToNextRefresh, 
-    onRefresh, 
-    onHistoryClick, 
-    activeTab, 
-    autoRefreshAll, 
-    currentlyFetching, 
-    fetchProgress,
-    isQueueProcessing 
-}) => {
-    const [utcTime, setUtcTime] = useState('');
-    const [mounted, setMounted] = useState(false);
-    
-    useEffect(() => {
-        setMounted(true);
-        const tick = () => {
-            const now = new Date();
-            setUtcTime(now.toUTCString().slice(5, -4) + ' UTC');
-        };
-        tick();
-        const interval = setInterval(tick, 1000);
-        return () => clearInterval(interval);
-    }, []);
+const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab, autoRefreshAll, currentlyFetching, fetchProgress }) => {
+  const [utcTime, setUtcTime] = useState('');
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+    const tick = () => {
+      const now = new Date();
+      setUtcTime(now.toUTCString().slice(5, -4) + ' UTC');
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
-    const minutes = Math.floor(timeToNextRefresh / 60000);
-    const seconds = Math.floor((timeToNextRefresh % 60000) / 1000).toString().padStart(2, '0');
+  const minutes = Math.floor(timeToNextRefresh / 60000);
+  const seconds = Math.floor((timeToNextRefresh % 60000) / 1000).toString().padStart(2, '0');
 
-    const buttonText = activeTab === 'ALL' ? 'Refresh All' : `Refresh ${activeTab}`;
-    const buttonTitle = activeTab === 'ALL' 
-        ? 'Fetch latest NOTAMs for all airports' 
-        : `Fetch latest NOTAMs for ${activeTab}`;
+  const buttonText = activeTab === 'ALL' ? 'Refresh All' : `Refresh ${activeTab}`;
+  const buttonTitle = activeTab === 'ALL' 
+    ? 'Fetch latest NOTAMs for all airports' 
+    : `Fetch latest NOTAMs for ${activeTab}`;
 
-    const progressPercentage = fetchProgress.total > 0 
-        ? (fetchProgress.current / fetchProgress.total) * 100 
-        : 0;
-        
-    const isRefreshing = isQueueProcessing || currentlyFetching;
+  const progressPercentage = fetchProgress.total > 0 
+    ? (fetchProgress.current / fetchProgress.total) * 100 
+    : 0;
 
-    return (
-        <header className={`modern-header ${mounted ? 'mounted' : ''}`}>
-            <div className="header-main-content">
-                <h1>NOTAM Console</h1>
-                <div className="header-meta">
-                    <p className="utc-time">{utcTime}</p>
-                    <div className="global-refresh" title={`Next auto-refresh in ${minutes}:${seconds}`}>
-                        <span className="global-countdown" onClick={autoRefreshAll} title="Click to refresh all now">
-                            Next update in {minutes}:{seconds}
-                        </span>
-                    </div>
-                </div>
-            </div>
-            <div className="header-actions">
-                <button onClick={onHistoryClick} className="header-action-btn history-btn" title="View New NOTAM History">
-                    <span className="btn-icon">📜</span>
-                    <span>History</span>
-                </button>
-                <button 
-                    onClick={onRefresh} 
-                    className={`header-action-btn refresh-btn ${isRefreshing ? 'refreshing' : ''}`}
-                    title={buttonTitle}
-                    disabled={isRefreshing}
-                >
-                    {isRefreshing ? (
-                        <>
-                            <span className="btn-spinner"></span>
-                            <span>Refreshing...</span>
-                        </>
-                    ) : (
-                        <>
-                            <span className="btn-icon">🔄</span>
-                            <span>{buttonText}</span>
-                        </>
-                    )}
-                </button>
-            </div>
-            
-            {isRefreshing && (
-                <div className="fetch-progress-bar">
-                    <div className="fetch-progress-track">
-                        <div 
-                            className="fetch-progress-fill" 
-                            style={{ width: `${progressPercentage}%` }}
-                        />
-                    </div>
-                    <span className="fetch-progress-text">
-                        {currentlyFetching} {fetchProgress.total > 1 && `(${fetchProgress.current}/${fetchProgress.total})`}
-                    </span>
-                </div>
-            )}
-        </header>
-    );
+  return (
+    <header className={`modern-header ${mounted ? 'mounted' : ''}`}>
+      <h1>NOTAM Console</h1>
+      <div className="header-meta">
+        <button onClick={onHistoryClick} className="refresh-all-btn" title="View New NOTAM History">
+          History
+        </button>
+        <div className="global-refresh" title={`Next auto-refresh in ${minutes}:${seconds}`}>
+          <button onClick={onRefresh} className="refresh-all-btn" title={buttonTitle}>
+            {buttonText}
+          </button>
+          <span className="global-countdown" onClick={autoRefreshAll} title="Click to refresh all now">{minutes}:{seconds}</span>
+        </div>
+        <p className="utc-time">{utcTime}</p>
+      </div>
+      
+      {/* Progress bar */}
+      {currentlyFetching && (
+        <div className="fetch-progress-bar">
+          <div className="fetch-progress-track">
+            <div 
+              className="fetch-progress-fill" 
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+          <span className="fetch-progress-text">
+            {currentlyFetching} {fetchProgress.total > 0 && `(${fetchProgress.current}/${fetchProgress.total})`}
+          </span>
+        </div>
+      )}
+    </header>
+  );
 };
 
 export default App;
