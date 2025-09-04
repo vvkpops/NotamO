@@ -317,27 +317,19 @@ export default async function handler(request, response) {
         return response.status(400).json({ error: "Invalid ICAO code provided" });
     }
 
-    // --- NEW: Read classification filters from query parameters ---
-    const classifications = request.query.classifications ? request.query.classifications.split(',') : ['INTL', 'DOM', 'FDC', 'MIL', 'LMIL'];
-    const classificationQuery = classifications.join(',');
-
     try {
         let faaItems = [];
         let notamsFromSource = [];
         
         // PRIMARY SOURCE: Always try FAA first for ALL airports
         try {
-            // --- UPDATED: Add classification to the API request ---
-            const faaUrl = `https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${icao}&responseFormat=geoJson&pageSize=250&classification=${classificationQuery}`;
-            
-            console.log(`📡 Fetching from FAA URL: ${faaUrl}`);
-
+            const faaUrl = `https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${icao}&responseFormat=geoJson&pageSize=250`;
             const notamRes = await axios.get(faaUrl, {
                 headers: { 'client_id': CLIENT_ID, 'client_secret': CLIENT_SECRET },
                 timeout: 10000
             });
             faaItems = notamRes.data?.items || [];
-            console.log(`✅ FAA returned ${faaItems.length} NOTAMs for ${icao} with classifications: ${classificationQuery}`);
+            console.log(`✅ FAA returned ${faaItems.length} NOTAMs for ${icao}`);
         } catch (e) {
             console.warn(`FAA fetch for ${icao} failed. Message: ${e.message}.`);
             // Continue execution, fallback might be triggered
