@@ -516,101 +516,111 @@ const App = () => {
     }
   }, [firFetchStatus, firDataStore, smartNotamMerge]);
 
-  // fetchNotams with FIR fetching included
-  const fetchNotams = useCallback(async (icao) => {
-    console.log(`🚀 Fetching NOTAMs for ${icao}`);
-    setCurrentlyFetching(`ICAO ${icao}`);
+  // Updated fetchNotams function with correct logic
+const fetchNotams = useCallback(async (icao) => {
+  console.log(`🚀 Fetching NOTAMs for ${icao}`);
+  setCurrentlyFetching(`ICAO ${icao}`);
+  
+  // Set loading state but preserve existing data
+  setNotamDataStore(prev => ({ 
+    ...prev, 
+    [icao]: { ...prev[icao], loading: true, error: null } 
+  }));
+  
+  try {
+    const response = await fetch(`/api/notams?icao=${icao}`);
     
-    // Set loading state but preserve existing data
-    setNotamDataStore(prev => ({ 
-      ...prev, 
-      [icao]: { ...prev[icao], loading: true, error: null } 
-    }));
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
     
-    try {
-      const response = await fetch(`/api/notams?icao=${icao}`);
+    const data = await response.json();
+    
+    if (data.error) {
+      throw new Error(data.error);
+    }
+    
+    setNotamDataStore(prev => {
+      const oldData = prev[icao]?.data || [];
+      const isInitialFetch = oldData.length === 0 && !prev[icao]?.lastUpdated;
       
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
+      // Use smart incremental merge
+      const { processedData, hasNewNotams, newNotamsList, stats } = smartNotamMerge(oldData, data, isInitialFetch);
       
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      setNotamDataStore(prev => {
-        const oldData = prev[icao]?.data || [];
-        const isInitialFetch = oldData.length === 0 && !prev[icao]?.lastUpdated;
-        
-        // Use smart incremental merge
-        const { processedData, hasNewNotams, newNotamsList, stats } = smartNotamMerge(oldData, data, isInitialFetch);
-        
-        // Add ICAO to each NOTAM for consistency
-        const notamsWithIcao = processedData.map(n => ({ ...n, icao }));
+      // Add ICAO to each NOTAM for consistency
+      const notamsWithIcao = processedData.map(n => ({ ...n, icao }));
 
-        // Update new NOTAM indicators and history if there are new NOTAMs
-        if (hasNewNotams) {
-          console.log(`🆕 Found ${stats.new} new NOTAMs for ${icao}`);
-          setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
-          
-          const historyEntry = {
-            id: Date.now(),
-            icao: icao,
-            timestamp: new Date().toISOString(),
-            count: newNotamsList.length,
-            notams: newNotamsList.map(n => ({ number: n.number, summary: n.summary.substring(0, 100) + '...' }))
-          };
-          setNotamHistory(prevHistory => [historyEntry, ...prevHistory]);
-        }
-
-        console.log(`✅ Successfully updated ${icao}: ${stats.total} NOTAMs (${stats.new} new, ${stats.expired} expired)`);
+      // Update new NOTAM indicators and history if there are new NOTAMs
+      if (hasNewNotams) {
+        console.log(`🆕 Found ${stats.new} new NOTAMs for ${icao}`);
+        setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
         
-        // Check if this is FAA data and extract FIR
-        const isCanadianSource = notamsWithIcao.some(n => n.source === 'NAV CANADA');
-        
-        if (!isCanadianSource) {
-          // Extract FIR and fetch FIR NOTAMs
-          const firCode = getFIRForICAO(icao, notamsWithIcao);
-          if (firCode) {
-            console.log(`🔍 Detected FIR ${firCode} for ${icao}, fetching FIR NOTAMs...`);
-            // Fetch FIR NOTAMs in parallel (non-blocking)
-            fetchFIRNotams(firCode, icao).catch(err => {
-              console.error(`Failed to fetch FIR ${firCode}:`, err);
-            });
-          }
-        }
-
-        return { 
-          ...prev, 
-          [icao]: { 
-            data: notamsWithIcao, 
-            loading: false, 
-            error: null,
-            lastUpdated: Date.now(),
-            stats: stats
-          } 
+        const historyEntry = {
+          id: Date.now(),
+          icao: icao,
+          timestamp: new Date().toISOString(),
+          count: newNotamsList.length,
+          notams: newNotamsList.map(n => ({ number: n.number, summary: n.summary.substring(0, 100) + '...' }))
         };
-      });
+        setNotamHistory(prevHistory => [historyEntry, ...prevHistory]);
+      }
+
+      console.log(`✅ Successfully updated ${icao}: ${stats.total} NOTAMs (${stats.new} new, ${stats.expired} expired)`);
       
-    } catch (err) {
-      console.error(`❌ Error fetching NOTAMs for ${icao}:`, err.message);
+      // IMPORTANT: Determine if we should fetch FIR based on source and data count
+      const source = notamsWithIcao[0]?.source || 'UNKNOWN';
+      const hasFaaData = source === 'FAA' && notamsWithIcao.length > 0;
+      const isNavCanadaFallback = source === 'NAV CANADA'; // This means FAA returned 0
       
-      setNotamDataStore(prev => ({ 
+      if (hasFaaData) {
+        // FAA returned at least 1 NOTAM - fetch FIR
+        console.log(`✅ FAA returned ${notamsWithIcao.length} NOTAMs for ${icao}, will fetch FIR`);
+        
+        // Extract FIR and fetch FIR NOTAMs
+        const firCode = getFIRForICAO(icao, notamsWithIcao);
+        if (firCode) {
+          console.log(`🔍 Detected FIR ${firCode} for ${icao}, fetching FIR NOTAMs...`);
+          // Fetch FIR NOTAMs in parallel (non-blocking)
+          fetchFIRNotams(firCode, icao).catch(err => {
+            console.error(`Failed to fetch FIR ${firCode}:`, err);
+          });
+        } else {
+          console.log(`⚠️ Could not determine FIR for ${icao}`);
+        }
+      } else if (isNavCanadaFallback) {
+        // NAV CANADA data (FAA returned 0) - NO FIR fetch needed
+        console.log(`🍁 Using NAV CANADA data for ${icao} (FAA returned 0). NAV CANADA already includes FIR NOTAMs, skipping FIR fetch.`);
+      }
+
+      return { 
         ...prev, 
         [icao]: { 
-          ...prev[icao], 
+          data: notamsWithIcao, 
           loading: false, 
-          error: err.message,
-          lastError: Date.now()
+          error: null,
+          lastUpdated: Date.now(),
+          stats: stats,
+          source: source // Track the source
         } 
-      }));
-    } finally {
-      setCurrentlyFetching(null);
-    }
-  }, [smartNotamMerge, fetchFIRNotams]);
-
+      };
+    });
+    
+  } catch (err) {
+    console.error(`❌ Error fetching NOTAMs for ${icao}:`, err.message);
+    
+    setNotamDataStore(prev => ({ 
+      ...prev, 
+      [icao]: { 
+        ...prev[icao], 
+        loading: false, 
+        error: err.message,
+        lastError: Date.now()
+      } 
+    }));
+  } finally {
+    setCurrentlyFetching(null);
+  }
+}, [smartNotamMerge, fetchFIRNotams]);
   // Clear new status when user views NOTAMs
   const markNotamsAsViewed = useCallback((icao) => {
     setNotamDataStore(prev => {
