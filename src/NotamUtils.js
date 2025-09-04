@@ -12,12 +12,16 @@ export const getNotamFlags = (notam) => {
   const rawText = (notam.rawText || '').toUpperCase();
   const combinedText = `${text} ${rawText}`;
   
+  // A NOTAM is domestic if its number starts with 'D' series, e.g., (D..../..)
+  // or if it explicitly contains the words DOM or DOMESTIC.
+  const isDomesticSeries = /\([D]\d{4}\/\d{2}\s+NOTAM/.test(rawText);
+
   return {
     isILS: /\bILS\b/.test(combinedText) || /\bLOCALIZER\b/.test(combinedText) || /\bGLIDESLOPE\b/.test(combinedText) || /\bGS\b/.test(combinedText) || /\bLOC\b/.test(combinedText),
     isRunway: /\bRWY\b/.test(combinedText) || /\bRUNWAY\b/.test(combinedText),
     isTaxiway: /\bTWY\b/.test(combinedText) || /\bTAXIWAY\b/.test(combinedText),
     isFuel: /\bFUEL\b/.test(combinedText),
-    isDomestic: /\bDOM\b/.test(combinedText) || /\bDOMESTIC\b/.test(combinedText), // Add DOM detection
+    isDomestic: isDomesticSeries || /\bDOM\b/.test(combinedText) || /\bDOMESTIC\b/.test(combinedText), // Corrected DOM detection
     // Use the reliable `isCancellation` flag from the API first.
     isCancelled: notam.isCancellation || (notam.type === "C" || /\bCANCELLED\b/.test(combinedText) || /\bCNL\b/.test(combinedText)),
     isRSC: /\bRSC\b/.test(combinedText), // Runway Surface Condition
