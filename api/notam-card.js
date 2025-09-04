@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { parseRawNotam } from './parser.js';
-// Correctly import from the new shared utilities file within the /api directory
-import { getHeadClass, getHeadTitle, extractRunways, getTimeStatus } from './notam-shared-utils.js';
+// Correctly import from the new shared utilities file in the /src directory
+import { getHeadClass, getHeadTitle, extractRunways, getTimeStatus } from '../src/notam-shared-utils.js';
 
 // Environment variables for security
 const CLIENT_ID = process.env.FAA_CLIENT_ID;

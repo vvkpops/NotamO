@@ -6,7 +6,7 @@
  * to continue using their existing import paths without modification.
  */
 
-// Import all shared functions
+// Import all shared functions from the local shared file
 import {
   parseDate,
   isNotamCurrent,
@@ -17,7 +17,7 @@ import {
   getHeadClass,
   getHeadTitle,
   extractRunways
-} from '../../api/notam-shared-utils.js';
+} from './notam-shared-utils.js';
 
 // Re-export the shared functions for use in the frontend
 export {
