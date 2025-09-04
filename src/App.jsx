@@ -5,7 +5,6 @@ import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKey
 import ICAOSortingModal from './ICAOSortingModal.jsx';
 import NotamHistoryModal from './NotamHistoryModal.jsx';
 import { useAutoResponsiveSize, useResponsiveCSS } from './useAutoResponsiveSize.jsx';
-import { getFIRForICAO, getCachedFIRData, setCachedFIRData } from './FIRUtils';
 
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -49,14 +48,6 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('ALL');
   const [notamDataStore, setNotamDataStore] = useState({});
   const [isAdding, setIsAdding] = useState(false);
-
-  // FIR data store - shared across all ICAOs
-  const [firDataStore, setFirDataStore] = useState({});
-  const [firFetchStatus, setFirFetchStatus] = useState({}); // Track which FIRs are being fetched
-
-  // Progress tracking
-  const [currentlyFetching, setCurrentlyFetching] = useState(null); // What's currently being fetched
-  const [fetchProgress, setFetchProgress] = useState({ current: 0, total: 0 }); // Progress tracker
 
   // Use the responsive card size instead of localStorage-only approach
   const [manualCardSizeOverride, setManualCardSizeOverride] = useState(null);
@@ -434,193 +425,83 @@ const App = () => {
     setFetchQueue(prev => [...prev, icaoToRefresh]);
   }, [fetchQueue]);
 
-  // Fetch FIR NOTAMs with shared cache
-  const fetchFIRNotams = useCallback(async (firCode, icao) => {
-    if (!firCode) return;
+  // fetchNotams with smart incremental updates
+  const fetchNotams = useCallback(async (icao) => {
+    console.log(`🚀 Fetching NOTAMs for ${icao}`);
     
-    // Check if FIR is already being fetched
-    if (firFetchStatus[firCode]?.fetching) {
-      console.log(`⏳ FIR ${firCode} is already being fetched, waiting...`);
-      return;
-    }
-    
-    // Check if FIR data already exists and is recent (less than 5 mins old)
-    const existingFirData = firDataStore[firCode];
-    if (existingFirData && existingFirData.lastUpdated) {
-      const age = Date.now() - existingFirData.lastUpdated;
-      if (age < 5 * 60 * 1000) { // 5 minutes
-        console.log(`✅ Using existing FIR data for ${firCode} (${Math.round(age / 1000)}s old)`);
-        return;
-      }
-    }
-    
-    setCurrentlyFetching(`FIR ${firCode}`);
-    setFirFetchStatus(prev => ({ ...prev, [firCode]: { fetching: true, error: null } }));
+    // Set loading state but preserve existing data
+    setNotamDataStore(prev => ({ 
+      ...prev, 
+      [icao]: { ...prev[icao], loading: true, error: null } 
+    }));
     
     try {
-      console.log(`🌐 Fetching FIR NOTAMs for ${firCode}`);
-      const response = await fetch(`/api/notams?fir=${firCode}`);
+      const response = await fetch(`/api/notams?icao=${icao}`);
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
       const data = await response.json();
       
-      // Filter to only include FIR-wide NOTAMs (not specific airports)
-      const firWideNotams = data.filter(notam => {
-        const isAirportSpecific = /^[A-Z]{4}$/.test(notam.icao) && notam.icao !== firCode;
-        return !isAirportSpecific;
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      setNotamDataStore(prev => {
+        const oldData = prev[icao]?.data || [];
+        const isInitialFetch = oldData.length === 0 && !prev[icao]?.lastUpdated;
+        
+        // Use smart incremental merge
+        const { processedData, hasNewNotams, newNotamsList, stats } = smartNotamMerge(oldData, data, isInitialFetch);
+        
+        // Add ICAO to each NOTAM for consistency
+        const notamsWithIcao = processedData.map(n => ({ ...n, icao }));
+
+        // Update new NOTAM indicators and history if there are new NOTAMs
+        if (hasNewNotams) {
+          console.log(`🆕 Found ${stats.new} new NOTAMs for ${icao}`);
+          setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
+          
+          const historyEntry = {
+            id: Date.now(),
+            icao: icao,
+            timestamp: new Date().toISOString(),
+            count: newNotamsList.length,
+            notams: newNotamsList.map(n => ({ number: n.number, summary: n.summary.substring(0, 100) + '...' }))
+          };
+          setNotamHistory(prevHistory => [historyEntry, ...prevHistory]);
+        }
+
+        console.log(`✅ Successfully updated ${icao}: ${stats.total} NOTAMs (${stats.new} new, ${stats.expired} expired)`);
+
+        return { 
+          ...prev, 
+          [icao]: { 
+            data: notamsWithIcao, 
+            loading: false, 
+            error: null,
+            lastUpdated: Date.now(),
+            stats: stats
+          } 
+        };
       });
       
-      console.log(`✅ Loaded ${firWideNotams.length} FIR-wide NOTAMs for ${firCode}`);
+    } catch (err) {
+      console.error(`❌ Error fetching NOTAMs for ${icao}:`, err.message);
       
-      // Apply new NOTAM detection
-      const oldFirData = firDataStore[firCode]?.data || [];
-      const { processedData, hasNewNotams, newNotamsList } = smartNotamMerge(
-        oldFirData, 
-        firWideNotams, 
-        oldFirData.length === 0
-      );
-      
-      // Update FIR data store
-      setFirDataStore(prev => ({
-        ...prev,
-        [firCode]: {
-          data: processedData,
-          lastUpdated: Date.now(),
-          loading: false,
-          error: null
-        }
-      }));
-      
-      // Cache the results
-      setCachedFIRData(firCode, processedData);
-      
-      setFirFetchStatus(prev => ({ ...prev, [firCode]: { fetching: false, error: null } }));
-      
-    } catch (error) {
-      console.error(`❌ Error fetching FIR NOTAMs for ${firCode}:`, error);
-      setFirFetchStatus(prev => ({ 
-        ...prev, 
-        [firCode]: { fetching: false, error: error.message } 
-      }));
-      setFirDataStore(prev => ({
-        ...prev,
-        [firCode]: {
-          ...prev[firCode],
-          loading: false,
-          error: error.message
-        }
-      }));
-    }
-  }, [firFetchStatus, firDataStore, smartNotamMerge]);
-
-  // Updated fetchNotams function with correct logic
-const fetchNotams = useCallback(async (icao) => {
-  console.log(`🚀 Fetching NOTAMs for ${icao}`);
-  setCurrentlyFetching(`ICAO ${icao}`);
-  
-  // Set loading state but preserve existing data
-  setNotamDataStore(prev => ({ 
-    ...prev, 
-    [icao]: { ...prev[icao], loading: true, error: null } 
-  }));
-  
-  try {
-    const response = await fetch(`/api/notams?icao=${icao}`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data.error) {
-      throw new Error(data.error);
-    }
-    
-    setNotamDataStore(prev => {
-      const oldData = prev[icao]?.data || [];
-      const isInitialFetch = oldData.length === 0 && !prev[icao]?.lastUpdated;
-      
-      // Use smart incremental merge
-      const { processedData, hasNewNotams, newNotamsList, stats } = smartNotamMerge(oldData, data, isInitialFetch);
-      
-      // Add ICAO to each NOTAM for consistency
-      const notamsWithIcao = processedData.map(n => ({ ...n, icao }));
-
-      // Update new NOTAM indicators and history if there are new NOTAMs
-      if (hasNewNotams) {
-        console.log(`🆕 Found ${stats.new} new NOTAMs for ${icao}`);
-        setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
-        
-        const historyEntry = {
-          id: Date.now(),
-          icao: icao,
-          timestamp: new Date().toISOString(),
-          count: newNotamsList.length,
-          notams: newNotamsList.map(n => ({ number: n.number, summary: n.summary.substring(0, 100) + '...' }))
-        };
-        setNotamHistory(prevHistory => [historyEntry, ...prevHistory]);
-      }
-
-      console.log(`✅ Successfully updated ${icao}: ${stats.total} NOTAMs (${stats.new} new, ${stats.expired} expired)`);
-      
-      // IMPORTANT: Determine if we should fetch FIR based on source and data count
-      const source = notamsWithIcao[0]?.source || 'UNKNOWN';
-      const hasFaaData = source === 'FAA' && notamsWithIcao.length > 0;
-      const isNavCanadaFallback = source === 'NAV CANADA'; // This means FAA returned 0
-      
-      if (hasFaaData) {
-        // FAA returned at least 1 NOTAM - fetch FIR
-        console.log(`✅ FAA returned ${notamsWithIcao.length} NOTAMs for ${icao}, will fetch FIR`);
-        
-        // Extract FIR and fetch FIR NOTAMs
-        const firCode = getFIRForICAO(icao, notamsWithIcao);
-        if (firCode) {
-          console.log(`🔍 Detected FIR ${firCode} for ${icao}, fetching FIR NOTAMs...`);
-          // Fetch FIR NOTAMs in parallel (non-blocking)
-          fetchFIRNotams(firCode, icao).catch(err => {
-            console.error(`Failed to fetch FIR ${firCode}:`, err);
-          });
-        } else {
-          console.log(`⚠️ Could not determine FIR for ${icao}`);
-        }
-      } else if (isNavCanadaFallback) {
-        // NAV CANADA data (FAA returned 0) - NO FIR fetch needed
-        console.log(`🍁 Using NAV CANADA data for ${icao} (FAA returned 0). NAV CANADA already includes FIR NOTAMs, skipping FIR fetch.`);
-      }
-
-      return { 
+      setNotamDataStore(prev => ({ 
         ...prev, 
         [icao]: { 
-          data: notamsWithIcao, 
+          ...prev[icao], 
           loading: false, 
-          error: null,
-          lastUpdated: Date.now(),
-          stats: stats,
-          source: source // Track the source
+          error: err.message,
+          lastError: Date.now()
         } 
-      };
-    });
-    
-  } catch (err) {
-    console.error(`❌ Error fetching NOTAMs for ${icao}:`, err.message);
-    
-    setNotamDataStore(prev => ({ 
-      ...prev, 
-      [icao]: { 
-        ...prev[icao], 
-        loading: false, 
-        error: err.message,
-        lastError: Date.now()
-      } 
-    }));
-  } finally {
-    setCurrentlyFetching(null);
-  }
-}, [smartNotamMerge, fetchFIRNotams]);
+      }));
+    }
+  }, [smartNotamMerge]);
+
   // Clear new status when user views NOTAMs
   const markNotamsAsViewed = useCallback((icao) => {
     setNotamDataStore(prev => {
@@ -649,14 +530,9 @@ const fetchNotams = useCallback(async (icao) => {
     if (currentIcaos.length > 0) {
       console.log(`🔄 Auto-refresh triggered for all ICAOs: ${currentIcaos.join(', ')}`);
       
-      // Clear FIR cache to force refresh
-      setFirDataStore({});
-      setFirFetchStatus({});
-      
       setFetchQueue(prevQueue => {
         const newQueue = [...new Set([...prevQueue, ...currentIcaos])];
         console.log(`📋 Queue updated: ${newQueue.join(', ')}`);
-        setFetchProgress({ current: 0, total: newQueue.length });
         return newQueue;
       });
     } else {
@@ -687,8 +563,6 @@ const fetchNotams = useCallback(async (icao) => {
         if (currentQueue.length === 0) {
           console.log('✅ Queue empty, processing complete');
           isProcessingQueue.current = false;
-          setCurrentlyFetching(null);
-          setFetchProgress({ current: 0, total: 0 });
           return currentQueue;
         }
 
@@ -700,11 +574,6 @@ const fetchNotams = useCallback(async (icao) => {
         const icaoToFetch = currentQueue[0];
         
         console.log(`🔄 Processing queue item: ${icaoToFetch} (${currentQueue.length - 1} remaining)`);
-        
-        // Update progress
-        const totalItems = fetchProgress.total || currentQueue.length;
-        const currentItem = totalItems - currentQueue.length + 1;
-        setFetchProgress({ current: currentItem, total: totalItems });
         
         fetchNotams(icaoToFetch).finally(() => {
           queueTimerRef.current = setTimeout(() => {
@@ -754,7 +623,6 @@ const fetchNotams = useCallback(async (icao) => {
     if (savedIcaos.length > 0) {
       console.log(`🔄 Initial fetch for saved ICAOs: ${savedIcaos.join(', ')}`);
       setFetchQueue(prev => [...new Set([...prev, ...savedIcaos])]);
-      setFetchProgress({ current: 0, total: savedIcaos.length });
     }
 
     return () => {
@@ -794,7 +662,6 @@ const fetchNotams = useCallback(async (icao) => {
       setIcaos(updatedIcaos);
       setActiveTab(uniqueNewIcaos[0]);
       setFetchQueue(prev => [...new Set([...prev, ...uniqueNewIcaos])]);
-      setFetchProgress({ current: 0, total: uniqueNewIcaos.length });
       icaoInputRef.current.classList.add('success-flash');
       setTimeout(() => { if (icaoInputRef.current) { icaoInputRef.current.classList.remove('success-flash'); } }, 500);
     }
@@ -916,15 +783,18 @@ const fetchNotams = useCallback(async (icao) => {
   };
 
   const Tab = ({ id, label, onRemove }) => {
+    const isLoading = notamDataStore[id]?.loading;
     const hasNew = newNotamIcaos.has(id);
     return (
       <div className={`icao-tab ${activeTab === id ? 'active' : ''} ${hasNew ? 'has-new-notams' : ''}`} onClick={() => handleTabClick(id)}>
         <span>{label}</span>
-        {onRemove && (
+        {isLoading ? <span className="loading-spinner tab-spinner"></span> :
           <div className="tab-actions">
-            <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn" title={`Remove ${id}`}>×</button>
+            {onRemove && (
+              <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn" title={`Remove ${id}`}>×</button>
+            )}
           </div>
-        )}
+        }
       </div>
     );
   };
@@ -937,42 +807,38 @@ const fetchNotams = useCallback(async (icao) => {
         onHistoryClick={() => setIsHistoryModalOpen(true)}
         activeTab={activeTab}
         autoRefreshAll={handleRefreshAll}
-        currentlyFetching={currentlyFetching}
-        fetchProgress={fetchProgress}
       />
       
       <div className="glass icao-input-container">
-        <div className="control-row">
+        <div className="top-controls">
           <div className="icao-input-wrapper">
-            <input ref={icaoInputRef} placeholder="ICAO codes (e.g., CYYT, KJFK)" className="icao-input" onKeyPress={handleIcaoInputKeyPress} disabled={isAdding} />
+            <input ref={icaoInputRef} placeholder="ICAO codes (e.g., CYYT, KJFK)" className="icao-input compact" onKeyPress={handleIcaoInputKeyPress} disabled={isAdding} />
             <button onClick={handleAddIcao} className={`add-button ${isAdding ? 'loading' : ''}`} disabled={isAdding}>
               {isAdding ? (<><span className="loading-spinner"></span>Adding...</>) : 'Add ICAO'}
             </button>
           </div>
-          <div className="view-controls">
-            <button className="view-control-btn" onClick={() => setIsFilterModalOpen(true)}>
-              <span className="btn-icon">🎯</span><span>Filter</span>
-              {activeFilterCount > 0 && (<span className="btn-badge">{activeFilterCount}</span>)}
+          <div className="filter-controls">
+            <button className="filter-toggle-btn" onClick={() => setIsFilterModalOpen(true)}>
+              <span className="filter-icon">🎯</span><span className="filter-text">FILTER</span>
+              {activeFilterCount > 0 && (<span className="filter-badge">{activeFilterCount}</span>)}
             </button>
-            <button className="view-control-btn" onClick={() => setIsHighlightModalOpen(true)} style={{background: keywordHighlightEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : ''}}>
-              <span className="btn-icon">💡</span><span>Highlight</span>
-              {keywordHighlightEnabled && (<span className="btn-badge">ON</span>)}
+            <button className="filter-toggle-btn" onClick={() => setIsHighlightModalOpen(true)} style={{background: keywordHighlightEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'}}>
+              <span className="filter-icon">💡</span><span className="filter-text">HIGHLIGHT</span>
+              {keywordHighlightEnabled && (<span className="filter-badge">ON</span>)}
             </button>
-            <button className="view-control-btn" onClick={() => setIsSortModalOpen(true)} disabled={icaos.length === 0}>
-              <span className="btn-icon">↕️</span><span>Sort</span>
+            <button className="filter-toggle-btn" onClick={() => setIsSortModalOpen(true)} disabled={icaos.length === 0}>
+              <span className="filter-icon">↕️</span><span className="filter-text">SORT</span>
             </button>
           </div>
         </div>
-        <div className="control-row">
+        <div className="bottom-controls">
           <div className="search-input-wrapper">
             <span className="search-icon">🔍</span>
             <input type="text" placeholder="Filter current results by keyword..." className="search-input" value={keywordFilter} onChange={(e) => setKeywordFilter(e.target.value)} />
             {keywordFilter && (<button className="clear-search-btn" onClick={() => setKeywordFilter('')} title="Clear search">✕</button>)}
           </div>
-          <div className="secondary-controls">
-            <CardSizerControl />
-            {hasActiveFilters && (<button className="quick-clear-btn" onClick={clearAllFilters}>Clear Filters</button>)}
-          </div>
+          <CardSizerControl />
+          {hasActiveFilters && (<button className="quick-clear-btn" onClick={clearAllFilters}>Clear All Filters</button>)}
         </div>
       </div>
       
@@ -981,8 +847,9 @@ const fetchNotams = useCallback(async (icao) => {
           <Tab id="ALL" label={`ALL (${icaos.length})`} />
           {icaos.map(icao => {
             const count = notamDataStore[icao]?.data?.length || 0;
+            const isLoading = notamDataStore[icao]?.loading;
             return (
-              <Tab key={icao} id={icao} label={`${icao} (${count})`} onRemove={handleRemoveIcao} />
+              <Tab key={icao} id={icao} label={isLoading ? `${icao}` : `${icao} (${count})`} onRemove={handleRemoveIcao} />
             );
           })}
         </div>
@@ -995,8 +862,7 @@ const fetchNotams = useCallback(async (icao) => {
           onClearFilters={clearAllFilters} 
           filterOrder={filterOrder} 
           keywordHighlightEnabled={keywordHighlightEnabled} 
-          keywordCategories={keywordCategories}
-          firDataStore={firDataStore}
+          keywordCategories={keywordCategories} 
         />
       </div>
 
@@ -1036,7 +902,7 @@ const fetchNotams = useCallback(async (icao) => {
   );
 };
 
-const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab, autoRefreshAll, currentlyFetching, fetchProgress }) => {
+const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab, autoRefreshAll }) => {
   const [utcTime, setUtcTime] = useState('');
   const [mounted, setMounted] = useState(false);
   
@@ -1059,49 +925,23 @@ const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab,
     ? 'Fetch latest NOTAMs for all airports' 
     : `Fetch latest NOTAMs for ${activeTab}`;
 
-  const progressPercentage = fetchProgress.total > 0 
-    ? (fetchProgress.current / fetchProgress.total) * 100 
-    : 0;
-
   return (
     <header className={`modern-header ${mounted ? 'mounted' : ''}`}>
       <h1>NOTAM Console</h1>
       <div className="header-meta">
-        <div className="header-primary-actions">
-          <button onClick={onRefresh} className="primary-action-btn" title={buttonTitle}>
-            <span className="btn-icon">🔄</span>
+        <button onClick={onHistoryClick} className="refresh-all-btn" title="View New NOTAM History">
+          History
+        </button>
+        <div className="global-refresh" title={`Next auto-refresh in ${minutes}:${seconds}`}>
+          <button onClick={onRefresh} className="refresh-all-btn" title={buttonTitle}>
             {buttonText}
           </button>
-          <div className="refresh-timer" onClick={autoRefreshAll} title="Click to refresh all now">
-            <span className="timer-label">Next in</span>
-            <span className="timer-value">{minutes}:{seconds}</span>
-          </div>
+          <span className="global-countdown" onClick={autoRefreshAll} title="Click to refresh all now">{minutes}:{seconds}</span>
         </div>
-        
-        <div className="header-secondary-actions">
-          <button onClick={onHistoryClick} className="secondary-action-btn" title="View NOTAM History">
-            <span className="btn-icon">📜</span>
-            <span>History</span>
-          </button>
-          <span className="utc-time">{utcTime}</span>
-        </div>
+        <p className="utc-time">{utcTime}</p>
       </div>
-      
-      {/* Progress bar */}
-      {currentlyFetching && (
-        <div className="fetch-progress-bar">
-          <div className="fetch-progress-track">
-            <div 
-              className="fetch-progress-fill" 
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-          <span className="fetch-progress-text">
-            {currentlyFetching} {fetchProgress.total > 0 && `(${fetchProgress.current}/${fetchProgress.total})`}
-          </span>
-        </div>
-      )}
     </header>
   );
 };
+
 export default App;

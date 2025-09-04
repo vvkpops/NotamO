@@ -1,4 +1,4 @@
-/* Enhanced ICAO Sorting Modal Styles */
+/* ICAO Sorting Modal Styles */
 
 .icao-sort-backdrop {
   position: fixed;
@@ -43,7 +43,7 @@
   from { 
     transform: translateY(50px) scale(0.9); 
     opacity: 0; 
-    }
+  }
   to { 
     transform: translateY(0) scale(1); 
     opacity: 1; 
@@ -105,11 +105,14 @@
 }
 
 .icao-sort-close {
-  /* Use unified button system */
-  @extend .btn;
-  @extend .btn-ghost;
-  @extend .btn-icon-only;
+  background: none;
+  border: none;
+  color: var(--text-muted);
   font-size: 1.8rem;
+  cursor: pointer;
+  padding: 0.75rem;
+  border-radius: 12px;
+  transition: all 0.2s ease;
   line-height: 1;
 }
 
@@ -174,7 +177,6 @@
   backdrop-filter: blur(10px);
   position: relative;
   user-select: none;
-  min-height: 60px;
 }
 
 .icao-sort-item:hover {
@@ -215,9 +217,6 @@
   transition: all 0.2s ease;
   padding: 0.5rem;
   border-radius: 8px;
-  min-width: 44px;
-  display: grid;
-  place-items: center;
 }
 
 .icao-sort-item:hover .icao-drag-handle {
@@ -264,9 +263,6 @@
   font-size: 1.5rem;
   opacity: 0.6;
   transition: all 0.2s ease;
-  min-width: 44px;
-  display: grid;
-  place-items: center;
 }
 
 .icao-sort-item:hover .icao-drag-indicator {
@@ -295,12 +291,13 @@
 .icao-sort-reset,
 .icao-sort-cancel,
 .icao-sort-save {
-  /* Use unified button system */
-  @extend .btn;
   padding: 1rem 2rem;
   border-radius: 12px;
   font-weight: 600;
   font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
   white-space: nowrap;
   display: flex;
   align-items: center;
@@ -308,15 +305,31 @@
 }
 
 .icao-sort-reset {
-  @extend .btn-ghost;
+  background: rgba(107, 114, 128, 0.2);
+  color: var(--text-secondary);
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+.icao-sort-reset:hover {
+  background: rgba(107, 114, 128, 0.3);
+  color: var(--text-primary);
+  transform: translateY(-1px);
 }
 
 .icao-sort-cancel {
-  @extend .btn-secondary;
+  background: rgba(75, 85, 99, 0.3);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+}
+
+.icao-sort-cancel:hover {
+  background: rgba(75, 85, 99, 0.5);
+  color: var(--text-primary);
 }
 
 .icao-sort-save {
-  @extend .btn-primary;
+  background: var(--gradient-accent);
+  color: white;
   position: relative;
   overflow: hidden;
 }
@@ -334,6 +347,11 @@
 
 .icao-sort-save:hover::before {
   left: 100%;
+}
+
+.icao-sort-save:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 212, 255, 0.4);
 }
 
 /* Mobile Responsive */
@@ -388,22 +406,14 @@
 @media (hover: none) and (pointer: coarse) {
   .icao-sort-item {
     padding: 1.5rem;
-    min-height: 72px;
   }
   
   .icao-drag-handle {
     padding: 1rem;
-    min-width: 52px;
-    min-height: 52px;
   }
   
   .drag-dots {
     font-size: 1.5rem;
-  }
-  
-  .icao-drag-indicator {
-    min-width: 52px;
-    min-height: 52px;
   }
 }
 
@@ -432,12 +442,5 @@
     border: 3px solid var(--accent-green) !important;
     background: var(--accent-green) !important;
     color: black !important;
-  }
-}
-
-/* Print styles */
-@media print {
-  .icao-sort-modal {
-    display: none !important;
   }
 }

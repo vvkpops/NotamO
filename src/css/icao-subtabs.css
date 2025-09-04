@@ -1,155 +1,153 @@
-/* ICAO Sub-tabs for Aerodrome/FIR switching */
+/* ICAO Subtabs Styling */
+
+.icao-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
 
 .icao-subtabs {
   display: flex;
-  gap: 0.75rem;
-  padding: 1rem 2rem;
-  background: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid var(--border-primary);
-  margin: 0 -2.5rem;
-  margin-bottom: 1.5rem;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(17, 24, 39, 0.6);
+  border-radius: 14px;
+  border: 1px solid var(--border-primary);
   backdrop-filter: blur(10px);
 }
 
 .icao-subtab {
-  position: relative;
   padding: 0.75rem 1.5rem;
-  border-radius: 12px 12px 0 0;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: rgba(17, 24, 39, 0.4);
+  background: rgba(30, 41, 59, 0.4);
   border: 1px solid var(--border-primary);
-  border-bottom: none;
+  border-radius: 10px;
   color: var(--text-secondary);
   font-weight: 600;
   font-size: 0.95rem;
-  backdrop-filter: blur(10px);
+  cursor: pointer;
+  transition: all 0.3s ease;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-height: 44px;
-  letter-spacing: 0.025em;
-}
-
-.icao-subtab::before {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: transparent;
-  transition: background 0.3s ease;
+  font-family: 'Inter', sans-serif;
 }
 
 .icao-subtab:hover:not(.active) {
-  background: rgba(30, 41, 59, 0.5);
-  color: var(--text-primary);
-  transform: translateY(-2px);
+  background: rgba(30, 41, 59, 0.6);
+  border-color: var(--accent-blue);
+  transform: translateY(-1px);
 }
 
 .icao-subtab.active {
-  background: rgba(0, 212, 255, 0.1);
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-  z-index: 2;
+  background: var(--gradient-accent);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+  transform: translateY(-1px);
 }
 
-.icao-subtab.active::before {
-  background: var(--accent-blue);
-  box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+.subtab-count {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  min-width: 2rem;
+  text-align: center;
 }
 
-.subtab-icon {
-  font-size: 1.1rem;
-  opacity: 0.9;
+.icao-subtab.active .subtab-count {
+  background: rgba(255, 255, 255, 0.3);
 }
 
-.icao-subtab.active .subtab-icon {
-  opacity: 1;
+.subtab-content {
+  min-height: 400px;
+  position: relative;
 }
 
-/* Loading spinner for FIR tab */
-.fir-loading-spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  margin-left: 0.5rem;
-  border: 2px solid transparent;
-  border-top-color: var(--accent-blue);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+/* FIR indicator in cards */
+.notam-card.fir-notam {
+  border-left: 3px solid var(--accent-blue);
 }
 
-/* Responsive design */
+.fir-badge {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  background: var(--gradient-accent);
+  color: white;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  z-index: 10;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
   .icao-subtabs {
-    padding: 0.75rem 1.5rem;
-    gap: 0.5rem;
-    margin: 0 -1.5rem;
-    overflow-x: auto;
-    scrollbar-width: thin;
+    flex-direction: column;
+    gap: 0.75rem;
   }
   
   .icao-subtab {
-    padding: 0.6rem 1.25rem;
-    font-size: 0.9rem;
-    white-space: nowrap;
+    width: 100%;
+    justify-content: center;
   }
   
-  .subtab-icon {
-    font-size: 1rem;
+  .icao-tab-panel {
+    padding: 1rem;
   }
 }
+/* Add this to the existing icao-subtabs.css file */
 
-/* Animation for tab switching */
-.notam-results {
-  animation: fadeIn 0.3s ease;
+/* FIR tab new NOTAM indicator */
+.icao-subtab.has-new-fir {
+  position: relative;
+  border-color: var(--accent-green);
+  background: rgba(16, 185, 129, 0.1);
+  animation: newFirGlow 2s ease-in-out infinite alternate;
 }
 
-@keyframes fadeIn {
+.icao-subtab.has-new-fir:not(.active) {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.new-fir-indicator {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  background: radial-gradient(circle, #10b981 0%, #059669 100%);
+  border-radius: 50%;
+  border: 2px solid var(--primary-bg);
+  animation: newNotamDot 1.5s ease-in-out infinite;
+  z-index: 5;
+}
+
+@keyframes newFirGlow {
   from {
-    opacity: 0;
-    transform: translateY(10px);
+    border-color: var(--accent-green);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
   }
   to {
-    opacity: 1;
-    transform: translateY(0);
+    border-color: rgba(16, 185, 129, 0.8);
+    box-shadow: 0 0 25px rgba(16, 185, 129, 0.5);
   }
 }
 
-/* Enhanced active state with glow */
-.icao-subtab.active {
-  box-shadow: 
-    0 -5px 15px rgba(0, 212, 255, 0.2),
-    inset 0 1px 0 rgba(0, 212, 255, 0.3);
+/* Clear indicator when active */
+.icao-subtab.has-new-fir.active {
+  animation: none;
+  background: var(--gradient-accent);
+  border-color: transparent;
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
 }
 
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  .icao-subtab {
-    border: 2px solid var(--border-primary);
-  }
-  
-  .icao-subtab.active {
-    border-color: var(--accent-blue);
-    background: var(--accent-blue);
-    color: black;
-  }
-}
-
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .icao-subtab {
-    transition: none;
-  }
-  
-  .notam-results {
-    animation: none;
-  }
-  
-  .fir-loading-spinner {
-    animation: none;
-    border: 2px solid var(--accent-blue);
-  }
+.icao-subtab.has-new-fir.active .new-fir-indicator {
+  display: none;
 }

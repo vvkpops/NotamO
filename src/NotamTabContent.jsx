@@ -253,8 +253,7 @@ const NotamTabContent = ({
   onClearFilters, 
   filterOrder,
   keywordHighlightEnabled = false,
-  keywordCategories = {},
-  firDataStore = {} // Add this prop
+  keywordCategories = {}
 }) => {
   // For ALL tab, keep existing behavior (aerodrome only)
   if (icao === 'ALL') {
@@ -310,7 +309,7 @@ const NotamTabContent = ({
     );
   }
 
-  // For individual ICAO tabs, use the panel with FIR support
+  // For individual ICAO tabs, use the new panel with FIR support
   return (
     <ICAOTabPanel
       icao={icao}
@@ -319,7 +318,6 @@ const NotamTabContent = ({
       error={error}
       keywordHighlightEnabled={keywordHighlightEnabled}
       keywordCategories={keywordCategories}
-      firDataStore={firDataStore}
     />
   );
 };
