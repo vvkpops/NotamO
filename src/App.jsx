@@ -942,35 +942,37 @@ const fetchNotams = useCallback(async (icao) => {
       />
       
       <div className="glass icao-input-container">
-        <div className="top-controls">
+        <div className="control-row">
           <div className="icao-input-wrapper">
-            <input ref={icaoInputRef} placeholder="ICAO codes (e.g., CYYT, KJFK)" className="icao-input compact" onKeyPress={handleIcaoInputKeyPress} disabled={isAdding} />
+            <input ref={icaoInputRef} placeholder="ICAO codes (e.g., CYYT, KJFK)" className="icao-input" onKeyPress={handleIcaoInputKeyPress} disabled={isAdding} />
             <button onClick={handleAddIcao} className={`add-button ${isAdding ? 'loading' : ''}`} disabled={isAdding}>
               {isAdding ? (<><span className="loading-spinner"></span>Adding...</>) : 'Add ICAO'}
             </button>
           </div>
-          <div className="filter-controls">
-            <button className="filter-toggle-btn" onClick={() => setIsFilterModalOpen(true)}>
-              <span className="filter-icon">🎯</span><span className="filter-text">FILTER</span>
-              {activeFilterCount > 0 && (<span className="filter-badge">{activeFilterCount}</span>)}
+          <div className="view-controls">
+            <button className="view-control-btn" onClick={() => setIsFilterModalOpen(true)}>
+              <span className="btn-icon">🎯</span><span>Filter</span>
+              {activeFilterCount > 0 && (<span className="btn-badge">{activeFilterCount}</span>)}
             </button>
-            <button className="filter-toggle-btn" onClick={() => setIsHighlightModalOpen(true)} style={{background: keywordHighlightEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'}}>
-              <span className="filter-icon">💡</span><span className="filter-text">HIGHLIGHT</span>
-              {keywordHighlightEnabled && (<span className="filter-badge">ON</span>)}
+            <button className="view-control-btn" onClick={() => setIsHighlightModalOpen(true)} style={{background: keywordHighlightEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : ''}}>
+              <span className="btn-icon">💡</span><span>Highlight</span>
+              {keywordHighlightEnabled && (<span className="btn-badge">ON</span>)}
             </button>
-            <button className="filter-toggle-btn" onClick={() => setIsSortModalOpen(true)} disabled={icaos.length === 0}>
-              <span className="filter-icon">↕️</span><span className="filter-text">SORT</span>
+            <button className="view-control-btn" onClick={() => setIsSortModalOpen(true)} disabled={icaos.length === 0}>
+              <span className="btn-icon">↕️</span><span>Sort</span>
             </button>
           </div>
         </div>
-        <div className="bottom-controls">
+        <div className="control-row">
           <div className="search-input-wrapper">
             <span className="search-icon">🔍</span>
             <input type="text" placeholder="Filter current results by keyword..." className="search-input" value={keywordFilter} onChange={(e) => setKeywordFilter(e.target.value)} />
             {keywordFilter && (<button className="clear-search-btn" onClick={() => setKeywordFilter('')} title="Clear search">✕</button>)}
           </div>
-          <CardSizerControl />
-          {hasActiveFilters && (<button className="quick-clear-btn" onClick={clearAllFilters}>Clear All Filters</button>)}
+          <div className="secondary-controls">
+            <CardSizerControl />
+            {hasActiveFilters && (<button className="quick-clear-btn" onClick={clearAllFilters}>Clear Filters</button>)}
+          </div>
         </div>
       </div>
       

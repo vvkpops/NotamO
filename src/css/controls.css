@@ -4,27 +4,17 @@
 .icao-input-container {
   display: flex;
   flex-direction: column;
-  gap: var(--element-spacing);
+  gap: 1.5rem; /* Adjusted gap between rows */
   margin-bottom: var(--section-spacing);
   padding: 2rem;
 }
 
-.top-controls {
+.control-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--element-spacing);
-  flex-wrap: wrap;
-}
-
-.bottom-controls {
-  display: flex;
   align-items: center;
   gap: var(--element-spacing);
   flex-wrap: wrap;
-  margin-top: 0.75rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .icao-input-wrapper {
@@ -36,7 +26,14 @@
   max-width: 600px;
 }
 
-.filter-controls {
+.view-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.secondary-controls {
   display: flex;
   gap: 1rem;
   align-items: center;
@@ -58,10 +55,6 @@
   text-transform: uppercase;
   transition: all 0.3s ease;
   outline: none;
-}
-
-.icao-input.compact {
-  max-width: 450px;
 }
 
 .icao-input:focus {
@@ -135,7 +128,52 @@
   animation: spin 1s linear infinite;
 }
 
-/* Enhanced ICAO tabs with improved new NOTAM indicators */
+/* Redesigned View Control Buttons (Filter, Highlight, Sort) */
+.view-control-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  white-space: nowrap;
+}
+
+.view-control-btn:hover:not(:disabled) {
+  background: rgba(55, 65, 81, 0.8);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.view-control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.view-control-btn .btn-icon {
+  font-size: 1.1rem;
+}
+
+.view-control-btn .btn-badge {
+  background: var(--accent-blue);
+  color: var(--primary-bg);
+  border-radius: 10px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  min-width: 1.5rem;
+  text-align: center;
+}
+
+/* Enhanced ICAO tabs */
 .icao-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -328,78 +366,12 @@
   }
 }
 
-/* Enhanced Filter System */
-.filter-toggle-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem 1.75rem;
-  background: var(--gradient-accent);
-  border: none;
-  border-radius: 14px;
-  color: white;
-  font-weight: 600;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
-  position: relative;
-  overflow: hidden;
-  min-width: 160px;
-  white-space: nowrap;
-}
-
-.filter-toggle-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.filter-toggle-btn:hover::before {
-  left: 100%;
-}
-
-.filter-toggle-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 212, 255, 0.4);
-}
-
-.filter-icon {
-  font-size: 1.2rem;
-}
-
-.filter-text {
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.05em;
-}
-
-.filter-badge {
-  background: rgba(255, 255, 255, 0.3);
-  color: white;
-  border-radius: 12px;
-  padding: 0.25rem 0.6rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  min-width: 1.8rem;
-  text-align: center;
-  animation: pulse-badge 2s ease-in-out infinite;
-}
-
-@keyframes pulse-badge {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
+/* Quick Clear Filters Button */
 .quick-clear-btn {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
   color: var(--accent-red);
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1.5rem;
   border-radius: 12px;
   font-size: 0.95rem;
   font-weight: 600;
@@ -543,31 +515,39 @@
 }
 
 /* Enhanced filter toggle button for highlight feature */
-.filter-toggle-btn.highlight-enabled {
+.view-control-btn.highlight-enabled {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    color: white;
+    border-color: rgba(16, 185, 129, 0.5);
 }
   
-.filter-toggle-btn.highlight-disabled {
+.view-control-btn.highlight-disabled {
     background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+    color: white;
+    border-color: rgba(107, 114, 128, 0.5);
 }
 
 /* Responsive design */
-@media (max-width: 768px) {
-  .icao-input-wrapper {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .top-controls {
+@media (max-width: 1024px) {
+  .control-row {
     flex-direction: column;
     align-items: stretch;
     gap: 1.25rem;
   }
-
-  .filter-controls {
+  .icao-input-wrapper {
+    width: 100%;
+  }
+  .view-controls {
+    width: 100%;
     justify-content: center;
   }
-  
+  .secondary-controls {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
   .icao-input {
     min-width: 100%;
   }
@@ -598,7 +578,7 @@
 @media (prefers-reduced-motion: reduce) {
   .icao-tab,
   .add-button,
-  .filter-toggle-btn,
+  .view-control-btn,
   .loading-spinner,
   .tab-spinner {
     transition: none;
@@ -618,7 +598,7 @@
 }
 
 /* Focus states for accessibility */
-.filter-toggle-btn:focus-visible,
+.view-control-btn:focus-visible,
 .add-button:focus-visible,
 .icao-tab:focus-visible {
   outline: 2px solid var(--accent-blue);
@@ -858,10 +838,6 @@
 @media (max-width: 576px) {
   .card-sizer-control {
     display: none; /* Hide on mobile */
-  }
-  
-  .bottom-controls {
-    justify-content: center;
   }
 }
 
