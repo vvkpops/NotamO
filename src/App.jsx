@@ -306,18 +306,43 @@ const App = () => {
     setFetchQueue(prev => [...prev, icaoToRefresh]);
   }, [fetchQueue]);
 
-  // fetchNotams with smart incremental updates
-  const fetchNotams = useCallback(async (icao) => {
-    console.log(`🚀 Fetching NOTAMs for ${icao}`);
+  // fetchNotams with smart incremental updates and server-side filtering
+  const fetchNotams = useCallback(async (icao, currentFilters) => {
+    console.log(`🚀 Fetching NOTAMs for ${icao} with filters:`, currentFilters);
     
-    // Set loading state but preserve existing data
     setNotamDataStore(prev => ({ 
       ...prev, 
       [icao]: { ...prev[icao], loading: true, error: null } 
     }));
     
     try {
-      const response = await fetch(`/api/notams?icao=${icao}`);
+      const params = new URLSearchParams({ icao });
+
+      // Map frontend filters to backend API parameters
+      const filterMap = {
+          dom: { classification: 'DOM' },
+          cancelled: { notamType: 'C' },
+          rwy: { featureType: 'RWY' },
+          twy: { featureType: 'TWY' },
+          ils: { featureType: 'NAV' }, // Using NAV for ILS/Nav aids
+          fuel: { featureType: 'SVC' }  // Using SVC for Fuel services
+      };
+      
+      // Since we can only send one value per parameter, we'll pick the first active one.
+      // A more advanced implementation might send multiple requests.
+      let filterApplied = false;
+      for (const key in filterMap) {
+          if (currentFilters[key] && !filterApplied) {
+              const apiParams = filterMap[key];
+              for (const paramKey in apiParams) {
+                  params.append(paramKey, apiParams[paramKey]);
+                  console.log(`  -> Applying server-side filter: ${paramKey}=${apiParams[paramKey]}`);
+                  filterApplied = true; // Apply only one main filter for simplicity
+              }
+          }
+      }
+
+      const response = await fetch(`/api/notams?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -333,13 +358,10 @@ const App = () => {
         const oldData = prev[icao]?.data || [];
         const isInitialFetch = oldData.length === 0 && !prev[icao]?.lastUpdated;
         
-        // Use smart incremental merge
         const { processedData, hasNewNotams, newNotamsList, stats } = smartNotamMerge(oldData, data, isInitialFetch);
         
-        // Add ICAO to each NOTAM for consistency
         const notamsWithIcao = processedData.map(n => ({ ...n, icao }));
 
-        // Update new NOTAM indicators and history if there are new NOTAMs
         if (hasNewNotams) {
           console.log(`🆕 Found ${stats.new} new NOTAMs for ${icao}`);
           setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
@@ -456,7 +478,8 @@ const App = () => {
         
         console.log(`🔄 Processing queue item: ${icaoToFetch} (${currentQueue.length - 1} remaining)`);
         
-        fetchNotams(icaoToFetch).finally(() => {
+        // Pass current filters to fetchNotams
+        fetchNotams(icaoToFetch, filters).finally(() => {
           queueTimerRef.current = setTimeout(() => {
             isProcessingQueue.current = false;
             processQueueRef.current();
@@ -762,7 +785,7 @@ const App = () => {
             );
           })}
         </div>
-        <NotamTabContent icao={activeTab} notams={filteredNotams} loading={activeNotamData.loading} error={activeNotamData.error} hasActiveFilters={hasActiveFilters} onClearFilters={clearAllFilters} filterOrder={filterOrder} keywordHighlightEnabled={keywordHighlightEnabled} keywordCategories={keywordCategories} />
+        <NotamTabContent icao={activeTab} notams={filteredNotams} loading={activeNotamData.loading} error={activeNotamData.error} hasActiveFilters={hasActiveFilters} onClearFilters={onClearFilters} filterOrder={filterOrder} keywordHighlightEnabled={keywordHighlightEnabled} keywordCategories={keywordCategories} />
       </div>
 
       <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} filters={filters} onFilterChange={handleFilterChange} typeCounts={typeCounts} onClearAll={clearAllFilters} filterOrder={filterOrder} setFilterOrder={setFilterOrder} dragState={dragState} setDragState={setDragState} />
