@@ -1,17 +1,15 @@
 import axios from 'axios';
 import { parseRawNotam } from './parser.js';
-import { getHeadClass, getHeadTitle, extractRunways, getNotamType, isNotamCurrent, isNotamFuture } from '../src/NotamUtils';
+// Correctly import from the new shared utilities file within the /api directory
+import { getHeadClass, getHeadTitle, extractRunways, getTimeStatus } from './notam-shared-utils.js';
 
 // Environment variables for security
 const CLIENT_ID = process.env.FAA_CLIENT_ID;
 const CLIENT_SECRET = process.env.FAA_CLIENT_SECRET;
 
 // Allow requests from any origin.
-// For production, you might want to restrict this to specific domains.
-// e.g., const ALLOWED_ORIGINS = ['http://localhost:3000', 'https://my-other-app.com'];
 const ALLOWED_ORIGIN = '*';
 
-// TIMEZONE_OFFSETS and parseNotamDate remain the same as in notams.js
 const TIMEZONE_OFFSETS = {
     'EST': -5, 'CST': -6, 'MST': -7, 'PST': -8, 'AST': -4, 'NST': -3.5, 'AKST': -9, 'HST': -10,
     'EDT': -4, 'CDT': -5, 'MDT': -6, 'PDT': -7, 'ADT': -3, 'NDT': -2.5, 'AKDT': -8,
@@ -108,22 +106,7 @@ const formatDisplayDate = (rawDate, fallbackDate) => {
     }
 };
 
-const getTimeStatus = (notam) => {
-    const now = new Date();
-    if (notam.validTo === 'PERMANENT' || notam.validTo === 'PERM') {
-        const validFrom = new Date(notam.validFrom);
-        return validFrom > now ? 'future' : 'active';
-    }
-    const validFrom = new Date(notam.validFrom);
-    const validTo = new Date(notam.validTo);
-    if (isNaN(validFrom.getTime())) return 'active'; // Assume active if start date is invalid
-    if (validFrom > now) return 'future';
-    if (validTo < now) return 'expired';
-    return 'active';
-};
-
 export default async function handler(request, response) {
-    // Set CORS headers to allow requests from other domains
     response.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
     response.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -148,6 +131,7 @@ export default async function handler(request, response) {
                 const core = item.properties?.coreNOTAMData?.notam || {};
                 const formattedIcaoText = item.properties?.coreNOTAMData?.notamTranslation?.[0]?.formattedText;
                 const originalRawText = formattedIcaoText || core.text || 'Full NOTAM text not available from source.';
+                const parsed = parseRawNotam(originalRawText);
                 return {
                     id: core.id || `${core.number}-${core.icaoLocation}`,
                     number: core.number || 'N/A',
@@ -157,6 +141,8 @@ export default async function handler(request, response) {
                     icao: core.icaoLocation || icao,
                     summary: originalRawText,
                     rawText: originalRawText,
+                    isCancellation: parsed?.isCancellation || false,
+                    cancels: parsed?.cancelsNotam || null,
                 };
             });
         } catch (e) {
@@ -187,6 +173,8 @@ export default async function handler(request, response) {
                         icao: parsed?.aerodrome?.split(' ')[0] || icao,
                         summary: originalRawText,
                         rawText: originalRawText,
+                        isCancellation: parsed?.isCancellation || false,
+                        cancels: parsed?.cancelsNotam || null,
                     };
                 });
             } catch (e) {
@@ -194,17 +182,13 @@ export default async function handler(request, response) {
             }
         }
         
-        // Process all NOTAMs to add card data
         const finalNotams = notamsFromSource.map(notam => {
             const parsed = parseRawNotam(notam.rawText);
-            const isCancellation = parsed?.isCancellation || false;
-            const cancels = parsed?.cancelsNotam || null;
             const icaoFormattedText = formatNotamToIcao(notam, notam.rawText);
             
-            // Generate card-specific data
             const cardData = {
-                headClass: getHeadClass({ ...notam, isCancellation }),
-                headTitle: getHeadTitle({ ...notam, isCancellation }),
+                headClass: getHeadClass(notam),
+                headTitle: getHeadTitle(notam),
                 runways: extractRunways(icaoFormattedText),
                 timeStatus: getTimeStatus(notam),
                 displayValidFrom: formatDisplayDate(parsed?.validFromRaw, notam.validFrom),
@@ -212,15 +196,9 @@ export default async function handler(request, response) {
                 icaoFormattedText: icaoFormattedText
             };
 
-            return {
-                ...notam,
-                isCancellation,
-                cancels,
-                cardData
-            };
+            return { ...notam, cardData };
         });
 
-        // Filter out cancelled NOTAMs
         const cancelledNotamNumbers = new Set(finalNotams.filter(n => n.isCancellation && n.cancels).map(n => n.cancels));
         const activeNotams = finalNotams
             .filter(n => !cancelledNotamNumbers.has(n.number))
@@ -236,7 +214,7 @@ export default async function handler(request, response) {
         return response.status(200).json(activeNotams);
 
     } catch (err) {
-        console.error(`[API ERROR] for ${icao}:`, err.message);
+        console.error(`[API ERROR] for ${icao}:`, err);
         return response.status(500).json({ error: "An internal server error occurred." });
     }
 }
