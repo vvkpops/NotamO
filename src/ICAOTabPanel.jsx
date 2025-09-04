@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import NotamCard from './NotamCard';
-import { getFIRForICAO, getCachedFIRData, setCachedFIRData, extractFIRFromNotam } from './FIRUtils';
 
 const ICAOTabPanel = ({ 
   icao, 
@@ -9,82 +8,29 @@ const ICAOTabPanel = ({
   error,
   keywordHighlightEnabled,
   keywordCategories,
-  onRefresh 
+  onRefresh,
+  firDataStore 
 }) => {
   const [activeSubTab, setActiveSubTab] = useState('aerodrome');
-  const [firCode, setFirCode] = useState(null);
-  const [firNotams, setFirNotams] = useState([]);
-  const [firLoading, setFirLoading] = useState(false);
-  const [firError, setFirError] = useState(null);
   const [categorizedNotams, setCategorizedNotams] = useState({
     aerodromeNotams: [],
     firNotams: []
   });
+  const [firCode, setFirCode] = useState(null);
   
-  // New NOTAM detection for FIR
-  const [previousFirSignatures, setPreviousFirSignatures] = useState(new Set());
-  const [newFirNotamCount, setNewFirNotamCount] = useState(0);
-  const firNotamsRef = useRef([]);
+  // Reset state when ICAO changes
+  useEffect(() => {
+    setActiveSubTab('aerodrome');
+  }, [icao]);
 
-  // Create NOTAM signature for comparison
-  const createNotamSignature = useCallback((notam) => {
-    const number = notam.number || 'unknown';
-    const validFrom = notam.validFrom || 'unknown';
-    const validTo = notam.validTo || 'unknown';
-    const source = notam.source || 'unknown';
-    const summary = (notam.summary || '').replace(/\s+/g, ' ').trim();
-    const rawText = (notam.rawText || '').replace(/\s+/g, ' ').trim();
-    const text = summary || rawText;
-    const contentHash = text.slice(0, 200);
-    
-    return `${number}-${validFrom}-${validTo}-${source}-${contentHash}`;
-  }, []);
-
-  // Smart FIR NOTAM detection
-  const detectNewFirNotams = useCallback((existingNotams, newNotams) => {
-    if (!existingNotams || existingNotams.length === 0) {
-      // First fetch - none are "new" from user perspective
-      return newNotams.map(n => ({ ...n, isNew: false, userViewed: false }));
-    }
-
-    // Create signature sets for comparison
-    const existingSignatures = new Set(existingNotams.map(n => createNotamSignature(n)));
-    const processedNotams = [];
-    let newCount = 0;
-
-    newNotams.forEach(notam => {
-      const signature = createNotamSignature(notam);
-      const isNew = !existingSignatures.has(signature);
-      
-      if (isNew) {
-        console.log(`🆕 New FIR NOTAM detected: ${notam.number} for FIR ${firCode}`);
-        newCount++;
-      }
-
-      processedNotams.push({
-        ...notam,
-        isNew: isNew,
-        userViewed: false,
-        firstSeenAt: isNew ? Date.now() : null
-      });
-    });
-
-    if (newCount > 0) {
-      console.log(`✨ Found ${newCount} new FIR NOTAMs for ${firCode}`);
-      setNewFirNotamCount(prev => prev + newCount);
-    }
-
-    return processedNotams;
-  }, [createNotamSignature, firCode]);
-
-  // Extract FIR and fetch FIR NOTAMs - only for FAA sources
+  // Extract FIR code and categorize NOTAMs
   useEffect(() => {
     if (!notamData || notamData.length === 0) return;
     
     // Check if this is Canadian CFPS data (it already includes FIR NOTAMs)
     const isCanadianSource = notamData.some(n => n.source === 'NAV CANADA');
     if (isCanadianSource) {
-      console.log(`🍁 Canadian source detected for ${icao}, skipping FIR fetch`);
+      console.log(`🍁 Canadian source detected for ${icao}, FIR NOTAMs included`);
       setCategorizedNotams({
         aerodromeNotams: notamData,
         firNotams: []
@@ -95,104 +41,37 @@ const ICAOTabPanel = ({
     
     // Extract FIR code from FAA NOTAMs
     const extractedFIR = getFIRForICAO(icao, notamData);
-    if (extractedFIR && extractedFIR !== firCode) {
-      setFirCode(extractedFIR);
-      fetchFIRNotams(extractedFIR);
-    }
+    setFirCode(extractedFIR);
     
-    // For now, all existing NOTAMs are aerodrome NOTAMs
+    // All existing NOTAMs are aerodrome NOTAMs
     setCategorizedNotams({
       aerodromeNotams: notamData,
       firNotams: []
     });
   }, [icao, notamData]);
 
-  const fetchFIRNotams = useCallback(async (fir) => {
-    if (!fir) return;
-    
-    // Check cache first
-    const cached = getCachedFIRData(fir);
-    if (cached) {
-      console.log(`📦 Using cached FIR data for ${fir}`);
-      
-      // Apply new NOTAM detection to cached data
-      const processedCached = detectNewFirNotams(firNotamsRef.current, cached);
-      setFirNotams(processedCached);
-      firNotamsRef.current = processedCached;
+  // Get FIR NOTAMs from the shared store
+  useEffect(() => {
+    if (!firCode || !firDataStore[firCode]) {
       return;
     }
     
-    setFirLoading(true);
-    setFirError(null);
-    
-    try {
-      console.log(`🌐 Fetching FIR NOTAMs for ${fir}`);
-      const response = await fetch(`/api/notams?fir=${fir}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      // Filter to only include FIR-wide NOTAMs (not specific airports)
-      const firWideNotams = data.filter(notam => {
-        // Exclude NOTAMs that are specific to an airport
-        const isAirportSpecific = /^[A-Z]{4}$/.test(notam.icao) && notam.icao !== fir;
-        return !isAirportSpecific;
-      });
-      
-      console.log(`✅ Loaded ${firWideNotams.length} FIR-wide NOTAMs for ${fir}`);
-      
-      // Apply new NOTAM detection
-      const processedNotams = detectNewFirNotams(firNotamsRef.current, firWideNotams);
-      
-      // Cache the results
-      setCachedFIRData(fir, firWideNotams);
-      setFirNotams(processedNotams);
-      firNotamsRef.current = processedNotams;
-      
-    } catch (error) {
-      console.error(`❌ Error fetching FIR NOTAMs:`, error);
-      setFirError(error.message);
-    } finally {
-      setFirLoading(false);
-    }
-  }, [detectNewFirNotams]);
-
-  // Clear new status when FIR tab is viewed
-  const handleSubTabClick = useCallback((tabId) => {
-    setActiveSubTab(tabId);
-    
-    if (tabId === 'fir' && newFirNotamCount > 0) {
-      console.log(`👁️ User viewed FIR tab, clearing ${newFirNotamCount} new NOTAM indicators`);
-      
-      // Mark all FIR NOTAMs as viewed
-      const viewedNotams = firNotams.map(n => ({
-        ...n,
-        isNew: false,
-        userViewed: true
+    const firData = firDataStore[firCode];
+    if (firData.data) {
+      setCategorizedNotams(prev => ({
+        ...prev,
+        firNotams: firData.data
       }));
-      
-      setFirNotams(viewedNotams);
-      firNotamsRef.current = viewedNotams;
-      setNewFirNotamCount(0);
-      
-      // Update cache with viewed status
-      if (firCode) {
-        setCachedFIRData(firCode, viewedNotams);
-      }
     }
-  }, [newFirNotamCount, firNotams, firCode]);
+  }, [firCode, firDataStore]);
 
-  const SubTabButton = ({ id, label, count, isActive, onClick, hasNew = false }) => (
+  const SubTabButton = ({ id, label, count, isActive, onClick }) => (
     <button
-      className={`icao-subtab ${isActive ? 'active' : ''} ${hasNew ? 'has-new-fir' : ''}`}
+      className={`icao-subtab ${isActive ? 'active' : ''}`}
       onClick={onClick}
     >
       <span>{label}</span>
       {count !== undefined && <span className="subtab-count">({count})</span>}
-      {hasNew && !isActive && <span className="new-fir-indicator"></span>}
     </button>
   );
 
@@ -217,10 +96,12 @@ const ICAOTabPanel = ({
 
   const displayNotams = activeSubTab === 'aerodrome' 
     ? categorizedNotams.aerodromeNotams 
-    : firNotams;
+    : categorizedNotams.firNotams;
 
   // Check if we should show FIR tab (only for FAA sources)
   const showFirTab = firCode && notamData && notamData.some(n => n.source === 'FAA');
+  const firLoading = firCode && firDataStore[firCode]?.loading;
+  const firError = firCode && firDataStore[firCode]?.error;
 
   return (
     <div className="icao-tab-panel">
@@ -230,16 +111,15 @@ const ICAOTabPanel = ({
           label={`✈️ ${icao} Aerodrome`}
           count={categorizedNotams.aerodromeNotams.length}
           isActive={activeSubTab === 'aerodrome'}
-          onClick={() => handleSubTabClick('aerodrome')}
+          onClick={() => setActiveSubTab('aerodrome')}
         />
         {showFirTab && (
           <SubTabButton
             id="fir"
             label={`🌐 ${firCode} FIR`}
-            count={firLoading ? '...' : firNotams.length}
+            count={firLoading ? '...' : categorizedNotams.firNotams.length}
             isActive={activeSubTab === 'fir'}
-            onClick={() => handleSubTabClick('fir')}
-            hasNew={newFirNotamCount > 0}
+            onClick={() => setActiveSubTab('fir')}
           />
         )}
       </div>
@@ -255,9 +135,6 @@ const ICAOTabPanel = ({
             <div className="error-icon">⚠️</div>
             <h3>Failed to Load FIR NOTAMs</h3>
             <p>{firError}</p>
-            <button className="retry-btn" onClick={() => fetchFIRNotams(firCode)}>
-              🔄 Retry
-            </button>
           </div>
         ) : displayNotams.length > 0 ? (
           <div className="notam-grid">
@@ -282,4 +159,57 @@ const ICAOTabPanel = ({
   );
 };
 
+// Helper function to extract FIR code from ICAO and NOTAMs
+const getFIRForICAO = (icao, notams) => {
+  // US FIR mapping
+  const US_FIR_MAP = {
+    'K': {
+      // Alaska
+      'PA': 'PAZA', // Alaska
+      // Caribbean
+      'TJ': 'TJZS', // San Juan
+      // Continental US examples
+      'JFK': 'KZNY', // New York
+      'LAX': 'KZLA', // Los Angeles
+      'ORD': 'KZAU', // Chicago
+      'ATL': 'KZTL', // Atlanta
+      'DFW': 'KZFW', // Fort Worth
+      'DEN': 'KZDV', // Denver
+      'SEA': 'KZSE', // Seattle
+      'BOS': 'KZBW', // Boston
+      'MIA': 'KZMA', // Miami
+    }
+  };
+
+  // Try to extract from Q line in NOTAMs
+  if (notams && notams.length > 0) {
+    for (const notam of notams) {
+      if (notam.rawText) {
+        const qLineMatch = notam.rawText.match(/Q\)\s*([A-Z]{4})\//);
+        if (qLineMatch) {
+          console.log(`🔍 Found FIR ${qLineMatch[1]} in Q line for ${icao}`);
+          return qLineMatch[1];
+        }
+      }
+    }
+  }
+
+  // Fallback to mapping
+  if (icao.startsWith('K')) {
+    // Check specific mappings
+    if (icao.startsWith('PA')) return 'PAZA';
+    if (icao.startsWith('TJ')) return 'TJZS';
+    
+    // Check known airports
+    const airportFir = US_FIR_MAP.K[icao.substring(1)];
+    if (airportFir) return airportFir;
+    
+    // For other US airports, we'd need a more complete mapping
+    console.log(`⚠️ No FIR mapping found for ${icao}`);
+  }
+
+  return null;
+};
+
 export default ICAOTabPanel;
+export { getFIRForICAO };

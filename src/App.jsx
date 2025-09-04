@@ -5,6 +5,7 @@ import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKey
 import ICAOSortingModal from './ICAOSortingModal.jsx';
 import NotamHistoryModal from './NotamHistoryModal.jsx';
 import { useAutoResponsiveSize, useResponsiveCSS } from './useAutoResponsiveSize.jsx';
+import { getFIRForICAO, getCachedFIRData, setCachedFIRData } from './FIRUtils';
 
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -48,6 +49,14 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('ALL');
   const [notamDataStore, setNotamDataStore] = useState({});
   const [isAdding, setIsAdding] = useState(false);
+
+  // FIR data store - shared across all ICAOs
+  const [firDataStore, setFirDataStore] = useState({});
+  const [firFetchStatus, setFirFetchStatus] = useState({}); // Track which FIRs are being fetched
+
+  // Progress tracking
+  const [currentlyFetching, setCurrentlyFetching] = useState(null); // What's currently being fetched
+  const [fetchProgress, setFetchProgress] = useState({ current: 0, total: 0 }); // Progress tracker
 
   // Use the responsive card size instead of localStorage-only approach
   const [manualCardSizeOverride, setManualCardSizeOverride] = useState(null);
@@ -425,9 +434,92 @@ const App = () => {
     setFetchQueue(prev => [...prev, icaoToRefresh]);
   }, [fetchQueue]);
 
-  // fetchNotams with smart incremental updates
+  // Fetch FIR NOTAMs with shared cache
+  const fetchFIRNotams = useCallback(async (firCode, icao) => {
+    if (!firCode) return;
+    
+    // Check if FIR is already being fetched
+    if (firFetchStatus[firCode]?.fetching) {
+      console.log(`⏳ FIR ${firCode} is already being fetched, waiting...`);
+      return;
+    }
+    
+    // Check if FIR data already exists and is recent (less than 5 mins old)
+    const existingFirData = firDataStore[firCode];
+    if (existingFirData && existingFirData.lastUpdated) {
+      const age = Date.now() - existingFirData.lastUpdated;
+      if (age < 5 * 60 * 1000) { // 5 minutes
+        console.log(`✅ Using existing FIR data for ${firCode} (${Math.round(age / 1000)}s old)`);
+        return;
+      }
+    }
+    
+    setCurrentlyFetching(`FIR ${firCode}`);
+    setFirFetchStatus(prev => ({ ...prev, [firCode]: { fetching: true, error: null } }));
+    
+    try {
+      console.log(`🌐 Fetching FIR NOTAMs for ${firCode}`);
+      const response = await fetch(`/api/notams?fir=${firCode}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Filter to only include FIR-wide NOTAMs (not specific airports)
+      const firWideNotams = data.filter(notam => {
+        const isAirportSpecific = /^[A-Z]{4}$/.test(notam.icao) && notam.icao !== firCode;
+        return !isAirportSpecific;
+      });
+      
+      console.log(`✅ Loaded ${firWideNotams.length} FIR-wide NOTAMs for ${firCode}`);
+      
+      // Apply new NOTAM detection
+      const oldFirData = firDataStore[firCode]?.data || [];
+      const { processedData, hasNewNotams, newNotamsList } = smartNotamMerge(
+        oldFirData, 
+        firWideNotams, 
+        oldFirData.length === 0
+      );
+      
+      // Update FIR data store
+      setFirDataStore(prev => ({
+        ...prev,
+        [firCode]: {
+          data: processedData,
+          lastUpdated: Date.now(),
+          loading: false,
+          error: null
+        }
+      }));
+      
+      // Cache the results
+      setCachedFIRData(firCode, processedData);
+      
+      setFirFetchStatus(prev => ({ ...prev, [firCode]: { fetching: false, error: null } }));
+      
+    } catch (error) {
+      console.error(`❌ Error fetching FIR NOTAMs for ${firCode}:`, error);
+      setFirFetchStatus(prev => ({ 
+        ...prev, 
+        [firCode]: { fetching: false, error: error.message } 
+      }));
+      setFirDataStore(prev => ({
+        ...prev,
+        [firCode]: {
+          ...prev[firCode],
+          loading: false,
+          error: error.message
+        }
+      }));
+    }
+  }, [firFetchStatus, firDataStore, smartNotamMerge]);
+
+  // fetchNotams with FIR fetching included
   const fetchNotams = useCallback(async (icao) => {
     console.log(`🚀 Fetching NOTAMs for ${icao}`);
+    setCurrentlyFetching(`ICAO ${icao}`);
     
     // Set loading state but preserve existing data
     setNotamDataStore(prev => ({ 
@@ -474,6 +566,21 @@ const App = () => {
         }
 
         console.log(`✅ Successfully updated ${icao}: ${stats.total} NOTAMs (${stats.new} new, ${stats.expired} expired)`);
+        
+        // Check if this is FAA data and extract FIR
+        const isCanadianSource = notamsWithIcao.some(n => n.source === 'NAV CANADA');
+        
+        if (!isCanadianSource) {
+          // Extract FIR and fetch FIR NOTAMs
+          const firCode = getFIRForICAO(icao, notamsWithIcao);
+          if (firCode) {
+            console.log(`🔍 Detected FIR ${firCode} for ${icao}, fetching FIR NOTAMs...`);
+            // Fetch FIR NOTAMs in parallel (non-blocking)
+            fetchFIRNotams(firCode, icao).catch(err => {
+              console.error(`Failed to fetch FIR ${firCode}:`, err);
+            });
+          }
+        }
 
         return { 
           ...prev, 
@@ -499,8 +606,10 @@ const App = () => {
           lastError: Date.now()
         } 
       }));
+    } finally {
+      setCurrentlyFetching(null);
     }
-  }, [smartNotamMerge]);
+  }, [smartNotamMerge, fetchFIRNotams]);
 
   // Clear new status when user views NOTAMs
   const markNotamsAsViewed = useCallback((icao) => {
@@ -530,9 +639,14 @@ const App = () => {
     if (currentIcaos.length > 0) {
       console.log(`🔄 Auto-refresh triggered for all ICAOs: ${currentIcaos.join(', ')}`);
       
+      // Clear FIR cache to force refresh
+      setFirDataStore({});
+      setFirFetchStatus({});
+      
       setFetchQueue(prevQueue => {
         const newQueue = [...new Set([...prevQueue, ...currentIcaos])];
         console.log(`📋 Queue updated: ${newQueue.join(', ')}`);
+        setFetchProgress({ current: 0, total: newQueue.length });
         return newQueue;
       });
     } else {
@@ -563,6 +677,8 @@ const App = () => {
         if (currentQueue.length === 0) {
           console.log('✅ Queue empty, processing complete');
           isProcessingQueue.current = false;
+          setCurrentlyFetching(null);
+          setFetchProgress({ current: 0, total: 0 });
           return currentQueue;
         }
 
@@ -574,6 +690,11 @@ const App = () => {
         const icaoToFetch = currentQueue[0];
         
         console.log(`🔄 Processing queue item: ${icaoToFetch} (${currentQueue.length - 1} remaining)`);
+        
+        // Update progress
+        const totalItems = fetchProgress.total || currentQueue.length;
+        const currentItem = totalItems - currentQueue.length + 1;
+        setFetchProgress({ current: currentItem, total: totalItems });
         
         fetchNotams(icaoToFetch).finally(() => {
           queueTimerRef.current = setTimeout(() => {
@@ -623,6 +744,7 @@ const App = () => {
     if (savedIcaos.length > 0) {
       console.log(`🔄 Initial fetch for saved ICAOs: ${savedIcaos.join(', ')}`);
       setFetchQueue(prev => [...new Set([...prev, ...savedIcaos])]);
+      setFetchProgress({ current: 0, total: savedIcaos.length });
     }
 
     return () => {
@@ -662,6 +784,7 @@ const App = () => {
       setIcaos(updatedIcaos);
       setActiveTab(uniqueNewIcaos[0]);
       setFetchQueue(prev => [...new Set([...prev, ...uniqueNewIcaos])]);
+      setFetchProgress({ current: 0, total: uniqueNewIcaos.length });
       icaoInputRef.current.classList.add('success-flash');
       setTimeout(() => { if (icaoInputRef.current) { icaoInputRef.current.classList.remove('success-flash'); } }, 500);
     }
@@ -783,18 +906,15 @@ const App = () => {
   };
 
   const Tab = ({ id, label, onRemove }) => {
-    const isLoading = notamDataStore[id]?.loading;
     const hasNew = newNotamIcaos.has(id);
     return (
       <div className={`icao-tab ${activeTab === id ? 'active' : ''} ${hasNew ? 'has-new-notams' : ''}`} onClick={() => handleTabClick(id)}>
         <span>{label}</span>
-        {isLoading ? <span className="loading-spinner tab-spinner"></span> :
+        {onRemove && (
           <div className="tab-actions">
-            {onRemove && (
-              <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn" title={`Remove ${id}`}>×</button>
-            )}
+            <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn" title={`Remove ${id}`}>×</button>
           </div>
-        }
+        )}
       </div>
     );
   };
@@ -807,6 +927,8 @@ const App = () => {
         onHistoryClick={() => setIsHistoryModalOpen(true)}
         activeTab={activeTab}
         autoRefreshAll={handleRefreshAll}
+        currentlyFetching={currentlyFetching}
+        fetchProgress={fetchProgress}
       />
       
       <div className="glass icao-input-container">
@@ -847,9 +969,8 @@ const App = () => {
           <Tab id="ALL" label={`ALL (${icaos.length})`} />
           {icaos.map(icao => {
             const count = notamDataStore[icao]?.data?.length || 0;
-            const isLoading = notamDataStore[icao]?.loading;
             return (
-              <Tab key={icao} id={icao} label={isLoading ? `${icao}` : `${icao} (${count})`} onRemove={handleRemoveIcao} />
+              <Tab key={icao} id={icao} label={`${icao} (${count})`} onRemove={handleRemoveIcao} />
             );
           })}
         </div>
@@ -862,7 +983,8 @@ const App = () => {
           onClearFilters={clearAllFilters} 
           filterOrder={filterOrder} 
           keywordHighlightEnabled={keywordHighlightEnabled} 
-          keywordCategories={keywordCategories} 
+          keywordCategories={keywordCategories}
+          firDataStore={firDataStore}
         />
       </div>
 
@@ -902,7 +1024,7 @@ const App = () => {
   );
 };
 
-const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab, autoRefreshAll }) => {
+const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab, autoRefreshAll, currentlyFetching, fetchProgress }) => {
   const [utcTime, setUtcTime] = useState('');
   const [mounted, setMounted] = useState(false);
   
@@ -925,6 +1047,10 @@ const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab,
     ? 'Fetch latest NOTAMs for all airports' 
     : `Fetch latest NOTAMs for ${activeTab}`;
 
+  const progressPercentage = fetchProgress.total > 0 
+    ? (fetchProgress.current / fetchProgress.total) * 100 
+    : 0;
+
   return (
     <header className={`modern-header ${mounted ? 'mounted' : ''}`}>
       <h1>NOTAM Console</h1>
@@ -940,6 +1066,21 @@ const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab,
         </div>
         <p className="utc-time">{utcTime}</p>
       </div>
+      
+      {/* Progress bar */}
+      {currentlyFetching && (
+        <div className="fetch-progress-bar">
+          <div className="fetch-progress-track">
+            <div 
+              className="fetch-progress-fill" 
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+          <span className="fetch-progress-text">
+            {currentlyFetching} {fetchProgress.total > 0 && `(${fetchProgress.current}/${fetchProgress.total})`}
+          </span>
+        </div>
+      )}
     </header>
   );
 };
