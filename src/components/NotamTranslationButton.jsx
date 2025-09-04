@@ -1,9 +1,9 @@
 /**
- * React component for NOTAM translation
- * Integrates seamlessly with your existing NotamCard component
+ * NOTAM Translation Button Component
+ * Integrates with existing NotamCard for plain English translation
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 const NotamTranslationButton = ({ notam, className = '' }) => {
   const [translation, setTranslation] = useState(null);
@@ -28,10 +28,6 @@ const NotamTranslationButton = ({ notam, className = '' }) => {
         },
         body: JSON.stringify({
           notamText: notam.rawText || notam.summary,
-          options: {
-            includeContext: true,
-            priority: 'normal'
-          }
         }),
       });
 
@@ -53,7 +49,7 @@ const NotamTranslationButton = ({ notam, className = '' }) => {
 
   const getButtonText = () => {
     if (isLoading) return '🔄 Translating...';
-    if (showTranslation) return '📄 Show Original';
+    if (showTranslation) return '📄 Technical';
     return '🌐 Plain English';
   };
 
@@ -73,7 +69,7 @@ const NotamTranslationButton = ({ notam, className = '' }) => {
         onClick={translateNotam}
         disabled={isLoading}
         className={getButtonClass()}
-        title={translation ? `Translated via ${translation.method} (${Math.round(translation.confidence * 100)}% confidence)` : 'Translate to plain English'}
+        title={translation ? `Confidence: ${Math.round(translation.confidence * 100)}%` : 'Translate to plain English'}
       >
         {getButtonText()}
       </button>
@@ -81,14 +77,16 @@ const NotamTranslationButton = ({ notam, className = '' }) => {
       {showTranslation && translation && (
         <div className="translation-result">
           <div className="translation-header">
-            <h4>Plain English Translation:</h4>
+            <h4>Plain English:</h4>
             <div className="translation-meta">
               <span className={`method-badge method-${translation.method}`}>
-                {translation.method.toUpperCase()}
+                {translation.method?.toUpperCase() || 'AI'}
               </span>
-              <span className={`confidence-badge confidence-${Math.round(translation.confidence * 10)}`}>
-                {Math.round(translation.confidence * 100)}% confidence
-              </span>
+              {translation.confidence && (
+                <span className="confidence-badge">
+                  {Math.round(translation.confidence * 100)}% confidence
+                </span>
+              )}
               {translation.severity && (
                 <span className={`severity-badge severity-${translation.severity}`}>
                   {translation.severity.toUpperCase()}
@@ -98,7 +96,7 @@ const NotamTranslationButton = ({ notam, className = '' }) => {
           </div>
           
           <div className="translation-text">
-            {translation.translation}
+            {translation.translation || translation.result}
           </div>
 
           {translation.processingTime && (
