@@ -1,6 +1,6 @@
 /**
- * Simple NOTAM Translation API endpoint using Groq
- * Works with your existing Vercel setup
+ * Simple NOTAM Translation API using Groq
+ * Same as before but with better error handling
  */
 
 // Pattern-based translations for instant responses
@@ -27,7 +27,6 @@ const NOTAM_PATTERNS = {
   }
 };
 
-// Try pattern matching first
 function tryPatternTranslation(notamText) {
   for (const [key, pattern] of Object.entries(NOTAM_PATTERNS)) {
     const match = notamText.match(pattern.pattern);
@@ -44,7 +43,6 @@ function tryPatternTranslation(notamText) {
   return { success: false };
 }
 
-// Fallback to Groq AI
 async function translateWithGroq(notamText) {
   const groqApiKey = process.env.GROQ_API_KEY;
   
@@ -75,7 +73,6 @@ Rules:
 - Use simple, clear language
 - Explain the operational impact on pilots
 - Include timing information if present
-- Mention safety implications
 - Keep it under 3 sentences
 - Don't repeat the original NOTAM number
 
@@ -107,7 +104,6 @@ Plain English:`
   };
 }
 
-// Basic cleanup fallback
 function basicCleanup(notamText) {
   return notamText
     .replace(/\b(RWY|TWY)\b/g, match => match === 'RWY' ? 'Runway' : 'Taxiway')
@@ -118,7 +114,6 @@ function basicCleanup(notamText) {
 }
 
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

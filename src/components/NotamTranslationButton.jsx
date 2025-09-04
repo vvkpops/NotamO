@@ -1,8 +1,6 @@
 /**
- * NOTAM Translation Button Component
- * Integrates with existing NotamCard for plain English translation
+ * Minimal NOTAM Translation Button - integrates seamlessly with existing design
  */
-
 import React, { useState } from 'react';
 
 const NotamTranslationButton = ({ notam, className = '' }) => {
@@ -23,22 +21,15 @@ const NotamTranslationButton = ({ notam, className = '' }) => {
     try {
       const response = await fetch('/api/translate-notam', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          notamText: notam.rawText || notam.summary,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notamText: notam.rawText || notam.summary }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const result = await response.json();
       setTranslation(result);
       setShowTranslation(true);
-
     } catch (err) {
       console.error('Translation failed:', err);
       setError(err.message);
@@ -47,78 +38,50 @@ const NotamTranslationButton = ({ notam, className = '' }) => {
     }
   };
 
-  const getButtonText = () => {
-    if (isLoading) return '🔄 Translating...';
-    if (showTranslation) return '📄 Technical';
-    return '🌐 Plain English';
-  };
-
-  const getButtonClass = () => {
-    let baseClass = `translate-btn ${className}`;
-    
-    if (isLoading) baseClass += ' loading';
-    if (error) baseClass += ' error';
-    if (showTranslation) baseClass += ' active';
-    
-    return baseClass;
-  };
-
   return (
-    <div className="notam-translation-wrapper">
+    <>
+      {/* Small translate button in card header - matches copy button style */}
       <button 
         onClick={translateNotam}
         disabled={isLoading}
-        className={getButtonClass()}
-        title={translation ? `Confidence: ${Math.round(translation.confidence * 100)}%` : 'Translate to plain English'}
+        className={`copy-btn ${className}`}
+        title={translation ? `Toggle translation (${Math.round((translation.confidence || 0.8) * 100)}% confidence)` : 'Translate to plain English'}
+        style={{ marginLeft: '0.5rem' }}
       >
-        {getButtonText()}
+        {isLoading ? '⏳' : showTranslation ? '📄' : '🌐'}
       </button>
 
+      {/* Translation overlay - only shows when toggled */}
       {showTranslation && translation && (
-        <div className="translation-result">
-          <div className="translation-header">
-            <h4>Plain English:</h4>
-            <div className="translation-meta">
-              <span className={`method-badge method-${translation.method}`}>
-                {translation.method?.toUpperCase() || 'AI'}
-              </span>
-              {translation.confidence && (
-                <span className="confidence-badge">
-                  {Math.round(translation.confidence * 100)}% confidence
+        <div className="translation-overlay">
+          <div className="translation-content">
+            <div className="translation-header">
+              <span className="translation-label">Plain English:</span>
+              <div className="translation-badges">
+                <span className={`method-badge method-${translation.method || 'ai'}`}>
+                  {(translation.method || 'AI').toUpperCase()}
                 </span>
-              )}
-              {translation.severity && (
-                <span className={`severity-badge severity-${translation.severity}`}>
-                  {translation.severity.toUpperCase()}
-                </span>
-              )}
+                {translation.confidence && (
+                  <span className="confidence-badge">
+                    {Math.round(translation.confidence * 100)}%
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="translation-text">
+              {translation.translation}
             </div>
           </div>
-          
-          <div className="translation-text">
-            {translation.translation || translation.result}
-          </div>
-
-          {translation.processingTime && (
-            <div className="translation-footer">
-              <small>Processed in {translation.processingTime}ms</small>
-            </div>
-          )}
         </div>
       )}
 
       {error && (
-        <div className="translation-error">
-          <p>⚠️ Translation failed: {error}</p>
-          <button 
-            onClick={() => setError(null)}
-            className="error-dismiss-btn"
-          >
-            Dismiss
-          </button>
+        <div className="translation-error-mini">
+          <p>⚠️ {error}</p>
+          <button onClick={() => setError(null)}>×</button>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
