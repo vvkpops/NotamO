@@ -1,17 +1,11 @@
-/**
- * ORIGINAL NotamCard with minimal translation integration
- * Preserves exact original layout and functionality
- */
 import React, { useState, useEffect } from 'react';
 import { getHeadClass, getHeadTitle, extractRunways } from './NotamUtils';
 import { highlightNotamKeywords } from './NotamKeywordHighlight.jsx';
-import NotamTranslationButton from './components/NotamTranslationButton.jsx';
 
 const NotamCard = ({ 
   notam, 
   keywordHighlightEnabled = false, 
-  keywordCategories = {},
-  enableTranslation = true  // New prop but defaults to true
+  keywordCategories = {} 
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [copyStatus, setCopyStatus] = useState('📋');
@@ -139,14 +133,6 @@ const NotamCard = ({
           >
             {copyStatus}
           </button>
-          
-          {/* Translation button - only add if enabled, styled to match existing button */}
-          {enableTranslation && (
-            <NotamTranslationButton 
-              notam={notam}
-              className="translate-mini-btn"
-            />
-          )}
         </div>
       </div>
 

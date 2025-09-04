@@ -1,4 +1,3 @@
-// parser.js
 /**
  * NOTAM Parser Utility
  * 
@@ -28,16 +27,13 @@ export function parseRawNotam(rawText) {
   
   const result = {
     isCancellation: false,
-    isReplacement: false, // New field
     cancelsNotam: null,
-    replacesNotam: null, // New field
     qLine: '',
     aerodrome: '',
     validFromRaw: '',
     validToRaw: '',
     schedule: '',
     body: '',
-    frenchBody: '', // New field for French content
     notamNumber: ''
   };
 
@@ -56,10 +52,8 @@ export function parseRawNotam(rawText) {
     if (firstLine.includes('NOTAMC')) {
       result.isCancellation = true;
       result.cancelsNotam = notamcMatch[1];
-    } else if (firstLine.includes('NOTAMR')) {
-      result.isReplacement = true;
-      result.replacesNotam = notamcMatch[1];
     }
+    // NOTAMR is a replacement, not a cancellation
   }
 
   // Look for ICAO field structure (Q), A), B), C), D), E), F), G))
@@ -81,7 +75,7 @@ export function parseRawNotam(rawText) {
     
     if (!match && eLineStarted) {
       // Continue collecting E line content
-      result.body += `\n${line.trim()}`; // Ensure proper trimming
+      result.body += `\n${line}`;
       continue;
     }
 
@@ -123,10 +117,13 @@ export function parseRawNotam(rawText) {
         eLineStarted = false;
         break;
       case 'C':
-        // FIX: Store the full C) line value without trying to extract date here
-        // The date extraction should happen in the parseNotamDate function
-        const cValue = value.trim();
-        result.validToRaw = cValue;
+        result.validToRaw = value.trim();
+        // Handle PERM variations properly. Only treat as PERM if it's the only content.
+        if (result.validToRaw.toUpperCase().trim() === 'PERM' || result.validToRaw.toUpperCase().trim() === 'PERMANENT') {
+          result.validToRaw = 'PERM';
+        } else if (result.validToRaw.toUpperCase().includes(' EST')) {
+          result.validToRaw = result.validToRaw.toUpperCase().replace(' EST', 'EST');
+        }
         eLineStarted = false;
         break;
       case 'D':
@@ -157,13 +154,6 @@ export function parseRawNotam(rawText) {
   result.validToRaw = result.validToRaw.trim();
   result.schedule = result.schedule.trim();
   result.body = result.body.trim();
-
-  // Handle multi-language text in E) line
-  if (result.body.includes('\nFR:\n')) {
-    const [english, french] = result.body.split('\nFR:\n');
-    result.body = english.trim();
-    result.frenchBody = french.trim();
-  }
   
   // Log extracted dates for debugging
   if (result.validFromRaw || result.validToRaw) {
