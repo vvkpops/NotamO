@@ -1,6 +1,5 @@
 /**
- * Styles for NOTAM translation components
- * Matches your existing design system
+ * Translation feature styles that integrate with your existing design
  */
 
 .notam-translation-wrapper {
@@ -154,22 +153,10 @@
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-.severity-high {
-  background: rgba(245, 158, 11, 0.2);
-  color: #f59e0b;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
 .severity-medium {
   background: rgba(16, 185, 129, 0.2);
   color: #10b981;
   border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.severity-low {
-  background: rgba(107, 114, 128, 0.2);
-  color: #6b7280;
-  border: 1px solid rgba(107, 114, 128, 0.3);
 }
 
 .translation-text {
@@ -239,16 +226,5 @@
     flex-direction: column;
     align-items: stretch;
     text-align: center;
-  }
-}
-
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .translation-result {
-    animation: none;
-  }
-  
-  .translate-btn {
-    transition: none;
   }
 }
