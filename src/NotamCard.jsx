@@ -1,11 +1,18 @@
+/**
+ * Enhanced NotamCard with translation support
+ * Modified to add translation without breaking existing functionality
+ */
+
 import React, { useState, useEffect } from 'react';
 import { getHeadClass, getHeadTitle, extractRunways } from './NotamUtils';
 import { highlightNotamKeywords } from './NotamKeywordHighlight.jsx';
+import NotamTranslationButton from './components/NotamTranslationButton.jsx';
 
 const NotamCard = ({ 
   notam, 
   keywordHighlightEnabled = false, 
-  keywordCategories = {} 
+  keywordCategories = {},
+  enableTranslation = true  // New prop to control translation feature
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [copyStatus, setCopyStatus] = useState('📋');
@@ -146,6 +153,14 @@ const NotamCard = ({
           <pre className="notam-raw-text">
             {displayText}
           </pre>
+        )}
+        
+        {/* Add Translation Component */}
+        {enableTranslation && (
+          <NotamTranslationButton 
+            notam={notam}
+            className="card-translate-btn"
+          />
         )}
         
         <div className="notam-meta">
