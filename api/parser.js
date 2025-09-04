@@ -112,8 +112,8 @@ export function parseRawNotam(rawText) {
         break;
       case 'C':
         result.validToRaw = value.trim();
-        // Handle PERM variations
-        if (result.validToRaw.toUpperCase().includes('PERM')) {
+        // Handle PERM variations. Only set to PERM if that's the whole value.
+        if (result.validToRaw.toUpperCase() === 'PERM' || result.validToRaw.toUpperCase() === 'PERMANENT') {
           result.validToRaw = 'PERM';
         }
         eLineStarted = false;
