@@ -6,9 +6,10 @@ import { getHeadClass, getHeadTitle, extractRunways, getNotamType, isNotamCurren
 const CLIENT_ID = process.env.FAA_CLIENT_ID;
 const CLIENT_SECRET = process.env.FAA_CLIENT_SECRET;
 
-const ALLOWED_ORIGIN = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:5173';
+// Allow requests from any origin.
+// For production, you might want to restrict this to specific domains.
+// e.g., const ALLOWED_ORIGINS = ['http://localhost:3000', 'https://my-other-app.com'];
+const ALLOWED_ORIGIN = '*';
 
 // TIMEZONE_OFFSETS and parseNotamDate remain the same as in notams.js
 const TIMEZONE_OFFSETS = {
@@ -122,10 +123,10 @@ const getTimeStatus = (notam) => {
 };
 
 export default async function handler(request, response) {
+    // Set CORS headers to allow requests from other domains
     response.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
     response.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    response.setHeader('Vary', 'Origin');
 
     if (request.method === 'OPTIONS') {
         return response.status(200).end();
