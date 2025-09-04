@@ -249,19 +249,19 @@ body::before {
 
 /* Responsive breakpoints for container */
 @media (min-width: 768px) {
-  .container { max-width: 95%; }
-}
-
-@media (min-width: 1024px) {
   .container { max-width: 90%; }
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 1024px) {
   .container { max-width: 85%; }
 }
 
-@media (min-width: 1920px) {
+@media (min-width: 1280px) {
   .container { max-width: 80%; }
+}
+
+@media (min-width: 1920px) {
+  .container { max-width: 75%; }
 }
 
 /* 2. DYNAMIC CARD SIZING SYSTEM */
@@ -459,7 +459,7 @@ body::before {
 /* 13. ULTRA-WIDE SCREEN OPTIMIZATIONS */
 @media (min-width: 1920px) {
   .container {
-    max-width: 1600px;
+    max-width: 1400px;
   }
   
   .notam-grid {
