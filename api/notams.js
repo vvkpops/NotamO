@@ -1,15 +1,6 @@
 import axios from 'axios';
 import { parseRawNotam } from './parser.js';
 
-// Import the enhanced parsing functions
-import {
-    extractCLineFromFullNotam,
-    parseNotamDateTimeEnhanced,
-    extractValidityFromCLineEnhanced,
-    parseNotamDateWithFallbackEnhanced,
-    TIMEZONE_OFFSETS
-} from './enhanced-parser.js';
-
 // Environment variables for security
 const CLIENT_ID = process.env.FAA_CLIENT_ID;
 const CLIENT_SECRET = process.env.FAA_CLIENT_SECRET;
@@ -17,6 +8,244 @@ const CLIENT_SECRET = process.env.FAA_CLIENT_SECRET;
 const ALLOWED_ORIGIN = process.env.VERCEL_URL 
     ? `https://${process.env.VERCEL_URL}` 
     : 'http://localhost:5173';
+
+// INLINE ENHANCED PARSER - to avoid import issues
+const TIMEZONE_OFFSETS = {
+    'EST': -5, 'EDT': -4, 'CST': -6, 'CDT': -5, 'MST': -7, 'MDT': -6,
+    'PST': -8, 'PDT': -7, 'AST': -4, 'ADT': -3, 'NST': -3.5, 'NDT': -2.5,
+    'AKST': -9, 'AKDT': -8, 'HST': -10, 'UTC': 0, 'Z': 0, 'GMT': 0,
+    'BST': 1, 'CET': 1, 'CEST': 2, 'EET': 2, 'EEST': 3
+};
+
+function extractCLineFromFullNotamInline(notamText, fieldType = 'C') {
+    if (!notamText || typeof notamText !== 'string') {
+        console.warn(`❌ No NOTAM text provided for ${fieldType}) line extraction`);
+        return null;
+    }
+
+    console.log(`🔍 Extracting ${fieldType}) line from NOTAM text (${notamText.length} chars)`);
+    
+    // Method 1: Direct regex
+    const directRegex = new RegExp(`${fieldType}\\)\\s*(\\d{10}[A-Z]{0,4})`, 'i');
+    const directMatch = notamText.match(directRegex);
+    
+    if (directMatch) {
+        console.log(`✅ Method 1 SUCCESS: Found ${fieldType}) line via direct regex: "${directMatch[1]}"`);
+        return directMatch[1].trim();
+    }
+    
+    // Method 2: PERM pattern
+    const permRegex = new RegExp(`${fieldType}\\)\\s*(PERM|PERMANENT)`, 'i');
+    const permMatch = notamText.match(permRegex);
+    
+    if (permMatch) {
+        console.log(`✅ Method 2 SUCCESS: Found ${fieldType}) line with PERM: "${permMatch[1]}"`);
+        return 'PERM';
+    }
+    
+    // Method 3: Pattern matching
+    const patterns = [
+        new RegExp(`${fieldType}\\)\\s*([^\\s]+)`, 'i'),
+        new RegExp(`${fieldType}\\)\\s*(.+?)(?:\\s+[D-Z]\\)|\\n|\\r|$)`, 'i'),
+    ];
+    
+    for (let i = 0; i < patterns.length; i++) {
+        const patternMatch = notamText.match(patterns[i]);
+        if (patternMatch && patternMatch[1]) {
+            const extracted = patternMatch[1].trim();
+            if (/^\d{10}/.test(extracted) || /PERM/i.test(extracted)) {
+                console.log(`✅ Method 3.${i + 1} SUCCESS: Valid pattern found: "${extracted}"`);
+                return extracted;
+            }
+        }
+    }
+    
+    // Method 4: Line by line parsing
+    const lines = notamText.split(/[\n\r]+/);
+    for (let i = 0; i < lines.length; i++) {
+        const trimmedLine = lines[i].trim();
+        const lineRegex = new RegExp(`${fieldType}\\)`, 'i');
+        if (lineRegex.test(trimmedLine)) {
+            const fieldParts = trimmedLine.split(lineRegex);
+            if (fieldParts.length > 1) {
+                let fieldContent = fieldParts[1].trim();
+                fieldContent = fieldContent.split(/\s+[D-Z]\)/i)[0].trim();
+                
+                if (/PERM/i.test(fieldContent)) {
+                    console.log(`✅ Method 4 SUCCESS: Found ${fieldType}) line with PERM: "${fieldContent}"`);
+                    return 'PERM';
+                }
+                
+                if (/^\d{10}[A-Z]{0,4}/.test(fieldContent)) {
+                    console.log(`✅ Method 4 SUCCESS: Found ${fieldType}) line via line parsing: "${fieldContent}"`);
+                    return fieldContent;
+                }
+            }
+        }
+    }
+    
+    console.warn(`❌ ALL METHODS FAILED: No ${fieldType}) line found in NOTAM text`);
+    return null;
+}
+
+function parseNotamDateTimeEnhancedInline(notamString) {
+    if (!notamString || typeof notamString !== 'string') {
+        console.warn('❌ Invalid notamString provided to parseNotamDateTimeEnhanced');
+        return null;
+    }
+    
+    const originalString = notamString.trim();
+    const upperString = originalString.toUpperCase();
+    
+    console.log(`🔧 Enhanced parsing starting for: "${originalString}"`);
+    
+    if (upperString === 'PERM' || upperString === 'PERMANENT' || upperString.includes('PERM')) {
+        console.log('✅ Detected PERMANENT validity');
+        return 'PERMANENT';
+    }
+    
+    let cleanString = originalString.replace(/^[A-G]\)\s*/i, '').replace(/[\)\"\'\`]+$/, '').trim();
+    
+    console.log(`🔧 Cleaned string: "${cleanString}"`);
+    
+    const regex = /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})([A-Z]{1,4})?/;
+    const match = cleanString.match(regex);
+    
+    if (!match) {
+        console.warn(`❌ Invalid NOTAM date/time format: "${cleanString}"`);
+        return null;
+    }
+    
+    const [, year, month, day, hour, minute, timezone] = match;
+    
+    let fullYear = parseInt(year);
+    if (fullYear <= 50) {
+        fullYear = 2000 + fullYear;
+    } else {
+        fullYear = 1900 + fullYear;
+    }
+    
+    const monthInt = parseInt(month);
+    const dayInt = parseInt(day);
+    const hourInt = parseInt(hour);
+    const minuteInt = parseInt(minute);
+    
+    // Validation
+    const validationErrors = [];
+    if (monthInt < 1 || monthInt > 12) validationErrors.push(`Invalid month: ${monthInt}`);
+    if (dayInt < 1 || dayInt > 31) validationErrors.push(`Invalid day: ${dayInt}`);
+    if (hourInt < 0 || hourInt > 23) validationErrors.push(`Invalid hour: ${hourInt}`);
+    if (minuteInt < 0 || minuteInt > 59) validationErrors.push(`Invalid minute: ${minuteInt}`);
+    
+    if (validationErrors.length > 0) {
+        console.warn(`❌ Date validation failed: ${validationErrors.join(', ')}`);
+        return null;
+    }
+    
+    let offsetHours = 0;
+    let timezoneUsed = 'UTC';
+    
+    if (timezone && TIMEZONE_OFFSETS.hasOwnProperty(timezone.toUpperCase())) {
+        offsetHours = TIMEZONE_OFFSETS[timezone.toUpperCase()];
+        timezoneUsed = timezone.toUpperCase();
+        console.log(`🌍 Timezone detected: ${timezoneUsed} (UTC${offsetHours >= 0 ? '+' : ''}${offsetHours})`);
+    } else if (timezone) {
+        console.warn(`⚠️ Unknown timezone "${timezone}", defaulting to UTC`);
+    }
+    
+    try {
+        const localDate = new Date(Date.UTC(fullYear, monthInt - 1, dayInt, hourInt, minuteInt, 0, 0));
+        const utcTimestamp = localDate.getTime() - (offsetHours * 60 * 60 * 1000);
+        const utcDate = new Date(utcTimestamp);
+        
+        if (isNaN(utcDate.getTime())) {
+            console.warn('❌ Invalid UTC date created during timezone conversion');
+            return null;
+        }
+        
+        const isoString = utcDate.toISOString();
+        console.log(`✅ Successfully parsed "${originalString}" → "${isoString}"`);
+        return isoString;
+        
+    } catch (error) {
+        console.error(`❌ Error creating date from "${cleanString}": ${error.message}`);
+        return null;
+    }
+}
+
+function extractValidityFromCLineEnhancedInline(rawNotamText, fieldType = 'C') {
+    if (!rawNotamText || typeof rawNotamText !== 'string') {
+        console.warn(`❌ No rawNotamText provided for ${fieldType}) line extraction`);
+        return null;
+    }
+
+    console.log(`🚀 Enhanced ${fieldType}) line extraction starting`);
+    
+    const fieldContent = extractCLineFromFullNotamInline(rawNotamText, fieldType);
+    
+    if (!fieldContent) {
+        console.warn(`❌ Enhanced ${fieldType}) line extraction failed - no field content found`);
+        return null;
+    }
+    
+    console.log(`✅ Enhanced ${fieldType}) line content extracted: "${fieldContent}"`);
+    
+    const parsedDate = parseNotamDateTimeEnhancedInline(fieldContent);
+    
+    if (parsedDate) {
+        console.log(`✅ Enhanced ${fieldType}) line parsing successful: "${fieldContent}" → "${parsedDate}"`);
+        return parsedDate;
+    } else {
+        console.warn(`❌ Enhanced ${fieldType}) line parsing failed for content: "${fieldContent}"`);
+        return null;
+    }
+}
+
+function parseNotamDateWithFallbackEnhancedInline(primarySource, rawText, fieldType, apiDate = null) {
+    console.log(`\n🔄 === Enhanced Hybrid Date Parsing for ${fieldType}) field ===`);
+    console.log(`   Primary source: ${primarySource}`);
+    console.log(`   API date: ${apiDate}`);
+    console.log(`   Has raw text: ${!!rawText} (${rawText ? rawText.length : 0} chars)`);
+    
+    // Priority 1: Enhanced field line extraction (highest confidence)
+    if (rawText) {
+        console.log(`🎯 Trying enhanced ${fieldType}) line extraction (HIGHEST CONFIDENCE)`);
+        const fieldResult = extractValidityFromCLineEnhancedInline(rawText, fieldType);
+        if (fieldResult) {
+            console.log(`✅ SUCCESS: Enhanced ${fieldType}) line extraction returned: "${fieldResult}"`);
+            return fieldResult;
+        } else {
+            console.log(`❌ FAILED: Enhanced ${fieldType}) line extraction unsuccessful`);
+        }
+    }
+    
+    // Priority 2: Direct parsing of structured data (medium confidence)
+    if (primarySource) {
+        console.log(`📝 Trying direct enhanced parsing (MEDIUM CONFIDENCE): "${primarySource}"`);
+        const directResult = parseNotamDateTimeEnhancedInline(primarySource);
+        if (directResult) {
+            console.log(`✅ SUCCESS: Direct enhanced parsing returned: "${directResult}"`);
+            return directResult;
+        } else {
+            console.log(`❌ FAILED: Direct enhanced parsing unsuccessful`);
+        }
+    }
+    
+    // Priority 3: API fallback with enhanced parsing (lowest confidence)
+    if (apiDate !== null && apiDate !== undefined) {
+        console.log(`🔄 Trying API fallback with enhanced parsing (LOWEST CONFIDENCE): "${apiDate}"`);
+        const apiResult = parseNotamDateTimeEnhancedInline(apiDate);
+        if (apiResult) {
+            console.log(`✅ SUCCESS: Enhanced API fallback returned: "${apiResult}"`);
+            return apiResult;
+        } else {
+            console.log(`❌ FAILED: Enhanced API fallback unsuccessful`);
+        }
+    }
+    
+    console.error(`❌ === ALL ENHANCED PARSING METHODS FAILED for ${fieldType}) field ===`);
+    return null;
+}
 
 /**
  * LEGACY DATE PARSING - Keep for FAA NOTAMs compatibility
@@ -230,7 +459,7 @@ export default async function handler(request, response) {
                     let validFrom, validTo;
                     
                     // Use enhanced parsing for validFrom (B) line)
-                    validFrom = parseNotamDateWithFallbackEnhanced(
+                    validFrom = parseNotamDateWithFallbackEnhancedInline(
                         parsed?.validFromRaw,
                         originalRawText,
                         'B',
@@ -240,12 +469,12 @@ export default async function handler(request, response) {
                     // ENHANCED HANDLING for validTo when API returns null
                     if (notam.endValidity === null || notam.endValidity === undefined) {
                         console.log(`⚠️  End validity is null, using ENHANCED C) line extraction`);
-                        validTo = extractValidityFromCLineEnhanced(originalRawText, 'C');
+                        validTo = extractValidityFromCLineEnhancedInline(originalRawText, 'C');
                         
                         // If enhanced C) line extraction fails, try fallback chain
                         if (!validTo && parsed?.validToRaw) {
                             console.log(`🔄 Enhanced C) line extraction failed, trying fallback chain`);
-                            validTo = parseNotamDateWithFallbackEnhanced(
+                            validTo = parseNotamDateWithFallbackEnhancedInline(
                                 parsed.validToRaw,
                                 originalRawText,
                                 'C',
@@ -254,7 +483,7 @@ export default async function handler(request, response) {
                         }
                     } else {
                         // Normal enhanced hybrid parsing
-                        validTo = parseNotamDateWithFallbackEnhanced(
+                        validTo = parseNotamDateWithFallbackEnhancedInline(
                             parsed?.validToRaw,
                             originalRawText,
                             'C',
@@ -415,9 +644,9 @@ export default async function handler(request, response) {
 
     } catch (err) {
         console.error(`[ENHANCED API ERROR] for ${icao}:`, err.message);
-        console.error(err.stack);
+        console.error(`[ENHANCED API ERROR] Stack trace:`, err.stack);
         return response.status(500).json({ 
-            error: "An internal server error occurred.",
+            error: "An internal server error occurred during enhanced NOTAM processing.",
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
         });
     }
