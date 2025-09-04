@@ -393,7 +393,6 @@ const App = () => {
     };
   }, [createNotamSignature, breakpoint, efficiencyScore]);
 
-  // Rest of the component logic remains the same but with enhanced logging...
   const handleRefreshIcao = useCallback((icaoToRefresh) => {
     if (fetchQueue.includes(icaoToRefresh)) return;
     setFetchQueue(prev => [...prev, icaoToRefresh]);
@@ -471,8 +470,6 @@ const App = () => {
       }));
     }
   }, [smartNotamMerge, breakpoint, columnsTarget]);
-
-  // Continue with the rest of the methods... (same as original but with enhanced logging)
 
   // Clear new status when user views NOTAMs
   const markNotamsAsViewed = useCallback((icao) => {
@@ -720,4 +717,245 @@ const App = () => {
     const defaultFilters = { rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, other: true, cancelled: false, current: true, future: true };
     const hasFilters = keywordFilter || Object.keys(filters).some(key => filters[key] !== defaultFilters[key]);
     const filterCount = Object.keys(filters).filter(key => filters[key] !== defaultFilters[key]).length + (keywordFilter ? 1 : 0);
-    return { filteredNotams: results, typ
+    return { filteredNotams: results, typeCounts: counts, hasActiveFilters: hasFilters, activeFilterCount: filterCount };
+  }, [activeNotamData.data, keywordFilter, filters, activeTab, filterOrder]);
+
+  const handleFilterChange = (filterKey) => setFilters(prev => ({ ...prev, [filterKey]: !prev[filterKey] }));
+  const clearAllFilters = () => {
+    setFilters({ rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, other: true, cancelled: false, current: true, future: true });
+    setKeywordFilter('');
+  };
+
+  // Enhanced tab click with smart new NOTAM clearing
+  const handleTabClick = (id) => {
+    setActiveTab(id);
+    
+    if (newNotamIcaos.has(id)) {
+      console.log(`👁️  User viewed ${id} (${breakpoint} layout), clearing new NOTAM indicator`);
+      setNewNotamIcaos(prevSet => {
+        const newSet = new Set(prevSet);
+        newSet.delete(id);
+        return newSet;
+      });
+      
+      markNotamsAsViewed(id);
+    }
+  };
+
+  const Tab = ({ id, label, onRemove }) => {
+    const isLoading = notamDataStore[id]?.loading;
+    const hasNew = newNotamIcaos.has(id);
+    return (
+      <div className={`icao-tab ${activeTab === id ? 'active' : ''} ${hasNew ? 'has-new-notams' : ''}`} onClick={() => handleTabClick(id)}>
+        <span>{label}</span>
+        {isLoading ? <span className="loading-spinner tab-spinner"></span> :
+          <div className="tab-actions">
+            {onRemove && (
+              <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn" title={`Remove ${id}`}>×</button>
+            )}
+          </div>
+        }
+      </div>
+    );
+  };
+
+  // Enhanced container with wide-screen awareness
+  const containerClassName = `container ${isWideScreen ? 'wide-screen' : ''} ${isUltraWide ? 'ultra-wide' : ''} ${shouldUseCompactLayout ? 'compact' : ''}`;
+
+  return (
+    <div className={containerClassName} style={{ 
+      '--notam-card-size': `${effectiveCardSize}px`,
+      '--dynamic-columns': columnsTarget,
+      '--optimal-gap': `${optimalGap}rem`,
+      '--layout-efficiency': `${efficiencyScore}%`
+    }}>
+      <ModernHeader 
+        timeToNextRefresh={timeToNextRefresh} 
+        onRefresh={handleSmartRefresh}
+        onHistoryClick={() => setIsHistoryModalOpen(true)}
+        activeTab={activeTab}
+        autoRefreshAll={handleRefreshAll}
+        breakpoint={breakpoint}
+        isWideScreen={isWideScreen}
+        columnsTarget={columnsTarget}
+        efficiencyScore={efficiencyScore}
+      />
+      
+      <div className={`glass icao-input-container ${isWideScreen ? 'wide-layout' : ''}`}>
+        <div className={`top-controls ${isWideScreen ? 'wide-screen-controls' : ''}`}>
+          <div className="icao-input-wrapper">
+            <input 
+              ref={icaoInputRef} 
+              placeholder={isWideScreen ? "Enter ICAO codes (e.g., CYYT, KJFK, EGLL)" : "ICAO codes (e.g., CYYT, KJFK)"} 
+              className={`icao-input ${shouldUseCompactLayout ? 'compact' : ''}`} 
+              onKeyPress={handleIcaoInputKeyPress} 
+              disabled={isAdding} 
+            />
+            <button onClick={handleAddIcao} className={`add-button ${isAdding ? 'loading' : ''}`} disabled={isAdding}>
+              {isAdding ? (<><span className="loading-spinner"></span>Adding...</>) : 'Add ICAO'}
+            </button>
+          </div>
+          <div className="filter-controls">
+            <button className="filter-toggle-btn" onClick={() => setIsFilterModalOpen(true)}>
+              <span className="filter-icon">🎯</span>
+              <span className="filter-text">FILTER</span>
+              {activeFilterCount > 0 && (<span className="filter-badge">{activeFilterCount}</span>)}
+            </button>
+            <button 
+              className="filter-toggle-btn" 
+              onClick={() => setIsHighlightModalOpen(true)} 
+              style={{background: keywordHighlightEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'}}
+            >
+              <span className="filter-icon">💡</span>
+              <span className="filter-text">HIGHLIGHT</span>
+              {keywordHighlightEnabled && (<span className="filter-badge">ON</span>)}
+            </button>
+            <button className="filter-toggle-btn" onClick={() => setIsSortModalOpen(true)} disabled={icaos.length === 0}>
+              <span className="filter-icon">↕️</span>
+              <span className="filter-text">SORT</span>
+            </button>
+          </div>
+        </div>
+        <div className={`bottom-controls ${isWideScreen ? 'wide-screen-bottom' : ''}`}>
+          <div className="search-input-wrapper">
+            <span className="search-icon">🔍</span>
+            <input 
+              type="text" 
+              placeholder={isWideScreen ? "Filter current results by keyword, runway, equipment..." : "Filter by keyword..."} 
+              className="search-input" 
+              value={keywordFilter} 
+              onChange={(e) => setKeywordFilter(e.target.value)} 
+            />
+            {keywordFilter && (<button className="clear-search-btn" onClick={() => setKeywordFilter('')} title="Clear search">✕</button>)}
+          </div>
+          <CardSizerControl />
+          {hasActiveFilters && (<button className="quick-clear-btn" onClick={clearAllFilters}>Clear All Filters</button>)}
+        </div>
+      </div>
+      
+      <div className={`glass ${isWideScreen ? 'wide-content' : ''}`}>
+        <div className={`icao-tabs ${isWideScreen ? 'wide-tabs' : ''}`}>
+          <Tab id="ALL" label={`ALL (${icaos.length})`} />
+          {icaos.map(icao => {
+            const count = notamDataStore[icao]?.data?.length || 0;
+            const isLoading = notamDataStore[icao]?.loading;
+            return (
+              <Tab key={icao} id={icao} label={isLoading ? `${icao}` : `${icao} (${count})`} onRemove={handleRemoveIcao} />
+            );
+          })}
+        </div>
+        <NotamTabContent 
+          icao={activeTab} 
+          notams={filteredNotams} 
+          loading={activeNotamData.loading} 
+          error={activeNotamData.error} 
+          hasActiveFilters={hasActiveFilters} 
+          onClearFilters={clearAllFilters} 
+          filterOrder={filterOrder} 
+          keywordHighlightEnabled={keywordHighlightEnabled} 
+          keywordCategories={keywordCategories}
+          isWideScreen={isWideScreen}
+          columnsTarget={columnsTarget}
+        />
+      </div>
+
+      <FilterModal 
+        isOpen={isFilterModalOpen} 
+        onClose={() => setIsFilterModalOpen(false)} 
+        filters={filters} 
+        onFilterChange={handleFilterChange} 
+        typeCounts={typeCounts} 
+        onClearAll={clearAllFilters} 
+        filterOrder={filterOrder} 
+        setFilterOrder={setFilterOrder} 
+        dragState={dragState} 
+        setDragState={setDragState} 
+      />
+      <NotamKeywordHighlightManager 
+        isOpen={isHighlightModalOpen} 
+        onClose={() => setIsHighlightModalOpen(false)} 
+        keywordCategories={keywordCategories} 
+        setKeywordCategories={setKeywordCategories} 
+        keywordHighlightEnabled={keywordHighlightEnabled} 
+        setKeywordHighlightEnabled={setKeywordHighlightEnabled} 
+      />
+      <ICAOSortingModal 
+        isOpen={isSortModalOpen} 
+        onClose={() => setIsSortModalOpen(false)} 
+        icaos={icaos} 
+        onReorder={handleIcaoReorder} 
+      />
+      <NotamHistoryModal 
+        isOpen={isHistoryModalOpen} 
+        onClose={() => setIsHistoryModalOpen(false)} 
+        history={notamHistory} 
+        onClearHistory={() => setNotamHistory([])}
+      />
+    </div>
+  );
+};
+
+// Enhanced ModernHeader with wide-screen features
+const ModernHeader = ({ 
+  timeToNextRefresh, 
+  onRefresh, 
+  onHistoryClick, 
+  activeTab, 
+  autoRefreshAll,
+  breakpoint,
+  isWideScreen,
+  columnsTarget,
+  efficiencyScore
+}) => {
+  const [utcTime, setUtcTime] = useState('');
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+    const tick = () => {
+      const now = new Date();
+      setUtcTime(now.toUTCString().slice(5, -4) + ' UTC');
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const minutes = Math.floor(timeToNextRefresh / 60000);
+  const seconds = Math.floor((timeToNextRefresh % 60000) / 1000).toString().padStart(2, '0');
+
+  const buttonText = activeTab === 'ALL' ? 'Refresh All' : `Refresh ${activeTab}`;
+  const buttonTitle = activeTab === 'ALL' 
+    ? `Fetch latest NOTAMs for all airports (${breakpoint} layout)` 
+    : `Fetch latest NOTAMs for ${activeTab}`;
+
+  return (
+    <header className={`modern-header ${mounted ? 'mounted' : ''} ${isWideScreen ? 'wide-screen-header' : ''}`}>
+      <div className="header-left">
+        <h1>NOTAM Console</h1>
+        {isWideScreen && (
+          <div className="layout-info" title={`${columnsTarget} columns, ${efficiencyScore}% efficiency`}>
+            <span className="layout-badge">{breakpoint.toUpperCase()}</span>
+            <span className="efficiency-badge">{efficiencyScore}%</span>
+          </div>
+        )}
+      </div>
+      <div className="header-meta">
+        <button onClick={onHistoryClick} className="refresh-all-btn" title="View New NOTAM History">
+          History
+        </button>
+        <div className="global-refresh" title={`Next auto-refresh in ${minutes}:${seconds}`}>
+          <button onClick={onRefresh} className="refresh-all-btn" title={buttonTitle}>
+            {buttonText}
+          </button>
+          <span className="global-countdown" onClick={autoRefreshAll} title="Click to refresh all now">
+            {minutes}:{seconds}
+          </span>
+        </div>
+        <p className="utc-time">{utcTime}</p>
+      </div>
+    </header>
+  );
+};
+
+export default App;
