@@ -1,4 +1,4 @@
-/* --- Filter Modal Styles --- */
+/* --- Enhanced Filter Modal Styles --- */
 
 .filter-modal-backdrop {
   position: fixed;
@@ -57,6 +57,7 @@
 }
 
 .filter-modal-close {
+  /* Use unified button system */
   background: none;
   border: none;
   color: var(--text-muted);
@@ -65,11 +66,20 @@
   padding: 0.75rem;
   border-radius: 8px;
   transition: all 0.2s ease;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
 }
 
 .filter-modal-close:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
+}
+
+.filter-modal-close:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }
 
 .filter-modal-content {
@@ -88,21 +98,17 @@
   gap: 1rem;
 }
 
+/* Enhanced modal buttons using unified system */
 .apply-filters-btn {
-  background: var(--gradient-accent);
-  color: white;
-  border: none;
-  padding: 1rem 2rem;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  /* Use unified button system */
+  @extend .btn;
+  @extend .btn-primary;
 }
 
-.apply-filters-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+.clear-all-btn {
+  /* Use unified button system */
+  @extend .btn;
+  @extend .btn-danger;
 }
 
 /* Filter system styles */
@@ -146,6 +152,12 @@
   position: relative;
   overflow: hidden;
   min-height: 44px;
+  outline: none;
+}
+
+.filter-chip:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }
 
 .filter-chip::before {
@@ -274,25 +286,6 @@
   }
 }
 
-/* Clear all button in modal */
-.clear-all-btn {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--accent-red);
-  padding: 1rem 2rem;
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.clear-all-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
-  transform: scale(1.05);
-}
-
-
 /* Responsive design */
 @media (max-width: 768px) {
   .filter-modal {
@@ -320,6 +313,16 @@
     font-size: 1rem;
     margin-right: 0.4rem;
   }
+  
+  .filter-modal-footer {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .apply-filters-btn,
+  .clear-all-btn {
+    width: 100%;
+  }
 }
 
 /* Print styles */
@@ -345,6 +348,14 @@
     border: 3px solid var(--accent-green);
     background: var(--primary-bg);
   }
+  
+  .filter-chip {
+    border: 2px solid var(--border-primary);
+  }
+  
+  .filter-chip.active {
+    border: 2px solid white;
+  }
 }
 
 /* Reduced motion */
@@ -366,13 +377,16 @@
   }
 }
 
-/* Focus states for accessibility */
-.draggable-chip:focus-visible {
-  outline: 2px solid var(--accent-blue);
-  outline-offset: 2px;
-}
-
-.draggable-chip:focus-visible .drag-handle {
-  color: var(--accent-blue);
-  transform: rotate(90deg) scale(1.2);
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .filter-chip,
+  .draggable-chip {
+    min-height: 48px;
+    padding: 1rem 1.25rem;
+  }
+  
+  .drag-handle {
+    font-size: 1.2rem;
+    margin-right: 0.75rem;
+  }
 }
