@@ -541,19 +541,3 @@ export const sanitizeNotamText = (text) => {
     .replace(/\s+/g, ' ') // Normalize whitespace
     .trim();
 };
-
-// --- Export all functions ---
-export {
-  // Time status functions are already exported above
-  getNotamTimeStatus,
-  isNotamExpired,
-  
-  // New formatting and utility functions
-  formatDateForDisplay,
-  getRelativeTime,
-  isSameDay,
-  getNotamPriority,
-  getNotamSeverity,
-  validateNotam,
-  sanitizeNotamText
-};
