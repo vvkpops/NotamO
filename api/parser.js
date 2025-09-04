@@ -58,12 +58,24 @@ export function parseRawNotam(rawText) {
     result.cancelsNotam = notamcMatch[1];
   }
 
-  // Look for ICAO field structure (Q), A), B), C), D), E), F), G))
-  // Enhanced regex to handle variations with or without spaces
-  const fieldRegex = /^([A-G])\)\s*(.*)/;
+  // Enhanced field parsing to handle multiple fields on same line
+  // This regex matches field markers anywhere in the text
+  const allFieldsRegex = /([A-G])\)\s*([^A-G]*?)(?=(?:[A-G]\)|$))/gs;
+  
+  // First, extract all fields from the entire text
+  const fieldMap = {};
+  let allFieldMatches;
+  const fullText = lines.join('\n');
+  
+  while ((allFieldMatches = allFieldsRegex.exec(fullText)) !== null) {
+    const [, field, value] = allFieldMatches;
+    const cleanValue = value.trim().replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    fieldMap[field] = cleanValue;
+  }
+
+  // Alternatively, parse line by line for better control
   let currentField = null;
   let eLineStarted = false;
-  let hasELine = lines.some(line => /^E\)/.test(line));
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -73,75 +85,57 @@ export function parseRawNotam(rawText) {
       continue;
     }
 
-    if (eLineStarted && !fieldRegex.test(line)) {
-      // Continue collecting E line content
-      result.body += `\n${line}`;
-      continue;
-    }
-
-    const match = line.match(fieldRegex);
-    if (!match) {
-      // If we're inside a field continuation, add to current field
-      if (currentField && !eLineStarted) {
-        switch (currentField) {
-          case 'Q': result.qLine += ` ${line}`; break;
-          case 'A': result.aerodrome += ` ${line}`; break;
-          case 'B': result.validFromRaw += ` ${line}`; break;
-          case 'C': result.validToRaw += ` ${line}`; break;
-          case 'D': result.schedule += ` ${line}`; break;
-        }
-      } else if (eLineStarted) {
-        result.body += `\n${line}`;
-      } else if (!hasELine && currentField === 'C') {
-        // If there's no E) line, anything after C) is the body
-        result.body += `${line}\n`;
-        eLineStarted = true;
-      }
-      continue;
-    }
-
-    const [, field, value] = match;
-    currentField = field;
+    // Check if this line contains multiple fields (like "A) CZQX B) 2508070901 C) 2511051800EST")
+    const multiFieldRegex = /([A-G])\)\s*([^A-G)]*?)(?=(?:[A-G]\)|$))/g;
+    let multiFieldMatch;
+    let foundFieldsOnLine = false;
     
-    switch (field) {
-      case 'Q':
-        result.qLine = value.trim();
-        eLineStarted = false;
-        break;
-      case 'A':
-        result.aerodrome = value.trim();
-        eLineStarted = false;
-        break;
-      case 'B':
-        result.validFromRaw = value.trim();
-        eLineStarted = false;
-        break;
-      case 'C':
-        result.validToRaw = value.trim();
-        // Handle PERM variations. Only set to PERM if that's the whole value.
-        if (result.validToRaw.toUpperCase() === 'PERM' || result.validToRaw.toUpperCase() === 'PERMANENT') {
-          result.validToRaw = 'PERM';
-        }
-        eLineStarted = false;
-        break;
-      case 'D':
-        result.schedule = value.trim();
-        eLineStarted = false;
-        break;
-      case 'E':
-        result.body = value.trim();
-        eLineStarted = true;
-        break;
-      case 'F':
-      case 'G':
-        // F and G lines are part of the body in practice
-        if (result.body) {
-          result.body += `\n${field}) ${value.trim()}`;
-        } else {
-          result.body = `${field}) ${value.trim()}`;
-        }
-        eLineStarted = true;
-        break;
+    while ((multiFieldMatch = multiFieldRegex.exec(line)) !== null) {
+      const [, field, value] = multiFieldMatch;
+      const cleanValue = value.trim();
+      foundFieldsOnLine = true;
+      
+      switch (field) {
+        case 'Q':
+          result.qLine = cleanValue;
+          break;
+        case 'A':
+          result.aerodrome = cleanValue;
+          break;
+        case 'B':
+          result.validFromRaw = cleanValue;
+          break;
+        case 'C':
+          result.validToRaw = cleanValue;
+          // Handle PERM variations
+          if (result.validToRaw.toUpperCase() === 'PERM' || result.validToRaw.toUpperCase() === 'PERMANENT') {
+            result.validToRaw = 'PERM';
+          }
+          break;
+        case 'D':
+          result.schedule = cleanValue;
+          break;
+        case 'E':
+          result.body = cleanValue;
+          eLineStarted = true;
+          currentField = 'E';
+          break;
+        case 'F':
+        case 'G':
+          // F and G lines are part of the body in practice
+          if (result.body) {
+            result.body += ` ${field}) ${cleanValue}`;
+          } else {
+            result.body = `${field}) ${cleanValue}`;
+          }
+          break;
+      }
+    }
+
+    // If no fields were found on this line and we're in E) section, append to body
+    if (!foundFieldsOnLine && eLineStarted && currentField === 'E') {
+      // Continue collecting E line content
+      result.body += ` ${line}`;
     }
   }
 
