@@ -43,15 +43,16 @@ const App = () => {
   const [newNotamIcaos, setNewNotamIcaos] = useState(new Set());
   const [timeToNextRefresh, setTimeToNextRefresh] = useState(AUTO_REFRESH_INTERVAL);
 
-  // Filter states
+  // Filter states - Updated to include DOM filter
   const [keywordFilter, setKeywordFilter] = useState('');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [filterOrder, setFilterOrder] = useState([
-    'rwy', 'twy', 'rsc', 'crfi', 'ils', 'fuel', 'other', 'cancelled'
+    'rwy', 'twy', 'rsc', 'crfi', 'ils', 'fuel', 'dom', 'other', 'cancelled' // Add 'dom' here
   ]);
   const [filters, setFilters] = useState({
     rwy: true, twy: true, rsc: true, crfi: true, ils: true,
-    fuel: true, other: true, cancelled: false, current: true, future: true,
+    fuel: true, dom: false, other: true, cancelled: false, // Add dom: false (OFF by default)
+    current: true, future: true,
   });
   const [dragState, setDragState] = useState({
     draggedItem: null,
@@ -592,15 +593,25 @@ const App = () => {
     return { data: storeEntry?.data || [], loading: isLoading, error: storeEntry?.error || null };
   }, [activeTab, allNotamsData, notamDataStore]);
 
+  // Updated filtered NOTAMs to include DOM filter logic
   const { filteredNotams, typeCounts, hasActiveFilters, activeFilterCount } = useMemo(() => {
     const notams = activeNotamData.data;
     if (!notams) return { filteredNotams: [], typeCounts: {}, hasActiveFilters: false, activeFilterCount: 0 };
-    const counts = { rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0, fuel: 0, other: 0, cancelled: 0, current: 0, future: 0 };
+    
+    // Initialize counts with DOM
+    const counts = { 
+      rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0, fuel: 0, 
+      dom: 0, other: 0, cancelled: 0, current: 0, future: 0 // Add dom: 0
+    };
+    
     notams.forEach(notam => {
       if (notam.isIcaoHeader) return;
-      const type = getNotamType(notam); counts[type]++;
-      if (isNotamCurrent(notam)) counts.current++; if (isNotamFuture(notam)) counts.future++;
+      const type = getNotamType(notam); 
+      counts[type]++;
+      if (isNotamCurrent(notam)) counts.current++; 
+      if (isNotamFuture(notam)) counts.future++;
     });
+    
     const filterFunc = notam => {
       if (notam.isIcaoHeader) return true;
       const type = getNotamType(notam);
@@ -610,12 +621,14 @@ const App = () => {
       if (!filters.future && isNotamFuture(notam)) return false;
       return true;
     };
+    
     const sortFunc = (a, b) => {
       if (a.isIcaoHeader || b.isIcaoHeader) return 0;
       const aPrio = filterOrder.indexOf(getNotamType(a)), bPrio = filterOrder.indexOf(getNotamType(b));
       if (aPrio !== bPrio) return aPrio - bPrio;
       return new Date(b.validFrom) - new Date(a.validFrom);
     };
+    
     let results = notams.filter(filterFunc).sort(sortFunc);
     if (activeTab === 'ALL') {
         const icaoGroups = results.reduce((acc, item) => {
@@ -632,15 +645,27 @@ const App = () => {
             }
         });
     }
-    const defaultFilters = { rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, other: true, cancelled: false, current: true, future: true };
+    
+    // Update default filters to include DOM
+    const defaultFilters = { 
+      rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, 
+      dom: false, other: true, cancelled: false, current: true, future: true // Add dom: false
+    };
+    
     const hasFilters = keywordFilter || Object.keys(filters).some(key => filters[key] !== defaultFilters[key]);
     const filterCount = Object.keys(filters).filter(key => filters[key] !== defaultFilters[key]).length + (keywordFilter ? 1 : 0);
     return { filteredNotams: results, typeCounts: counts, hasActiveFilters: hasFilters, activeFilterCount: filterCount };
   }, [activeNotamData.data, keywordFilter, filters, activeTab, filterOrder]);
 
   const handleFilterChange = (filterKey) => setFilters(prev => ({ ...prev, [filterKey]: !prev[filterKey] }));
+  
+  // Update clearAllFilters to include DOM
   const clearAllFilters = () => {
-    setFilters({ rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, other: true, cancelled: false, current: true, future: true });
+    setFilters({ 
+      rwy: true, twy: true, rsc: true, crfi: true, ils: true, 
+      fuel: true, dom: false, other: true, cancelled: false, // Add dom: false
+      current: true, future: true 
+    });
     setKeywordFilter('');
   };
 

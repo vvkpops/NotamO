@@ -17,6 +17,7 @@ export const getNotamFlags = (notam) => {
     isRunway: /\bRWY\b/.test(combinedText) || /\bRUNWAY\b/.test(combinedText),
     isTaxiway: /\bTWY\b/.test(combinedText) || /\bTAXIWAY\b/.test(combinedText),
     isFuel: /\bFUEL\b/.test(combinedText),
+    isDomestic: /\bDOM\b/.test(combinedText) || /\bDOMESTIC\b/.test(combinedText), // Add DOM detection
     // Use the reliable `isCancellation` flag from the API first.
     isCancelled: notam.isCancellation || (notam.type === "C" || /\bCANCELLED\b/.test(combinedText) || /\bCNL\b/.test(combinedText)),
     isRSC: /\bRSC\b/.test(combinedText), // Runway Surface Condition
@@ -32,6 +33,9 @@ export const getNotamType = (notam) => {
 
   // Prioritize cancellation status
   if (flags.isCancelled) return 'cancelled';
+  
+  // Check for domestic classification early
+  if (flags.isDomestic) return 'dom'; // Add this check
   
   // Check for ILS/Nav aids FIRST (before runway check)
   // This handles cases like "ILS RWY 09" which should be classified as ILS, not runway
@@ -89,6 +93,7 @@ export const getHeadTitle = (notam) => {
     crfi: 'FRICTION INDEX',
     ils: 'ILS / NAV AID',
     fuel: 'FUEL SERVICES',
+    dom: 'DOMESTIC', // Add DOM title
     cancelled: 'CANCELLED',
     other: 'GENERAL'
   };

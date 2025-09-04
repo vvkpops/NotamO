@@ -67,7 +67,7 @@ export const FilterModal = ({
     setDragState({ draggedItem: null, draggedOver: null });
   }, [setFilterOrder, setDragState]);
 
-  // Enhanced touch support for mobile devices
+  // Enhanced drag and drop with proper event handling
   const DraggableFilterChip = ({ 
     label, 
     type, 
@@ -97,34 +97,44 @@ export const FilterModal = ({
       handleDragStart(type);
       
       if (chipRef.current) {
-        chipRef.current.style.transform = 'rotate(3deg) scale(1.05)';
-        chipRef.current.style.opacity = '0.8';
+        chipRef.current.classList.add('dragging');
       }
     }, [type, handleDragStart]);
 
-    const handleDragEndInternal = useCallback(() => {
+    const handleDragEndInternal = useCallback((e) => {
+      e.preventDefault(); // Add this to fix the drag issue
       handleDragEnd();
       
       if (chipRef.current) {
-        chipRef.current.style.transform = '';
-        chipRef.current.style.opacity = '';
+        chipRef.current.classList.remove('dragging');
       }
     }, [handleDragEnd]);
 
     const handleDragOverInternal = useCallback((e) => {
       e.preventDefault();
+      e.stopPropagation(); // Add this to fix drag over issues
       e.dataTransfer.dropEffect = 'move';
       handleDragOver(type);
     }, [type, handleDragOver]);
+
+    const handleDragLeave = useCallback((e) => {
+      e.preventDefault();
+      // Only clear drag-over if we're actually leaving this element
+      if (!e.currentTarget.contains(e.relatedTarget)) {
+        setDragState(prev => ({ ...prev, draggedOver: null }));
+      }
+    }, [setDragState]);
 
     const handleDropInternal = useCallback((e) => {
       e.preventDefault();
       e.stopPropagation();
       const draggedType = e.dataTransfer.getData('text/plain');
-      handleDrop(draggedType, type);
+      if (draggedType && draggedType !== type) {
+        handleDrop(draggedType, type);
+      }
     }, [type, handleDrop]);
 
-    // Touch event handlers for mobile devices
+    // Enhanced touch event handlers for mobile devices
     const handleTouchStart = useCallback((e) => {
       touchStartRef.current = {
         x: e.touches[0].clientX,
@@ -140,9 +150,10 @@ export const FilterModal = ({
       const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
       const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
       
-      // If significant movement, prevent click
+      // If significant movement, prevent click and start drag behavior
       if (deltaX > 10 || deltaY > 10) {
         dragStartTimeRef.current = Date.now();
+        e.preventDefault(); // Prevent scrolling
       }
     }, []);
 
@@ -159,6 +170,7 @@ export const FilterModal = ({
         onDragStart={handleDragStartInternal}
         onDragEnd={handleDragEndInternal}
         onDragOver={handleDragOverInternal}
+        onDragLeave={handleDragLeave}
         onDrop={handleDropInternal}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -192,6 +204,7 @@ export const FilterModal = ({
     );
   };
 
+  // Updated filter configuration with DOM filter
   const filterConfig = [
     { key: 'rwy', label: 'Runway' }, 
     { key: 'twy', label: 'Taxiway' }, 
@@ -199,6 +212,7 @@ export const FilterModal = ({
     { key: 'crfi', label: 'Friction' }, 
     { key: 'ils', label: 'ILS/Nav' }, 
     { key: 'fuel', label: 'Fuel' },
+    { key: 'dom', label: 'Domestic' }, // Add DOM filter here
     { key: 'other', label: 'Other' }, 
     { key: 'cancelled', label: 'Cancelled' },
   ];
