@@ -4,6 +4,23 @@
 const FIR_CACHE = new Map();
 const FIR_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Canadian FIR mapping database
+export const CANADIAN_FIR_DATABASE = {
+  // Eastern Canada
+  'CZUL': ['CYUL', 'CYOW', 'CYQB', 'CYMX', 'CYND', 'CYHU', 'CYVO'], // Montreal FIR
+  'CZYZ': ['CYYZ', 'CYTZ', 'CYHM', 'CYKF', 'CYXU', 'CYKZ', 'CYOO'], // Toronto FIR
+  'CZQM': ['CYHZ', 'CYSJ', 'CYFC', 'CYQM', 'CYYT', 'CYAW', 'CYCH'], // Moncton FIR
+  'CZQX': ['CYQX', 'CYDF', 'CYYT', 'CYJT', 'CYYR', 'CYAY'], // Gander FIR
+  
+  // Central Canada  
+  'CZWG': ['CYWG', 'CYQR', 'CYXE', 'CYPA', 'CYMM', 'CYTH', 'CYBR'], // Winnipeg FIR
+  'CZEG': ['CYEG', 'CYQF', 'CYQL', 'CYOD', 'CYOJ', 'CYYC', 'CYCA'], // Edmonton FIR
+  'CZVR': ['CYVR', 'CYXX', 'CYLW', 'CYCD', 'CYYJ', 'CYBL'], // Vancouver FIR
+  
+  // Arctic
+  'CZYZ': ['CYFB', 'CYEV', 'CYFS'], // Extended for Arctic coverage
+};
+
 // US FIR mapping database
 export const US_FIR_DATABASE = {
   'KZNY': ['KJFK', 'KLGA', 'KEWR', 'KISP', 'KHPN'], // New York
@@ -29,24 +46,91 @@ export const US_FIR_DATABASE = {
   'TJZS': ['TJSJ', 'TIST', 'TISX'], // San Juan
 };
 
-// Reverse mapping: ICAO -> FIR
+// Combined reverse mapping: ICAO -> FIR
 const ICAO_TO_FIR_MAP = {};
+
+// Build US mappings
 for (const [fir, icaos] of Object.entries(US_FIR_DATABASE)) {
   for (const icao of icaos) {
     ICAO_TO_FIR_MAP[icao] = fir;
   }
 }
 
+// Build Canadian mappings
+for (const [fir, icaos] of Object.entries(CANADIAN_FIR_DATABASE)) {
+  for (const icao of icaos) {
+    ICAO_TO_FIR_MAP[icao] = fir;
+  }
+}
+
+/**
+ * Get Canadian FIR based on prefix and location
+ */
+function getCanadianFIR(icao) {
+  // Direct lookup first
+  if (ICAO_TO_FIR_MAP[icao]) {
+    return ICAO_TO_FIR_MAP[icao];
+  }
+  
+  // Regional mapping based on second letter for Canadian airports
+  const regionalMap = {
+    'CY': { // Major airports starting with CY
+      'YU': 'CZUL', // Montreal region
+      'YO': 'CZUL', // Ottawa region  
+      'YQ': 'CZUL', // Quebec region
+      'YY': 'CZYZ', // Toronto region
+      'YH': 'CZQM', // Halifax/Maritime
+      'YS': 'CZQM', // Saint John region
+      'YT': 'CZQX', // St. John's
+      'YW': 'CZWG', // Winnipeg region
+      'YE': 'CZEG', // Edmonton region
+      'YV': 'CZVR', // Vancouver region
+      'YC': 'CZEG', // Calgary (Edmonton FIR)
+    }
+  };
+  
+  // Try to match by first 2 letters after C
+  const prefix = icao.substring(1, 3);
+  if (regionalMap.CY && regionalMap.CY[prefix]) {
+    return regionalMap.CY[prefix];
+  }
+  
+  // Fallback based on geographic regions (third letter)
+  const thirdLetter = icao.charAt(2);
+  const geographicMap = {
+    'U': 'CZUL', // Quebec
+    'O': 'CZUL', // Ontario East
+    'Y': 'CZYZ', // Ontario Central
+    'H': 'CZQM', // Maritime
+    'Q': 'CZUL', // Quebec
+    'T': 'CZQX', // Newfoundland
+    'W': 'CZWG', // Manitoba
+    'E': 'CZEG', // Alberta
+    'V': 'CZVR', // BC
+    'C': 'CZEG', // Alberta (Calgary)
+    'R': 'CZWG', // Saskatchewan
+    'X': 'CZWG', // Saskatchewan
+  };
+  
+  return geographicMap[thirdLetter] || null;
+}
+
 /**
  * Extract FIR code from ICAO and NOTAM data
  */
 export function getFIRForICAO(icao, notams) {
-  // Don't process Canadian ICAOs
+  // Canadian ICAOs - use mapping
   if (icao.startsWith('C')) {
+    const canadianFIR = getCanadianFIR(icao);
+    if (canadianFIR) {
+      console.log(`🍁 Found Canadian FIR ${canadianFIR} for ${icao}`);
+      return canadianFIR;
+    }
+    console.log(`⚠️ No Canadian FIR mapping found for ${icao}`);
     return null;
   }
 
-  // Try to extract from Q line in NOTAMs first (most accurate)
+  // US ICAOs - Try to extract from Q line in NOTAMs first (most accurate)
   if (notams && notams.length > 0) {
     for (const notam of notams) {
       if (notam.rawText) {
@@ -60,7 +144,7 @@ export function getFIRForICAO(icao, notams) {
     }
   }
 
-  // Check direct mapping
+  // Check direct mapping for US
   if (ICAO_TO_FIR_MAP[icao]) {
     console.log(`📍 Found FIR ${ICAO_TO_FIR_MAP[icao]} from mapping for ${icao}`);
     return ICAO_TO_FIR_MAP[icao];
@@ -68,15 +152,22 @@ export function getFIRForICAO(icao, notams) {
 
   // For US airports without direct mapping, try regional detection
   if (icao.startsWith('K')) {
-    // Alaska
-    if (icao.startsWith('PA')) return 'PAZA';
-    // Caribbean
-    if (icao.startsWith('TJ')) return 'TJZS';
-    
     console.log(`⚠️ No FIR mapping found for ${icao}, would need extended database`);
   }
+  
+  // Alaska
+  if (icao.startsWith('PA')) return 'PAZA';
+  // Caribbean
+  if (icao.startsWith('TJ')) return 'TJZS';
 
   return null;
+}
+
+/**
+ * Check if FIR code is Canadian
+ */
+export function isCanadianFIR(firCode) {
+  return firCode && firCode.startsWith('CZ');
 }
 
 /**

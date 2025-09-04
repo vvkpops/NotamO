@@ -1,147 +1,119 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import NotamCard from './NotamCard';
+import { getFIRForICAO } from './FIRUtils';
 
-const ICAOTabPanel = ({ 
-  icao, 
-  notamData, 
-  loading, 
+const ICAOTabPanel = ({
+  icao,
+  notamData,
+  loading,
   error,
-  keywordHighlightEnabled,
-  keywordCategories,
-  onRefresh,
-  firDataStore 
+  keywordHighlightEnabled = false,
+  keywordCategories = {},
+  firDataStore = {}
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState('aerodrome');
-  const [categorizedNotams, setCategorizedNotams] = useState({
-    aerodromeNotams: [],
-    firNotams: []
-  });
-  const [firCode, setFirCode] = useState(null);
+  const [activeSubTab, setActiveSubTab] = useState('AERODROME');
   
-  // Reset state when ICAO changes
-  useEffect(() => {
-    setActiveSubTab('aerodrome');
-  }, [icao]);
-
-  // Extract FIR code and categorize NOTAMs
-  useEffect(() => {
-    if (!notamData || notamData.length === 0) return;
-    
-    // Check if this is Canadian CFPS data (it already includes FIR NOTAMs)
-    const isCanadianSource = notamData.some(n => n.source === 'NAV CANADA');
-    if (isCanadianSource) {
-      console.log(`🍁 Canadian source detected for ${icao}, FIR NOTAMs included`);
-      setCategorizedNotams({
-        aerodromeNotams: notamData,
-        firNotams: []
-      });
-      setFirCode(null);
-      return;
-    }
-    
-    // Extract FIR code from FAA NOTAMs
-    const extractedFIR = getFIRForICAO(icao, notamData);
-    setFirCode(extractedFIR);
-    
-    // All existing NOTAMs are aerodrome NOTAMs
-    setCategorizedNotams({
-      aerodromeNotams: notamData,
-      firNotams: []
-    });
+  // Get the FIR code for this ICAO
+  const firCode = useMemo(() => {
+    if (!icao || !notamData || notamData.length === 0) return null;
+    return getFIRForICAO(icao, notamData);
   }, [icao, notamData]);
-
-  // Get FIR NOTAMs from the shared store
-  useEffect(() => {
-    if (!firCode || !firDataStore[firCode]) {
-      return;
-    }
-    
-    const firData = firDataStore[firCode];
-    if (firData.data) {
-      setCategorizedNotams(prev => ({
-        ...prev,
-        firNotams: firData.data
-      }));
-    }
+  
+  // Get FIR data from the store
+  const firData = useMemo(() => {
+    if (!firCode) return null;
+    return firDataStore[firCode];
   }, [firCode, firDataStore]);
-
-  const SubTabButton = ({ id, label, count, isActive, onClick }) => (
-    <button
-      className={`icao-subtab ${isActive ? 'active' : ''}`}
-      onClick={onClick}
-    >
-      <span>{label}</span>
-      {count !== undefined && <span className="subtab-count">({count})</span>}
-    </button>
-  );
-
+  
+  // Determine if we should show FIR tab
+  const shouldShowFIRTab = useMemo(() => {
+    // Show FIR tab if:
+    // 1. We have a FIR code AND
+    // 2. Either we have FIR data OR FIR is loading
+    return firCode && (firData?.data?.length > 0 || firData?.loading);
+  }, [firCode, firData]);
+  
+  // Count NOTAMs for each tab
+  const aerodromeCount = notamData?.length || 0;
+  const firCount = firData?.data?.length || 0;
+  
+  // Auto-switch to aerodrome if FIR tab is hidden and FIR was selected
+  useEffect(() => {
+    if (activeSubTab === 'FIR' && !shouldShowFIRTab) {
+      setActiveSubTab('AERODROME');
+    }
+  }, [activeSubTab, shouldShowFIRTab]);
+  
+  // Loading state
   if (loading && (!notamData || notamData.length === 0)) {
     return (
-      <div className="loading-state">
-        <div className="loading-spinner-large"></div>
-        <h3>Loading NOTAMs...</h3>
+      <div className="notam-tab-content">
+        <div className="loading-state">
+          <div className="loading-spinner-large"></div>
+          <h3>Loading NOTAMs for {icao}...</h3>
+          <p>Fetching latest aviation notices</p>
+        </div>
       </div>
     );
   }
-
+  
+  // Error state
   if (error) {
     return (
-      <div className="error-state">
-        <div className="error-icon">⚠️</div>
-        <h3>Failed to Load NOTAMs</h3>
-        <p>{error}</p>
+      <div className="notam-tab-content">
+        <div className="error-state">
+          <div className="error-icon">⚠️</div>
+          <h3>Failed to Load NOTAMs</h3>
+          <p>{error}</p>
+        </div>
       </div>
     );
   }
-
-  const displayNotams = activeSubTab === 'aerodrome' 
-    ? categorizedNotams.aerodromeNotams 
-    : categorizedNotams.firNotams;
-
-  // Check if we should show FIR tab (only for FAA sources)
-  const showFirTab = firCode && notamData && notamData.some(n => n.source === 'FAA');
-  const firLoading = firCode && firDataStore[firCode]?.loading;
-  const firError = firCode && firDataStore[firCode]?.error;
-
+  
+  // Determine which data to show based on active sub-tab
+  const displayData = activeSubTab === 'FIR' ? (firData?.data || []) : notamData;
+  const isLoadingData = activeSubTab === 'FIR' ? firData?.loading : false;
+  
   return (
-    <div className="icao-tab-panel">
+    <div className="notam-tab-content">
+      {/* Sub-tabs for Aerodrome/FIR */}
       <div className="icao-subtabs">
-        <SubTabButton
-          id="aerodrome"
-          label={`✈️ ${icao} Aerodrome`}
-          count={categorizedNotams.aerodromeNotams.length}
-          isActive={activeSubTab === 'aerodrome'}
-          onClick={() => setActiveSubTab('aerodrome')}
-        />
-        {showFirTab && (
-          <SubTabButton
-            id="fir"
-            label={`🌐 ${firCode} FIR`}
-            count={firLoading ? '...' : categorizedNotams.firNotams.length}
-            isActive={activeSubTab === 'fir'}
-            onClick={() => setActiveSubTab('fir')}
-          />
+        <button 
+          className={`icao-subtab ${activeSubTab === 'AERODROME' ? 'active' : ''}`}
+          onClick={() => setActiveSubTab('AERODROME')}
+        >
+          <span className="subtab-icon">✈️</span>
+          <span>Aerodrome ({aerodromeCount})</span>
+        </button>
+        
+        {shouldShowFIRTab && (
+          <button 
+            className={`icao-subtab ${activeSubTab === 'FIR' ? 'active' : ''}`}
+            onClick={() => setActiveSubTab('FIR')}
+          >
+            <span className="subtab-icon">🌐</span>
+            <span>
+              FIR {firCode} ({firCount})
+              {firData?.loading && <span className="fir-loading-spinner"></span>}
+            </span>
+          </button>
         )}
       </div>
-
-      <div className="subtab-content">
-        {activeSubTab === 'fir' && firLoading ? (
+      
+      {/* Content based on active sub-tab */}
+      <div className="notam-results">
+        {isLoadingData ? (
           <div className="loading-state">
             <div className="loading-spinner-large"></div>
-            <h3>Loading FIR NOTAMs...</h3>
+            <h3>Loading FIR NOTAMs for {firCode}...</h3>
+            <p>Fetching Flight Information Region notices</p>
           </div>
-        ) : activeSubTab === 'fir' && firError ? (
-          <div className="error-state">
-            <div className="error-icon">⚠️</div>
-            <h3>Failed to Load FIR NOTAMs</h3>
-            <p>{firError}</p>
-          </div>
-        ) : displayNotams.length > 0 ? (
+        ) : displayData && displayData.length > 0 ? (
           <div className="notam-grid">
-            {displayNotams.map(notam => (
-              <NotamCard
-                key={notam.id}
-                notam={notam}
+            {displayData.map((notam) => (
+              <NotamCard 
+                key={notam.id} 
+                notam={notam} 
                 keywordHighlightEnabled={keywordHighlightEnabled}
                 keywordCategories={keywordCategories}
               />
@@ -149,9 +121,13 @@ const ICAOTabPanel = ({
           </div>
         ) : (
           <div className="empty-state">
-            <div className="empty-icon">📭</div>
-            <h3>No {activeSubTab === 'fir' ? 'FIR' : 'Aerodrome'} NOTAMs</h3>
-            <p>No active NOTAMs found for this {activeSubTab === 'fir' ? 'FIR' : 'aerodrome'}.</p>
+            <div className="empty-icon">
+              {activeSubTab === 'FIR' ? '🌐' : '✈️'}
+            </div>
+            <h3>No {activeSubTab === 'FIR' ? 'FIR' : 'Aerodrome'} NOTAMs found</h3>
+            <p>
+              There are currently no active {activeSubTab === 'FIR' ? `FIR NOTAMs for ${firCode}` : `NOTAMs for ${icao}`}
+            </p>
           </div>
         )}
       </div>
@@ -159,57 +135,4 @@ const ICAOTabPanel = ({
   );
 };
 
-// Helper function to extract FIR code from ICAO and NOTAMs
-const getFIRForICAO = (icao, notams) => {
-  // US FIR mapping
-  const US_FIR_MAP = {
-    'K': {
-      // Alaska
-      'PA': 'PAZA', // Alaska
-      // Caribbean
-      'TJ': 'TJZS', // San Juan
-      // Continental US examples
-      'JFK': 'KZNY', // New York
-      'LAX': 'KZLA', // Los Angeles
-      'ORD': 'KZAU', // Chicago
-      'ATL': 'KZTL', // Atlanta
-      'DFW': 'KZFW', // Fort Worth
-      'DEN': 'KZDV', // Denver
-      'SEA': 'KZSE', // Seattle
-      'BOS': 'KZBW', // Boston
-      'MIA': 'KZMA', // Miami
-    }
-  };
-
-  // Try to extract from Q line in NOTAMs
-  if (notams && notams.length > 0) {
-    for (const notam of notams) {
-      if (notam.rawText) {
-        const qLineMatch = notam.rawText.match(/Q\)\s*([A-Z]{4})\//);
-        if (qLineMatch) {
-          console.log(`🔍 Found FIR ${qLineMatch[1]} in Q line for ${icao}`);
-          return qLineMatch[1];
-        }
-      }
-    }
-  }
-
-  // Fallback to mapping
-  if (icao.startsWith('K')) {
-    // Check specific mappings
-    if (icao.startsWith('PA')) return 'PAZA';
-    if (icao.startsWith('TJ')) return 'TJZS';
-    
-    // Check known airports
-    const airportFir = US_FIR_MAP.K[icao.substring(1)];
-    if (airportFir) return airportFir;
-    
-    // For other US airports, we'd need a more complete mapping
-    console.log(`⚠️ No FIR mapping found for ${icao}`);
-  }
-
-  return null;
-};
-
 export default ICAOTabPanel;
-export { getFIRForICAO };

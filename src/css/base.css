@@ -1,536 +1,62 @@
-/* Modern NOTAM Console - Base styles */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+/* Add this to your existing base.css file - Progress bar styles */
 
-/* Reset and base styles with modern approach */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-:root {
-  /* Modern color palette */
-  --primary-bg: #0a0e1a;
-  --secondary-bg: #111827;
-  --accent-blue: #00d4ff;
-  --accent-purple: #8b5cf6;
-  --accent-green: #10b981;
-  --accent-orange: #f59e0b;
-  --accent-red: #ef4444;
-  --text-primary: #ffffff;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --border-primary: rgba(255, 255, 255, 0.1);
-  --border-accent: rgba(0, 212, 255, 0.3);
-  --glass-bg: rgba(17, 24, 39, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --shadow-primary: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
-  --shadow-hover: 0 25px 50px -12px rgba(0, 212, 255, 0.25);
-  --gradient-primary: linear-gradient(135deg, #0a0e1a 0%, #111827 50%, #1e293b 100%);
-  --gradient-accent: linear-gradient(135deg, #00d4ff 0%, #8b5cf6 100%);
-  --card-height: 320px;
-  --grid-gap: 1.75rem;
-  --section-spacing: 2.5rem;
-  --element-spacing: 1.5rem;
-}
-
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--gradient-primary);
-  color: var(--text-primary);
-  min-height: 100vh;
-  line-height: 1.6;
-  overflow-x: hidden;
-}
-
-/* Animated background elements */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
+/* Fetch Progress Bar */
+.fetch-progress-bar {
+  position: absolute;
+  bottom: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    radial-gradient(circle at 20% 50%, rgba(0, 212, 255, 0.05) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
-    radial-gradient(circle at 40% 80%, rgba(16, 185, 129, 0.03) 0%, transparent 50%);
-  animation: backgroundShift 20s ease-in-out infinite alternate;
-  pointer-events: none;
-  z-index: -1;
-}
-
-@keyframes backgroundShift {
-  0% { transform: translateX(-10px) translateY(-10px); }
-  100% { transform: translateX(10px) translateY(10px); }
-}
-
-/* Premium glass morphism */
-.glass {
-  background: rgba(17, 24, 39, 0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--glass-border);
-  border-radius: 20px;
-  box-shadow: var(--shadow-primary);
-  position: relative;
+  right: 0;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.3);
   overflow: hidden;
 }
 
-.glass::before {
-  content: '';
+.fetch-progress-track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 212, 255, 0.1);
+}
+
+.fetch-progress-fill {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-}
-
-/* Container with better spacing */
-.container {
-  max-width: 95%;
-  margin: 0 auto;
-  padding: 0 2rem;
-  transition: max-width 0.5s ease;
-}
-
-/* Premium header design with improved spacing */
-.modern-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 2rem 0;
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all 1s ease;
-}
-
-.modern-header.mounted {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.modern-header h1 {
-  font-size: clamp(2rem, 4vw, 2.5rem);
-  font-weight: 800;
-  background: var(--gradient-accent);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  letter-spacing: -0.02em;
-  margin: 0;
-  text-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
-  position: relative;
-  animation: titleGlow 3s ease-in-out infinite alternate;
-}
-
-.header-meta {
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-}
-
-.global-refresh {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: rgba(17, 24, 39, 0.7);
-  padding: 0.5rem 0.5rem 0.5rem 1.25rem;
-  border-radius: 12px;
-  border: 1px solid var(--border-primary);
-}
-
-.refresh-all-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: color 0.2s ease;
-}
-
-.refresh-all-btn:hover {
-  color: var(--accent-blue);
-}
-
-.global-countdown {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.9rem;
-  color: var(--accent-blue);
-  background-color: rgba(0, 0, 0, 0.3);
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  min-width: 50px;
-  text-align: center;
-}
-
-.utc-time {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 1rem;
-  color: var(--accent-blue);
-  font-weight: 500;
-  opacity: 0.9;
-  animation: pulse 2s ease-in-out infinite;
-  margin: 0;
-}
-
-/* Keyframes */
-@keyframes titleGlow {
-  0% { filter: drop-shadow(0 0 10px rgba(0, 212, 255, 0.3)); }
-  100% { filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.4)); }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.9; }
-  50% { opacity: 0.7; }
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-  20%, 40%, 60%, 80% { transform: translateX(5px); }
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* Success states */
-.success-flash {
-    animation: successFlash 0.5s ease-out;
-}
-  
-@keyframes successFlash {
-    0% { background-color: rgba(16, 185, 129, 0); }
-    50% { background-color: rgba(16, 185, 129, 0.2); }
-    100% { background-color: rgba(16, 185, 129, 0); }
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-  :root {
-    --grid-gap: 1.25rem;
-    --section-spacing: 2rem;
-    --element-spacing: 1.25rem;
-  }
-  
-  .container { 
-    padding: 0 1.5rem; 
-  }
-  
-  .modern-header {
-    flex-direction: column;
-    padding: 2rem 0;
-    gap: 1.5rem;
-    text-align: center;
-  }
-  
-  .modern-header h1 {
-    font-size: 2.2rem;
-  }
-
-  .header-meta {
-    flex-direction: column;
-    gap: 1rem;
-  }
-}
-/* Enhanced Auto-Responsive Display System for NOTAM Console */
-
-/* 1. SMART CONTAINER SIZING */
-.container {
-  max-width: 100%;
-  width: 100%;
-  margin: 0 auto;
-  padding: 0 clamp(1rem, 3vw, 2rem);
-  transition: all 0.3s ease;
-}
-
-/* Responsive breakpoints for container */
-@media (min-width: 768px) {
-  .container { max-width: 90%; }
-}
-
-@media (min-width: 1024px) {
-  .container { max-width: 85%; }
-}
-
-@media (min-width: 1280px) {
-  .container { max-width: 80%; }
-}
-
-@media (min-width: 1920px) {
-  .container { max-width: 75%; }
-}
-
-/* 2. DYNAMIC CARD SIZING SYSTEM */
-:root {
-  /* Responsive card sizes based on viewport */
-  --card-min-width: clamp(280px, 35vw, 380px);
-  --card-max-width: clamp(380px, 45vw, 520px);
-  --card-optimal-width: clamp(320px, 40vw, 450px);
-  
-  /* Dynamic gaps */
-  --grid-gap: clamp(1rem, 2.5vw, 1.75rem);
-  --section-spacing: clamp(1.5rem, 3vw, 2.5rem);
-  --element-spacing: clamp(1rem, 2vw, 1.5rem);
-}
-
-/* 3. INTELLIGENT GRID SYSTEM */
-.notam-grid {
-  display: grid;
-  gap: var(--grid-gap);
-  margin-top: 1.5rem;
-  
-  /* Auto-fit with intelligent sizing */
-  grid-template-columns: repeat(
-    auto-fit, 
-    minmax(var(--card-min-width), 1fr)
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent,
+    rgba(0, 212, 255, 0.8),
+    var(--accent-blue),
+    rgba(0, 212, 255, 0.8),
+    transparent
   );
-  
-  /* Ensure cards don't get too wide on large screens */
-  grid-auto-columns: minmax(var(--card-min-width), var(--card-max-width));
-  
-  transition: all 0.3s ease;
+  background-size: 200% 100%;
+  transition: width 0.3s ease;
+  animation: progressShimmer 2s linear infinite;
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
 }
 
-/* Responsive grid adjustments */
-@media (max-width: 768px) {
-  .notam-grid {
-    grid-template-columns: 1fr;
-    gap: 1.25rem;
+@keyframes progressShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
   }
 }
 
-@media (min-width: 769px) and (max-width: 1024px) {
-  .notam-grid {
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  }
+.fetch-progress-text {
+  position: absolute;
+  bottom: 8px;
+  right: 2rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--accent-blue);
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  backdrop-filter: blur(10px);
 }
 
-@media (min-width: 1025px) and (max-width: 1440px) {
-  .notam-grid {
-    grid-template-columns: repeat(auto-fit, minmax(380px, 420px));
-  }
-}
-
-@media (min-width: 1441px) {
-  .notam-grid {
-    grid-template-columns: repeat(auto-fit, minmax(400px, 450px));
-    max-width: none;
-  }
-}
-
-/* 4. ADAPTIVE CARD HEIGHTS */
-.notam-card {
-  /* Remove fixed heights, let content determine */
-  height: auto;
-  min-height: clamp(240px, 30vh, 320px);
-  max-height: 80vh;
-  
-  /* Ensure proper aspect ratio on very wide screens */
-  aspect-ratio: auto;
-}
-
-/* 5. RESPONSIVE CONTROL PANELS */
-.icao-input-container {
-  padding: clamp(1.5rem, 3vw, 2rem);
-  margin-bottom: var(--section-spacing);
-}
-
-.top-controls, .bottom-controls {
-  gap: clamp(0.75rem, 2vw, 1.5rem);
-}
-
-.top-controls {
-  flex-direction: row;
-  align-items: flex-start;
-  flex-wrap: wrap;
-}
-
-@media (max-width: 768px) {
-  .top-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .filter-controls {
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-}
-
-/* 6. SMART INPUT SIZING */
-.icao-input-wrapper {
-  flex: 1 1 auto;
-  min-width: 280px;
-  max-width: 100%;
-}
-
-.icao-input.compact {
-  width: 100%;
-  max-width: clamp(300px, 50vw, 500px);
-}
-
-/* 7. ADAPTIVE BUTTON SIZING */
-.add-button, .filter-toggle-btn {
-  padding: clamp(0.75rem, 2vw, 1rem) clamp(1.5rem, 3vw, 2rem);
-  font-size: clamp(0.9rem, 2vw, 1rem);
-  min-width: clamp(120px, 20vw, 160px);
-  white-space: nowrap;
-}
-
-/* 8. RESPONSIVE TAB SYSTEM */
-.icao-tabs {
-  padding: clamp(1.25rem, 2.5vw, 1.5rem) clamp(1.5rem, 3vw, 2rem);
-  gap: clamp(0.75rem, 1.5vw, 1rem);
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-
-.icao-tab {
-  padding: clamp(0.75rem, 1.5vw, 1rem) clamp(1rem, 2vw, 1.25rem);
-  font-size: clamp(0.85rem, 1.5vw, 0.95rem);
-  min-width: fit-content;
-  white-space: nowrap;
-}
-
-/* 9. CONTENT PADDING ADJUSTMENTS */
-.notam-tab-content {
-  padding: clamp(1.25rem, 2.5vw, 1.5rem) clamp(1.5rem, 3vw, 2.5rem) clamp(2rem, 4vw, 2.5rem);
-}
-
-.notam-card-content {
-  padding: clamp(1.5rem, 3vw, 2rem);
-  gap: clamp(1.25rem, 2vw, 1.5rem);
-}
-
-.card-head {
-  padding: clamp(1.25rem, 2.5vw, 1.5rem) clamp(1.5rem, 3vw, 2rem);
-  min-height: clamp(60px, 10vw, 80px);
-}
-
-/* 10. RESPONSIVE TYPOGRAPHY */
-.modern-header h1 {
-  font-size: clamp(1.75rem, 5vw, 2.5rem);
-}
-
-.head-title {
-  font-size: clamp(1rem, 2.5vw, 1.15rem);
-}
-
-.runway-numbers {
-  font-size: clamp(1rem, 2vw, 1.15rem);
-}
-
-.notam-raw-text {
-  font-size: clamp(0.85rem, 1.5vw, 0.95rem);
-  line-height: clamp(1.5, 0.1vw + 1.4, 1.6);
-}
-
-/* 11. SEARCH AND SIZER CONTROLS */
-.search-input-wrapper {
-  flex: 1 1 auto;
-  min-width: 200px;
-  max-width: 100%;
-}
-
-.card-sizer-control {
-  min-width: fit-content;
-  white-space: nowrap;
-}
-
-/* Hide card sizer on small screens where it's less relevant */
-@media (max-width: 768px) {
-  .card-sizer-control {
-    display: none;
-  }
-}
-
-/* 12. MODAL RESPONSIVE SIZING */
-.filter-modal, .hm-modal, .icao-sort-modal, .nh-modal {
-  width: clamp(90vw, 900px, 95vw);
-  max-width: min(900px, 95vw);
-  max-height: min(90vh, 800px);
-  margin: clamp(1rem, 3vw, 2rem);
-}
-
-/* 13. ULTRA-WIDE SCREEN OPTIMIZATIONS */
-@media (min-width: 1920px) {
-  .container {
-    max-width: 1400px;
-  }
-  
-  .notam-grid {
-    grid-template-columns: repeat(auto-fit, minmax(420px, 480px));
-    justify-content: center;
-  }
-}
-
-/* 14. HIGH DPI DISPLAY ADJUSTMENTS */
-@media (min-resolution: 192dpi), (min-resolution: 2dppx) {
-  .notam-raw-text {
-    font-size: clamp(0.9rem, 1.5vw, 1rem);
-  }
-  
-  .head-title {
-    font-size: clamp(1.1rem, 2.5vw, 1.25rem);
-  }
-}
-
-/* 15. VIEWPORT HEIGHT CONSIDERATIONS */
-@media (max-height: 600px) {
-  .notam-card {
-    min-height: 200px;
-  }
-  
-  .modern-header {
-    padding: 1rem 0;
-  }
-}
-
-/* 16. CONTAINER QUERIES FOR FINE-TUNED CONTROL */
-@container notam-card (max-width: 350px) {
-  .card-head {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-  
-  .head-actions {
-    align-self: flex-end;
-  }
-}
-
-@container notam-card (min-width: 500px) {
-  .notam-raw-text {
-    font-size: 1rem;
-    padding: 1.5rem;
-  }
-}
-
-/* 17. ACCESSIBILITY AND REDUCED MOTION */
-@media (prefers-reduced-motion: reduce) {
-  .container, .notam-grid, .notam-card {
-    transition: none;
-  }
-}
-
-/* 18. PRINT STYLES */
-@media print {
-  .container {
-    max-width: 100%;
-    padding: 0;
-  }
-  
-  .notam-grid {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  
-  .notam-card {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-}
+/* Rest of your existing base.css content remains the same */
