@@ -16,11 +16,15 @@ export function parseRawNotam(rawText) {
     return null;
   }
 
-  // Clean up the raw text - handle different line endings and escape sequences
+  // Clean up the raw text - handle different line endings, escape sequences, and brackets
   const cleanText = rawText
     .replace(/\\n/g, '\n')           // Convert escaped newlines
-    .replace(/\r\n/g, '\n')          // Normalize Windows line endings
-    .replace(/\r/g, '\n')            // Normalize old Mac line endings
+    .replace(/\\r\n/g, '\n')          // Normalize Windows line endings
+    .replace(/\\r/g, '\n')            // Normalize old Mac line endings
+    .replace(/\\\(/g, '(')            // Unescape opening parenthesis
+    .replace(/\\\)/g, ')')            // Unescape closing parenthesis
+    .replace(/\\"/g, '"')             // Unescape quotes
+    .replace(/\\t/g, '\t')            // Convert escaped tabs
     .trim();
 
   const lines = cleanText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
@@ -40,8 +44,9 @@ export function parseRawNotam(rawText) {
   // Check for NOTAM number and cancellation in the first line
   const firstLine = lines[0] || '';
   
-  // Extract NOTAM number (e.g., C3734/25, A1234/25, etc.)
-  const notamNumberMatch = firstLine.match(/([A-Z]\d{4}\/\d{2})/);
+  // Enhanced NOTAM number extraction - handle parentheses
+  // Look for patterns like (H3902/25 or H3902/25
+  const notamNumberMatch = firstLine.match(/\(?([A-Z]\d{4}\/\d{2})/);
   if (notamNumberMatch) {
     result.notamNumber = notamNumberMatch[1];
   }
@@ -54,16 +59,17 @@ export function parseRawNotam(rawText) {
   }
 
   // Look for ICAO field structure (Q), A), B), C), D), E), F), G))
+  // Enhanced regex to handle variations with or without spaces
   const fieldRegex = /^([A-G])\)\s*(.*)/;
   let currentField = null;
   let eLineStarted = false;
-  let hasELine = lines.some(line => line.startsWith('E)'));
+  let hasELine = lines.some(line => /^E\)/.test(line));
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     
-    // Skip the first line if it contains NOTAM number
-    if (i === 0 && (notamNumberMatch || notamcMatch)) {
+    // Skip the first line if it contains NOTAM number (might have parentheses)
+    if (i === 0 && (notamNumberMatch || notamcMatch || line.startsWith('('))) {
       continue;
     }
 
@@ -139,13 +145,19 @@ export function parseRawNotam(rawText) {
     }
   }
 
-  // Clean up all fields
+  // Clean up all fields - remove any lingering brackets or escape sequences
   result.qLine = result.qLine.trim();
   result.aerodrome = result.aerodrome.trim();
   result.validFromRaw = result.validFromRaw.trim();
   result.validToRaw = result.validToRaw.trim();
   result.schedule = result.schedule.trim();
   result.body = result.body.trim();
+  
+  // Additional cleanup for body text that might have closing parenthesis at the end
+  if (result.body.endsWith(')') && !result.body.includes('(')) {
+    // Likely a stray closing parenthesis from the NOTAM wrapper
+    result.body = result.body.slice(0, -1).trim();
+  }
   
   return result;
 }
