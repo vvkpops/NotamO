@@ -1,5 +1,3 @@
-// Key updates to App.jsx for better date handling and time status management
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import NotamTabContent, { FilterModal } from './NotamTabContent';
 import { 
@@ -18,7 +16,17 @@ import NotamHistoryModal from './NotamHistoryModal.jsx';
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 const App = () => {
-  // Existing state management...
+  // Ensure modal root exists
+  useEffect(() => {
+    let modalRoot = document.getElementById('modal-root');
+    if (!modalRoot) {
+      modalRoot = document.createElement('div');
+      modalRoot.id = 'modal-root';
+      document.body.appendChild(modalRoot);
+    }
+  }, []);
+
+  // State Management
   const [icaos, setIcaos] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("notamIcaos") || "[]");
@@ -26,7 +34,6 @@ const App = () => {
       return [];
     }
   });
-  
   const [activeTab, setActiveTab] = useState('ALL');
   const [notamDataStore, setNotamDataStore] = useState({});
   const [isAdding, setIsAdding] = useState(false);
@@ -60,7 +67,7 @@ const App = () => {
     draggedOver: null
   });
 
-  // Keyword highlighting states (existing)
+  // Keyword highlighting states
   const [keywordHighlightEnabled, setKeywordHighlightEnabled] = useState(() => {
     try {
       const saved = localStorage.getItem('notamKeywordHighlightEnabled');
@@ -69,7 +76,6 @@ const App = () => {
       return true;
     }
   });
-  
   const [keywordCategories, setKeywordCategories] = useState(() => {
     try {
       const saved = localStorage.getItem('notamKeywordCategories');
@@ -78,9 +84,12 @@ const App = () => {
       return DEFAULT_NOTAM_KEYWORDS;
     }
   });
-  
   const [isHighlightModalOpen, setIsHighlightModalOpen] = useState(false);
+
+  // ICAO Sorting states
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
+
+  // New NOTAM history states
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [notamHistory, setNotamHistory] = useState(() => {
     try {
@@ -91,7 +100,7 @@ const App = () => {
     }
   });
 
-  // Refs for stable callbacks
+  // Use useRef to avoid stale state in callbacks
   const icaosRef = useRef([]);
   const isProcessingQueue = useRef(false);
   const queueTimerRef = useRef(null);
@@ -110,6 +119,70 @@ const App = () => {
   useEffect(() => {
     icaosRef.current = icaos;
   }, [icaos]);
+
+  // Load custom ICAO order on app start
+  useEffect(() => {
+    const savedOrder = localStorage.getItem('icaoCustomOrder');
+    if (savedOrder) {
+      try {
+        const parsedOrder = JSON.parse(savedOrder);
+        const currentIcaos = JSON.parse(localStorage.getItem("notamIcaos") || "[]");
+        const orderedIcaos = [...parsedOrder.filter(icao => currentIcaos.includes(icao))];
+        const newIcaos = currentIcaos.filter(icao => !orderedIcaos.includes(icao));
+        const finalOrder = [...orderedIcaos, ...newIcaos];
+        
+        if (finalOrder.length > 0 && JSON.stringify(finalOrder) !== JSON.stringify(currentIcaos)) {
+          setIcaos(finalOrder);
+          localStorage.setItem("notamIcaos", JSON.stringify(finalOrder));
+        }
+      } catch (error) {
+        console.warn('Failed to load custom ICAO order:', error);
+      }
+    }
+  }, []);
+
+  // Handle ICAO reordering
+  const handleIcaoReorder = useCallback((newOrder) => {
+    setIcaos(newOrder);
+    localStorage.setItem("notamIcaos", JSON.stringify(newOrder));
+    localStorage.setItem('icaoCustomOrder', JSON.stringify(newOrder));
+    console.log('🔄 ICAO order updated:', newOrder);
+  }, []);
+
+  // Save settings to localStorage with error handling
+  useEffect(() => {
+    try {
+      localStorage.setItem('notamKeywordHighlightEnabled', JSON.stringify(keywordHighlightEnabled));
+    } catch (error) {
+      console.warn('Failed to save highlight setting:', error);
+    }
+  }, [keywordHighlightEnabled]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('notamKeywordCategories', JSON.stringify(keywordCategories));
+    } catch (error) {
+      console.warn('Failed to save keyword categories:', error);
+    }
+  }, [keywordCategories]);
+  
+  useEffect(() => {
+    try {
+      localStorage.setItem('notamCardSize', JSON.stringify(cardSize));
+    } catch (error) {
+      console.warn('Failed to save card size:', error);
+    }
+  }, [cardSize]);
+
+  useEffect(() => {
+    try {
+      // Limit history to 100 entries
+      const limitedHistory = notamHistory.slice(0, 100);
+      localStorage.setItem('notamHistory', JSON.stringify(limitedHistory));
+    } catch (error) {
+      console.warn('Failed to save NOTAM history:', error);
+    }
+  }, [notamHistory]);
 
   // Enhanced NOTAM signature generation for better detection
   const createNotamSignature = useCallback((notam) => {
@@ -285,6 +358,306 @@ const App = () => {
     };
   }, [createNotamSignature, processNotamData, currentTime]);
 
+  const handleRefreshIcao = useCallback((icaoToRefresh) => {
+    if (fetchQueue.includes(icaoToRefresh)) return;
+    setFetchQueue(prev => [...prev, icaoToRefresh]);
+  }, [fetchQueue]);
+
+  // fetchNotams with smart incremental updates
+  const fetchNotams = useCallback(async (icao) => {
+    console.log(`🚀 Fetching NOTAMs for ${icao}`);
+    
+    // Set loading state but preserve existing data
+    setNotamDataStore(prev => ({ 
+      ...prev, 
+      [icao]: { ...prev[icao], loading: true, error: null } 
+    }));
+    
+    try {
+      const response = await fetch(`/api/notams?icao=${icao}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      setNotamDataStore(prev => {
+        const oldData = prev[icao]?.data || [];
+        const isInitialFetch = oldData.length === 0 && !prev[icao]?.lastUpdated;
+        
+        // Use smart incremental merge
+        const { processedData, hasNewNotams, newNotamsList, stats } = smartNotamMerge(oldData, data, isInitialFetch);
+        
+        // Add ICAO to each NOTAM for consistency
+        const notamsWithIcao = processedData.map(n => ({ ...n, icao }));
+
+        // Update new NOTAM indicators and history if there are new NOTAMs
+        if (hasNewNotams) {
+          console.log(`🆕 Found ${stats.new} new NOTAMs for ${icao}`);
+          setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
+          
+          const historyEntry = {
+            id: Date.now(),
+            icao: icao,
+            timestamp: new Date().toISOString(),
+            count: newNotamsList.length,
+            notams: newNotamsList.map(n => ({ number: n.number, summary: n.summary.substring(0, 100) + '...' }))
+          };
+          setNotamHistory(prevHistory => [historyEntry, ...prevHistory]);
+        }
+
+        console.log(`✅ Successfully updated ${icao}: ${stats.total} NOTAMs (${stats.new} new, ${stats.expired} expired)`);
+
+        return { 
+          ...prev, 
+          [icao]: { 
+            data: notamsWithIcao, 
+            loading: false, 
+            error: null,
+            lastUpdated: Date.now(),
+            stats: stats
+          } 
+        };
+      });
+      
+    } catch (err) {
+      console.error(`❌ Error fetching NOTAMs for ${icao}:`, err.message);
+      
+      setNotamDataStore(prev => ({ 
+        ...prev, 
+        [icao]: { 
+          ...prev[icao], 
+          loading: false, 
+          error: err.message,
+          lastError: Date.now()
+        } 
+      }));
+    }
+  }, [smartNotamMerge]);
+
+  // Clear new status when user views NOTAMs
+  const markNotamsAsViewed = useCallback((icao) => {
+    setNotamDataStore(prev => {
+      if (!prev[icao]?.data) return prev;
+      
+      const updatedData = prev[icao].data.map(notam => ({
+        ...notam,
+        userViewed: true,
+        isNew: false // Clear new status when viewed
+      }));
+
+      return {
+        ...prev,
+        [icao]: {
+          ...prev[icao],
+          data: updatedData
+        }
+      };
+    });
+  }, []);
+
+  // Stable handleRefreshAll using ref
+  const handleRefreshAll = useCallback(() => {
+    const currentIcaos = icaosRef.current;
+    
+    if (currentIcaos.length > 0) {
+      console.log(`🔄 Auto-refresh triggered for all ICAOs: ${currentIcaos.join(', ')}`);
+      
+      setFetchQueue(prevQueue => {
+        const newQueue = [...new Set([...prevQueue, ...currentIcaos])];
+        console.log(`📋 Queue updated: ${newQueue.join(', ')}`);
+        return newQueue;
+      });
+    } else {
+      console.log('⚠️  No ICAOs to refresh');
+    }
+  }, []);
+
+  // Smart refresh handler for the main button
+  const handleSmartRefresh = useCallback(() => {
+    if (activeTab === 'ALL') {
+      handleRefreshAll();
+    } else if (icaos.includes(activeTab)) {
+      handleRefreshIcao(activeTab);
+    }
+  }, [activeTab, icaos, handleRefreshAll, handleRefreshIcao]);
+
+  // Robust queue processing
+  const processQueueRef = useRef();
+  
+  useEffect(() => {
+    processQueueRef.current = () => {
+      if (isProcessingQueue.current) {
+        console.log('⚠️  Queue processing already in progress, skipping');
+        return;
+      }
+
+      setFetchQueue(currentQueue => {
+        if (currentQueue.length === 0) {
+          console.log('✅ Queue empty, processing complete');
+          isProcessingQueue.current = false;
+          return currentQueue;
+        }
+
+        if (currentQueue.length > 10) {
+          console.warn(`⚠️  Queue is large (${currentQueue.length} items), this may take a while`);
+        }
+
+        isProcessingQueue.current = true;
+        const icaoToFetch = currentQueue[0];
+        
+        console.log(`🔄 Processing queue item: ${icaoToFetch} (${currentQueue.length - 1} remaining)`);
+        
+        fetchNotams(icaoToFetch).finally(() => {
+          queueTimerRef.current = setTimeout(() => {
+            isProcessingQueue.current = false;
+            processQueueRef.current();
+          }, 2100);
+        });
+
+        return currentQueue.slice(1);
+      });
+    };
+  });
+
+  // Trigger queue processing when items are added
+  useEffect(() => {
+    if (fetchQueue.length > 0 && !isProcessingQueue.current) {
+      processQueueRef.current();
+    }
+    
+    return () => {
+      if (queueTimerRef.current) {
+        clearTimeout(queueTimerRef.current);
+      }
+    };
+  }, [fetchQueue]);
+
+  // Stable timer with proper cleanup
+  useEffect(() => {
+    console.log('🕐 Starting auto-refresh timer');
+    
+    const timer = setInterval(() => {
+      setTimeToNextRefresh(prevTime => {
+        const newTime = prevTime - 1000;
+        
+        if (newTime <= 0) {
+          console.log('⏰ Auto-refresh timer expired, triggering refresh');
+          handleRefreshAll();
+          return AUTO_REFRESH_INTERVAL;
+        }
+        
+        return newTime;
+      });
+    }, 1000);
+    
+    // Initial fetch for any ICAOs loaded from localStorage
+    const savedIcaos = JSON.parse(localStorage.getItem("notamIcaos") || "[]");
+    if (savedIcaos.length > 0) {
+      console.log(`🔄 Initial fetch for saved ICAOs: ${savedIcaos.join(', ')}`);
+      setFetchQueue(prev => [...new Set([...prev, ...savedIcaos])]);
+    }
+
+    return () => {
+      console.log('🛑 Cleaning up auto-refresh timer');
+      clearInterval(timer);
+      if (queueTimerRef.current) {
+        clearTimeout(queueTimerRef.current);
+      }
+    };
+  }, [handleRefreshAll]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("notamIcaos", JSON.stringify(icaos));
+    } catch (error) {
+      console.warn('Failed to save ICAOs:', error);
+    }
+    
+    if (!icaos.includes(activeTab) && activeTab !== 'ALL') {
+      setActiveTab(icaos.length > 0 ? icaos[0] : 'ALL');
+    }
+  }, [icaos, activeTab]);
+  
+  const handleAddIcao = useCallback(() => {
+    if (!icaoInputRef.current || isAdding) return;
+    const input = icaoInputRef.current.value.toUpperCase().trim();
+    const newIcaoInputs = input.split(/[,\s]+/).map(s => s.trim()).filter(s => s.length === 4 && /^[A-Z0-9]{4}$/.test(s));
+    if (newIcaoInputs.length === 0) {
+      icaoInputRef.current.style.animation = 'shake 0.5s ease-in-out';
+      setTimeout(() => { if (icaoInputRef.current) { icaoInputRef.current.style.animation = ''; } }, 500);
+      return;
+    }
+    setIsAdding(true);
+    const uniqueNewIcaos = [...new Set(newIcaoInputs.filter(icao => !icaos.includes(icao)))];
+    if (uniqueNewIcaos.length > 0) {
+      const updatedIcaos = [...icaos, ...uniqueNewIcaos];
+      setIcaos(updatedIcaos);
+      setActiveTab(uniqueNewIcaos[0]);
+      setFetchQueue(prev => [...new Set([...prev, ...uniqueNewIcaos])]);
+      icaoInputRef.current.classList.add('success-flash');
+      setTimeout(() => { if (icaoInputRef.current) { icaoInputRef.current.classList.remove('success-flash'); } }, 500);
+    }
+    icaoInputRef.current.value = "";
+    icaoInputRef.current.focus();
+    setTimeout(() => setIsAdding(false), 300);
+  }, [icaos, isAdding]);
+
+  const handleRemoveIcao = useCallback((icaoToRemove) => {
+    setIcaos(prev => prev.filter(i => i !== icaoToRemove));
+    setNotamDataStore(prev => { const newStore = {...prev}; delete newStore[icaoToRemove]; return newStore; });
+    setNewNotamIcaos(prevSet => {
+      const newSet = new Set(prevSet);
+      newSet.delete(icaoToRemove);
+      return newSet;
+    });
+  }, []);
+
+  const handleIcaoInputKeyPress = (e) => {
+    if (e.key === "Enter") handleAddIcao();
+  };
+
+  // Enhanced allNotamsData with time status awareness
+  const allNotamsData = useMemo(() => {
+    let combined = [];
+    let hasAnyData = icaos.some(icao => notamDataStore[icao]?.data?.length > 0);
+    let isLoading = icaos.some(icao => notamDataStore[icao]?.loading) && !hasAnyData;
+    let anyError = null;
+
+    [...icaos].sort().forEach(icao => {
+      const storeEntry = notamDataStore[icao];
+      if (storeEntry) {
+        if (storeEntry.error) anyError = anyError || storeEntry.error;
+        if (storeEntry.data && storeEntry.data.length > 0) {
+          combined.push({ isIcaoHeader: true, icao: icao, id: `header-${icao}` });
+          
+          // Update time status for all NOTAMs when displaying
+          const updatedData = storeEntry.data.map(notam => ({
+            ...notam,
+            timeStatus: getNotamTimeStatus(notam, currentTime)
+          }));
+          
+          combined = combined.concat(updatedData);
+        }
+      }
+    });
+    
+    return { data: combined, loading: isLoading, error: anyError };
+  }, [notamDataStore, icaos, currentTime]);
+
+  const activeNotamData = useMemo(() => {
+    if (activeTab === 'ALL') return allNotamsData;
+    const storeEntry = notamDataStore[activeTab];
+    // Show loading spinner only if there's no data for this tab yet.
+    const isLoading = storeEntry?.loading && (!storeEntry.data || storeEntry.data.length === 0);
+    return { data: storeEntry?.data || [], loading: isLoading, error: storeEntry?.error || null };
+  }, [activeTab, allNotamsData, notamDataStore]);
+
   // Enhanced filtering with time status awareness
   const { filteredNotams, typeCounts, hasActiveFilters, activeFilterCount } = useMemo(() => {
     const notams = activeTab === 'ALL' ? 
@@ -395,38 +768,46 @@ const App = () => {
     };
   }, [activeTab, notamDataStore, keywordFilter, filters, filterOrder, currentTime]);
 
-  // Rest of your existing functions (fetchNotams, handleRefreshAll, etc.) remain the same...
-  // but should use the enhanced smartNotamMerge function
+  const handleFilterChange = (filterKey) => setFilters(prev => ({ ...prev, [filterKey]: !prev[filterKey] }));
+  const clearAllFilters = () => {
+    setFilters({ rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, other: true, cancelled: false, current: true, future: true });
+    setKeywordFilter('');
+  };
 
-  // Enhanced allNotamsData with time status awareness
-  const allNotamsData = useMemo(() => {
-    let combined = [];
-    let hasAnyData = icaos.some(icao => notamDataStore[icao]?.data?.length > 0);
-    let isLoading = icaos.some(icao => notamDataStore[icao]?.loading) && !hasAnyData;
-    let anyError = null;
-
-    [...icaos].sort().forEach(icao => {
-      const storeEntry = notamDataStore[icao];
-      if (storeEntry) {
-        if (storeEntry.error) anyError = anyError || storeEntry.error;
-        if (storeEntry.data && storeEntry.data.length > 0) {
-          combined.push({ isIcaoHeader: true, icao: icao, id: `header-${icao}` });
-          
-          // Update time status for all NOTAMs when displaying
-          const updatedData = storeEntry.data.map(notam => ({
-            ...notam,
-            timeStatus: getNotamTimeStatus(notam, currentTime)
-          }));
-          
-          combined = combined.concat(updatedData);
-        }
-      }
-    });
+  // Tab click with smart new NOTAM clearing
+  const handleTabClick = (id) => {
+    setActiveTab(id);
     
-    return { data: combined, loading: isLoading, error: anyError };
-  }, [notamDataStore, icaos, currentTime]);
+    // Clear the "new" indicator when user views the tab
+    if (newNotamIcaos.has(id)) {
+      console.log(`👁️  User viewed ${id}, clearing new NOTAM indicator`);
+      setNewNotamIcaos(prevSet => {
+        const newSet = new Set(prevSet);
+        newSet.delete(id);
+        return newSet;
+      });
+      
+      // Mark NOTAMs as viewed
+      markNotamsAsViewed(id);
+    }
+  };
 
-  // ... rest of your component logic remains the same
+  const Tab = ({ id, label, onRemove }) => {
+    const isLoading = notamDataStore[id]?.loading;
+    const hasNew = newNotamIcaos.has(id);
+    return (
+      <div className={`icao-tab ${activeTab === id ? 'active' : ''} ${hasNew ? 'has-new-notams' : ''}`} onClick={() => handleTabClick(id)}>
+        <span>{label}</span>
+        {isLoading ? <span className="loading-spinner tab-spinner"></span> :
+          <div className="tab-actions">
+            {onRemove && (
+              <button onClick={(e) => { e.stopPropagation(); onRemove(id); }} className="remove-btn" title={`Remove ${id}`}>×</button>
+            )}
+          </div>
+        }
+      </div>
+    );
+  };
 
   return (
     <div className="container" style={{ '--notam-card-size': `${cardSize}px` }}>
@@ -439,7 +820,61 @@ const App = () => {
         currentTime={currentTime}
       />
       
-      {/* Rest of your JSX remains the same */}
+      <div className="glass icao-input-container">
+        <div className="top-controls">
+          <div className="icao-input-wrapper">
+            <input ref={icaoInputRef} placeholder="ICAO codes (e.g., CYYT, KJFK)" className="icao-input compact" onKeyPress={handleIcaoInputKeyPress} disabled={isAdding} />
+            <button onClick={handleAddIcao} className={`add-button ${isAdding ? 'loading' : ''}`} disabled={isAdding}>
+              {isAdding ? (<><span className="loading-spinner"></span>Adding...</>) : 'Add ICAO'}
+            </button>
+          </div>
+          <div className="filter-controls">
+            <button className="filter-toggle-btn" onClick={() => setIsFilterModalOpen(true)}>
+              <span className="filter-icon">🎯</span><span className="filter-text">FILTER</span>
+              {activeFilterCount > 0 && (<span className="filter-badge">{activeFilterCount}</span>)}
+            </button>
+            <button className="filter-toggle-btn" onClick={() => setIsHighlightModalOpen(true)} style={{background: keywordHighlightEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'}}>
+              <span className="filter-icon">💡</span><span className="filter-text">HIGHLIGHT</span>
+              {keywordHighlightEnabled && (<span className="filter-badge">ON</span>)}
+            </button>
+            <button className="filter-toggle-btn" onClick={() => setIsSortModalOpen(true)} disabled={icaos.length === 0}>
+              <span className="filter-icon">↕️</span><span className="filter-text">SORT</span>
+            </button>
+          </div>
+        </div>
+        <div className="bottom-controls">
+          <div className="search-input-wrapper">
+            <span className="search-icon">🔍</span>
+            <input type="text" placeholder="Filter current results by keyword..." className="search-input" value={keywordFilter} onChange={(e) => setKeywordFilter(e.target.value)} />
+            {keywordFilter && (<button className="clear-search-btn" onClick={() => setKeywordFilter('')} title="Clear search">✕</button>)}
+          </div>
+          <div className="card-sizer-control">
+            <span className="sizer-icon">↔️</span>
+            <input type="range" min="420" max="800" step="10" value={cardSize} onChange={(e) => setCardSize(e.target.value)} className="card-size-slider" title={`Adjust card width: ${cardSize}px`} />
+            <span className="sizer-value">{cardSize}px</span>
+          </div>
+          {hasActiveFilters && (<button className="quick-clear-btn" onClick={clearAllFilters}>Clear All Filters</button>)}
+        </div>
+      </div>
+      
+      <div className="glass">
+        <div className="icao-tabs">
+          <Tab id="ALL" label={`ALL (${icaos.length})`} />
+          {icaos.map(icao => {
+            const count = notamDataStore[icao]?.data?.length || 0;
+            const isLoading = notamDataStore[icao]?.loading;
+            return (
+              <Tab key={icao} id={icao} label={isLoading ? `${icao}` : `${icao} (${count})`} onRemove={handleRemoveIcao} />
+            );
+          })}
+        </div>
+        <NotamTabContent icao={activeTab} notams={filteredNotams} loading={activeNotamData.loading} error={activeNotamData.error} hasActiveFilters={hasActiveFilters} onClearFilters={clearAllFilters} filterOrder={filterOrder} keywordHighlightEnabled={keywordHighlightEnabled} keywordCategories={keywordCategories} />
+      </div>
+
+      <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} filters={filters} onFilterChange={handleFilterChange} typeCounts={typeCounts} onClearAll={clearAllFilters} filterOrder={filterOrder} setFilterOrder={setFilterOrder} dragState={dragState} setDragState={setDragState} />
+      <NotamKeywordHighlightManager isOpen={isHighlightModalOpen} onClose={() => setIsHighlightModalOpen(false)} keywordCategories={keywordCategories} setKeywordCategories={setKeywordCategories} keywordHighlightEnabled={keywordHighlightEnabled} setKeywordHighlightEnabled={setKeywordHighlightEnabled} />
+      <ICAOSortingModal isOpen={isSortModalOpen} onClose={() => setIsSortModalOpen(false)} icaos={icaos} onReorder={handleIcaoReorder} />
+      <NotamHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} history={notamHistory} onClearHistory={() => setNotamHistory([])}/>
     </div>
   );
 };
