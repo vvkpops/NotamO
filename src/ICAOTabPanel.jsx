@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import NotamCard from './NotamCard';
-import { getFIRForICAO, getCachedFIRData, setCachedFIRData, categorizeNotams } from './FIRUtils';
+import { getFIRForICAO, getCachedFIRData, setCachedFIRData, extractFIRFromNotam } from './FIRUtils';
 
 const ICAOTabPanel = ({ 
   icao, 
@@ -20,6 +20,62 @@ const ICAOTabPanel = ({
     aerodromeNotams: [],
     firNotams: []
   });
+  
+  // New NOTAM detection for FIR
+  const [previousFirSignatures, setPreviousFirSignatures] = useState(new Set());
+  const [newFirNotamCount, setNewFirNotamCount] = useState(0);
+  const firNotamsRef = useRef([]);
+
+  // Create NOTAM signature for comparison
+  const createNotamSignature = useCallback((notam) => {
+    const number = notam.number || 'unknown';
+    const validFrom = notam.validFrom || 'unknown';
+    const validTo = notam.validTo || 'unknown';
+    const source = notam.source || 'unknown';
+    const summary = (notam.summary || '').replace(/\s+/g, ' ').trim();
+    const rawText = (notam.rawText || '').replace(/\s+/g, ' ').trim();
+    const text = summary || rawText;
+    const contentHash = text.slice(0, 200);
+    
+    return `${number}-${validFrom}-${validTo}-${source}-${contentHash}`;
+  }, []);
+
+  // Smart FIR NOTAM detection
+  const detectNewFirNotams = useCallback((existingNotams, newNotams) => {
+    if (!existingNotams || existingNotams.length === 0) {
+      // First fetch - none are "new" from user perspective
+      return newNotams.map(n => ({ ...n, isNew: false, userViewed: false }));
+    }
+
+    // Create signature sets for comparison
+    const existingSignatures = new Set(existingNotams.map(n => createNotamSignature(n)));
+    const processedNotams = [];
+    let newCount = 0;
+
+    newNotams.forEach(notam => {
+      const signature = createNotamSignature(notam);
+      const isNew = !existingSignatures.has(signature);
+      
+      if (isNew) {
+        console.log(`🆕 New FIR NOTAM detected: ${notam.number} for FIR ${firCode}`);
+        newCount++;
+      }
+
+      processedNotams.push({
+        ...notam,
+        isNew: isNew,
+        userViewed: false,
+        firstSeenAt: isNew ? Date.now() : null
+      });
+    });
+
+    if (newCount > 0) {
+      console.log(`✨ Found ${newCount} new FIR NOTAMs for ${firCode}`);
+      setNewFirNotamCount(prev => prev + newCount);
+    }
+
+    return processedNotams;
+  }, [createNotamSignature, firCode]);
 
   // Extract FIR and fetch FIR NOTAMs - only for FAA sources
   useEffect(() => {
@@ -58,7 +114,11 @@ const ICAOTabPanel = ({
     const cached = getCachedFIRData(fir);
     if (cached) {
       console.log(`📦 Using cached FIR data for ${fir}`);
-      setFirNotams(cached);
+      
+      // Apply new NOTAM detection to cached data
+      const processedCached = detectNewFirNotams(firNotamsRef.current, cached);
+      setFirNotams(processedCached);
+      firNotamsRef.current = processedCached;
       return;
     }
     
@@ -84,9 +144,13 @@ const ICAOTabPanel = ({
       
       console.log(`✅ Loaded ${firWideNotams.length} FIR-wide NOTAMs for ${fir}`);
       
+      // Apply new NOTAM detection
+      const processedNotams = detectNewFirNotams(firNotamsRef.current, firWideNotams);
+      
       // Cache the results
       setCachedFIRData(fir, firWideNotams);
-      setFirNotams(firWideNotams);
+      setFirNotams(processedNotams);
+      firNotamsRef.current = processedNotams;
       
     } catch (error) {
       console.error(`❌ Error fetching FIR NOTAMs:`, error);
@@ -94,15 +158,41 @@ const ICAOTabPanel = ({
     } finally {
       setFirLoading(false);
     }
-  }, []);
+  }, [detectNewFirNotams]);
 
-  const SubTabButton = ({ id, label, count, isActive, onClick }) => (
+  // Clear new status when FIR tab is viewed
+  const handleSubTabClick = useCallback((tabId) => {
+    setActiveSubTab(tabId);
+    
+    if (tabId === 'fir' && newFirNotamCount > 0) {
+      console.log(`👁️ User viewed FIR tab, clearing ${newFirNotamCount} new NOTAM indicators`);
+      
+      // Mark all FIR NOTAMs as viewed
+      const viewedNotams = firNotams.map(n => ({
+        ...n,
+        isNew: false,
+        userViewed: true
+      }));
+      
+      setFirNotams(viewedNotams);
+      firNotamsRef.current = viewedNotams;
+      setNewFirNotamCount(0);
+      
+      // Update cache with viewed status
+      if (firCode) {
+        setCachedFIRData(firCode, viewedNotams);
+      }
+    }
+  }, [newFirNotamCount, firNotams, firCode]);
+
+  const SubTabButton = ({ id, label, count, isActive, onClick, hasNew = false }) => (
     <button
-      className={`icao-subtab ${isActive ? 'active' : ''}`}
+      className={`icao-subtab ${isActive ? 'active' : ''} ${hasNew ? 'has-new-fir' : ''}`}
       onClick={onClick}
     >
       <span>{label}</span>
       {count !== undefined && <span className="subtab-count">({count})</span>}
+      {hasNew && !isActive && <span className="new-fir-indicator"></span>}
     </button>
   );
 
@@ -140,7 +230,7 @@ const ICAOTabPanel = ({
           label={`✈️ ${icao} Aerodrome`}
           count={categorizedNotams.aerodromeNotams.length}
           isActive={activeSubTab === 'aerodrome'}
-          onClick={() => setActiveSubTab('aerodrome')}
+          onClick={() => handleSubTabClick('aerodrome')}
         />
         {showFirTab && (
           <SubTabButton
@@ -148,7 +238,8 @@ const ICAOTabPanel = ({
             label={`🌐 ${firCode} FIR`}
             count={firLoading ? '...' : firNotams.length}
             isActive={activeSubTab === 'fir'}
-            onClick={() => setActiveSubTab('fir')}
+            onClick={() => handleSubTabClick('fir')}
+            hasNew={newFirNotamCount > 0}
           />
         )}
       </div>
