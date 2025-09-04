@@ -1,6 +1,15 @@
 import axios from 'axios';
 import { parseRawNotam } from './parser.js';
 
+// Import the enhanced parsing functions
+import {
+    extractCLineFromFullNotam,
+    parseNotamDateTimeEnhanced,
+    extractValidityFromCLineEnhanced,
+    parseNotamDateWithFallbackEnhanced,
+    TIMEZONE_OFFSETS
+} from './enhanced-parser.js';
+
 // Environment variables for security
 const CLIENT_ID = process.env.FAA_CLIENT_ID;
 const CLIENT_SECRET = process.env.FAA_CLIENT_SECRET;
@@ -10,8 +19,7 @@ const ALLOWED_ORIGIN = process.env.VERCEL_URL
     : 'http://localhost:5173';
 
 /**
- * ENHANCED DATE PARSING - NO TIMEZONE CONVERSION APPROACH
- * This treats all NOTAM dates as UTC and prioritizes C) line extraction
+ * LEGACY DATE PARSING - Keep for FAA NOTAMs compatibility
  */
 function parseNotamDateUTC(dateString) {
     if (!dateString || typeof dateString !== 'string') {
@@ -37,7 +45,6 @@ function parseNotamDateUTC(dateString) {
     const match = upperDateString.match(/^(\d{10})([A-Z]{2,4})?$/);
     if (match) {
         const dt = match[1];
-        // IMPORTANT: Ignore timezone suffix completely - treat everything as UTC
         
         const year = `20${dt.substring(0, 2)}`;
         const month = dt.substring(2, 4);
@@ -57,7 +64,7 @@ function parseNotamDateUTC(dateString) {
         // Create UTC date directly without any timezone conversion
         const utcDate = new Date(Date.UTC(
             parseInt(year),
-            parseInt(month) - 1, // Month is 0-indexed
+            parseInt(month) - 1,
             parseInt(day),
             parseInt(hour),
             parseInt(minute)
@@ -75,84 +82,7 @@ function parseNotamDateUTC(dateString) {
     return null;
 }
 
-/**
- * ENHANCED C) LINE EXTRACTION
- * Specifically for CFPS when end validity comes back as null
- */
-function extractValidityFromCLine(rawNotamText, fieldType = 'C') {
-    if (!rawNotamText || typeof rawNotamText !== 'string') {
-        return null;
-    }
-
-    // Create regex for the field (B) for start, C) for end)
-    const fieldRegex = new RegExp(`${fieldType}\\)\\s*([^\\n\\r]+)`, 'i');
-    const fieldMatch = rawNotamText.match(fieldRegex);
-    
-    if (!fieldMatch) {
-        console.warn(`No ${fieldType}) line found in NOTAM text`);
-        return null;
-    }
-    
-    const fieldContent = fieldMatch[1].trim();
-    console.log(`📅 Found ${fieldType}) line content: ${fieldContent}`);
-    
-    // Handle PERM cases
-    if (/PERM/i.test(fieldContent)) {
-        console.log(`✅ ${fieldType}) line indicates PERMANENT validity`);
-        return 'PERMANENT';
-    }
-    
-    // Extract date pattern from the field content
-    const dateMatch = fieldContent.match(/(\d{10})([A-Z]{2,4})?/);
-    if (dateMatch) {
-        const dateString = dateMatch[0];
-        const parsedDate = parseNotamDateUTC(dateString);
-        if (parsedDate) {
-            console.log(`✅ Extracted date from ${fieldType}) line: ${dateString} -> ${parsedDate}`);
-            return parsedDate;
-        }
-    }
-    
-    console.warn(`❌ Could not extract valid date from ${fieldType}) line: ${fieldContent}`);
-    return null;
-}
-
-/**
- * HYBRID DATE PARSING with confidence-based fallback chain
- */
-function parseNotamDateWithFallback(primarySource, rawText, fieldType, apiDate = null) {
-    // Priority 1: Extract from specific ICAO field line (B) or C))
-    if (rawText) {
-        const fieldResult = extractValidityFromCLine(rawText, fieldType);
-        if (fieldResult) {
-            console.log(`🎯 Using ${fieldType}) line extraction (highest confidence)`);
-            return fieldResult;
-        }
-    }
-    
-    // Priority 2: Direct parsing of structured data
-    if (primarySource) {
-        const directResult = parseNotamDateUTC(primarySource);
-        if (directResult) {
-            console.log(`📝 Using direct parsing (medium confidence): ${primarySource}`);
-            return directResult;
-        }
-    }
-    
-    // Priority 3: API fallback
-    if (apiDate) {
-        const apiResult = parseNotamDateUTC(apiDate);
-        if (apiResult) {
-            console.log(`🔄 Using API fallback (low confidence): ${apiDate}`);
-            return apiResult;
-        }
-    }
-    
-    console.warn(`❌ All date parsing methods failed for field ${fieldType}`);
-    return null;
-}
-
-// Function to format dates for ICAO format (YYMMDDHHMM) - simplified
+// Function to format dates for ICAO format (YYMMDDHHMM)
 const formatToIcaoDate = (isoDate) => {
     if (!isoDate || isoDate === 'PERMANENT' || isoDate === 'PERM') return 'PERM';
     
@@ -270,7 +200,7 @@ export default async function handler(request, response) {
 
         // FALLBACK FOR CANADIAN ICAO with ENHANCED C) LINE EXTRACTION
         if (icao.startsWith('C') && faaItems.length === 0) {
-            console.log(`🍁 FAA returned no NOTAMs for Canadian ICAO ${icao}. Using NAV CANADA with enhanced parsing.`);
+            console.log(`🍁 FAA returned no NOTAMs for Canadian ICAO ${icao}. Using NAV CANADA with ENHANCED parsing.`);
             try {
                 const navUrl = `https://plan.navcanada.ca/weather/api/alpha/?site=${icao}&alpha=notam`;
                 const navRes = await axios.get(navUrl, { timeout: 10000 });
@@ -292,34 +222,39 @@ export default async function handler(request, response) {
 
                     const parsed = parseRawNotam(originalRawText);
 
-                    // ENHANCED DATE PARSING with C) line priority
+                    // ENHANCED DATE PARSING with improved C) line extraction
                     console.log(`\n🔍 Processing NOTAM ${parsed?.notamNumber || 'unknown'} for ${icao}`);
                     console.log(`   API endValidity: ${notam.endValidity}`);
                     console.log(`   Parsed validToRaw: ${parsed?.validToRaw}`);
                     
                     let validFrom, validTo;
                     
-                    // Use hybrid parsing for validFrom (B) line)
-                    validFrom = parseNotamDateWithFallback(
+                    // Use enhanced parsing for validFrom (B) line)
+                    validFrom = parseNotamDateWithFallbackEnhanced(
                         parsed?.validFromRaw,
                         originalRawText,
                         'B',
                         notam.startValidity
                     );
                     
-                    // SPECIAL HANDLING for validTo when API returns null
+                    // ENHANCED HANDLING for validTo when API returns null
                     if (notam.endValidity === null || notam.endValidity === undefined) {
-                        console.log(`⚠️  End validity is null, extracting from C) line`);
-                        validTo = extractValidityFromCLine(originalRawText, 'C');
+                        console.log(`⚠️  End validity is null, using ENHANCED C) line extraction`);
+                        validTo = extractValidityFromCLineEnhanced(originalRawText, 'C');
                         
-                        // If C) line extraction fails, try parsing the validToRaw from parser
+                        // If enhanced C) line extraction fails, try fallback chain
                         if (!validTo && parsed?.validToRaw) {
-                            console.log(`🔄 C) line extraction failed, trying parsed validToRaw`);
-                            validTo = parseNotamDateUTC(parsed.validToRaw);
+                            console.log(`🔄 Enhanced C) line extraction failed, trying fallback chain`);
+                            validTo = parseNotamDateWithFallbackEnhanced(
+                                parsed.validToRaw,
+                                originalRawText,
+                                'C',
+                                null
+                            );
                         }
                     } else {
-                        // Normal hybrid parsing
-                        validTo = parseNotamDateWithFallback(
+                        // Normal enhanced hybrid parsing
+                        validTo = parseNotamDateWithFallbackEnhanced(
                             parsed?.validToRaw,
                             originalRawText,
                             'C',
@@ -327,7 +262,7 @@ export default async function handler(request, response) {
                         );
                     }
 
-                    console.log(`✅ Final dates - From: ${validFrom}, To: ${validTo}`);
+                    console.log(`✅ Final enhanced dates - From: ${validFrom}, To: ${validTo}`);
 
                     return {
                         id: notam.pk || `${icao}-navcanada-${Date.now()}`,
@@ -340,23 +275,24 @@ export default async function handler(request, response) {
                         icao: parsed?.aerodrome?.split(' ')[0] || icao,
                         summary: originalRawText,
                         rawText: originalRawText,
-                        // Debug info for troubleshooting
+                        // Enhanced debug info
                         _debug: {
                             apiEndValidityWasNull: notam.endValidity === null,
-                            extractionMethod: notam.endValidity === null ? 'C_line_extraction' : 'hybrid_parsing',
+                            extractionMethod: notam.endValidity === null ? 'enhanced_C_line_extraction' : 'enhanced_hybrid_parsing',
                             originalApiEndValidity: notam.endValidity,
-                            parsedValidToRaw: parsed?.validToRaw
+                            parsedValidToRaw: parsed?.validToRaw,
+                            enhancedParsingUsed: true
                         }
                     };
                 }).filter(Boolean);
 
-                console.log(`🍁 Processed ${notamsFromSource.length} NAV CANADA NOTAMs for ${icao}`);
+                console.log(`🍁 Processed ${notamsFromSource.length} NAV CANADA NOTAMs with ENHANCED parsing for ${icao}`);
 
             } catch (e) {
                 console.warn(`NAV CANADA fallback for ${icao} failed: ${e.message}`);
             }
         } else {
-            // Process FAA NOTAMs (unchanged)
+            // Process FAA NOTAMs (using legacy parsing for compatibility)
             notamsFromSource = faaItems.map(item => {
                 const core = item.properties?.coreNOTAMData?.notam || {};
                 const formattedIcaoText = item.properties?.coreNOTAMData?.notamTranslation?.[0]?.formattedText;
@@ -425,26 +361,60 @@ export default async function handler(request, response) {
                 return dateB - dateA;
             });
 
-        // Log summary
-        console.log(`📊 NOTAM Processing Summary for ${icao}:`);
+        // Enhanced logging
+        console.log(`📊 ENHANCED NOTAM Processing Summary for ${icao}:`);
         console.log(`   Total fetched: ${notamsFromSource.length}`);
         console.log(`   After filtering: ${finalNotams.length}`);
         console.log(`   Cancelled NOTAMs removed: ${cancelledNotamNumbers.size}`);
         
-        // Log any NOTAMs with null end dates for monitoring
-        const nullEndDates = finalNotams.filter(n => n.validTo === null);
-        if (nullEndDates.length > 0) {
-            console.warn(`⚠️  ${nullEndDates.length} NOTAMs still have null end dates after processing`);
-            nullEndDates.forEach(n => {
+        // Log enhanced parsing statistics
+        const enhancedParsedCount = finalNotams.filter(n => n._debug?.enhancedParsingUsed).length;
+        const nullEndDateCount = finalNotams.filter(n => n._debug?.apiEndValidityWasNull).length;
+        
+        if (enhancedParsedCount > 0) {
+            console.log(`🚀 Enhanced parsing statistics:`);
+            console.log(`   NOTAMs processed with enhanced parsing: ${enhancedParsedCount}`);
+            console.log(`   NOTAMs with null API end validity: ${nullEndDateCount}`);
+        }
+        
+        // Log any NOTAMs that still have null end dates for monitoring
+        const stillNullEndDates = finalNotams.filter(n => n.validTo === null);
+        if (stillNullEndDates.length > 0) {
+            console.warn(`⚠️  ${stillNullEndDates.length} NOTAMs still have null end dates after enhanced processing:`);
+            stillNullEndDates.forEach(n => {
                 console.warn(`   - ${n.number}: ${n._debug?.extractionMethod || 'unknown extraction'}`);
+                
+                // Additional debugging: show the raw text snippet around C) line
+                if (n.rawText) {
+                    const cLineMatch = n.rawText.match(/C\)[^\n\r]*/i);
+                    if (cLineMatch) {
+                        console.warn(`     C) line found: "${cLineMatch[0]}"`);
+                    } else {
+                        console.warn(`     No C) line pattern found in raw text`);
+                    }
+                }
             });
         }
+        
+        // Enhanced success metrics
+        const successfullyParsedEndDates = finalNotams.filter(n => 
+            n.validTo !== null && n.validTo !== undefined
+        ).length;
+        
+        const permanentNotams = finalNotams.filter(n => 
+            n.validTo === 'PERMANENT' || n.validTo === 'PERM'
+        ).length;
+        
+        console.log(`✅ Enhanced parsing success rate:`);
+        console.log(`   NOTAMs with valid end dates: ${successfullyParsedEndDates}/${finalNotams.length}`);
+        console.log(`   Permanent NOTAMs: ${permanentNotams}`);
+        console.log(`   Success rate: ${((successfullyParsedEndDates / Math.max(finalNotams.length, 1)) * 100).toFixed(1)}%`);
 
         response.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
         return response.status(200).json(finalNotams);
 
     } catch (err) {
-        console.error(`[API ERROR] for ${icao}:`, err.message);
+        console.error(`[ENHANCED API ERROR] for ${icao}:`, err.message);
         console.error(err.stack);
         return response.status(500).json({ 
             error: "An internal server error occurred.",
