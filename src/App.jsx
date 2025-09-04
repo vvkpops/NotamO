@@ -4,6 +4,7 @@ import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
 import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKeywordHighlight.jsx';
 import ICAOSortingModal from './ICAOSortingModal.jsx';
 import NotamHistoryModal from './NotamHistoryModal.jsx';
+import { useAutoResponsiveSize, useResponsiveCSS } from './useAutoResponsiveSize';
 
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -18,6 +19,24 @@ const App = () => {
     }
   }, []);
 
+  // AUTO-RESPONSIVE SIZING SYSTEM
+  const {
+    cardSize,
+    isAutoMode,
+    enableAutoMode,
+    setManualCardSize,
+    toggleAutoMode,
+    shouldHideCardSizer,
+    isSmallScreen,
+    isMobileLayout,
+    breakpoint,
+    columnsTarget,
+    _debug
+  } = useAutoResponsiveSize(420); // Default to 420px as fallback
+
+  // Apply CSS custom properties
+  useResponsiveCSS(cardSize, breakpoint);
+
   // State Management
   const [icaos, setIcaos] = useState(() => {
     try {
@@ -29,14 +48,24 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('ALL');
   const [notamDataStore, setNotamDataStore] = useState({});
   const [isAdding, setIsAdding] = useState(false);
-  const [cardSize, setCardSize] = useState(() => {
-    try {
-      const saved = localStorage.getItem('notamCardSize');
-      return saved ? JSON.parse(saved) : 420;
-    } catch {
-      return 420;
-    }
-  });
+
+  // Use the responsive card size instead of localStorage-only approach
+  const [manualCardSizeOverride, setManualCardSizeOverride] = useState(null);
+
+  // Effective card size - use manual override if set and not in auto mode
+  const effectiveCardSize = isAutoMode ? cardSize : (manualCardSizeOverride || cardSize);
+
+  // Log responsive changes for debugging
+  useEffect(() => {
+    console.log(`📱 Responsive Update:`, {
+      breakpoint,
+      cardSize,
+      columnsTarget,
+      isAutoMode,
+      isMobileLayout,
+      shouldHideCardSizer
+    });
+  }, [breakpoint, cardSize, columnsTarget, isAutoMode, isMobileLayout, shouldHideCardSizer]);
 
   // Batching, new NOTAM detection, and auto-refresh states
   const [fetchQueue, setFetchQueue] = useState([]);
@@ -102,6 +131,67 @@ const App = () => {
     icaosRef.current = icaos;
   }, [icaos]);
 
+  // Enhanced card size handler that respects auto mode
+  const handleCardSizeChange = useCallback((newSize) => {
+    const size = parseInt(newSize);
+    if (isAutoMode) {
+      // If in auto mode, switch to manual mode with this size
+      setManualCardSize(size);
+      setManualCardSizeOverride(size);
+    } else {
+      // Manual mode - just update the size
+      setManualCardSizeOverride(size);
+      setManualCardSize(size);
+    }
+  }, [isAutoMode, setManualCardSize]);
+
+  // Toggle auto/manual sizing mode
+  const handleToggleAutoMode = useCallback(() => {
+    if (isAutoMode) {
+      // Switching to manual - preserve current size
+      setManualCardSizeOverride(cardSize);
+      setManualCardSize(cardSize);
+    } else {
+      // Switching to auto - clear override
+      setManualCardSizeOverride(null);
+      enableAutoMode();
+    }
+  }, [isAutoMode, cardSize, setManualCardSize, enableAutoMode]);
+
+  // Save manual size to localStorage
+  useEffect(() => {
+    try {
+      if (!isAutoMode && manualCardSizeOverride) {
+        localStorage.setItem('notamCardSize', JSON.stringify(manualCardSizeOverride));
+        localStorage.setItem('notamAutoSizeMode', JSON.stringify(false));
+      } else if (isAutoMode) {
+        localStorage.setItem('notamAutoSizeMode', JSON.stringify(true));
+      }
+    } catch (error) {
+      console.warn('Failed to save card size settings:', error);
+    }
+  }, [isAutoMode, manualCardSizeOverride]);
+
+  // Load saved preferences on startup
+  useEffect(() => {
+    try {
+      const savedAutoMode = localStorage.getItem('notamAutoSizeMode');
+      const savedSize = localStorage.getItem('notamCardSize');
+      
+      if (savedAutoMode && savedSize) {
+        const autoMode = JSON.parse(savedAutoMode);
+        const size = JSON.parse(savedSize);
+        
+        if (!autoMode && size) {
+          setManualCardSize(size);
+          setManualCardSizeOverride(size);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load card size settings:', error);
+    }
+  }, [setManualCardSize]);
+
   // Load custom ICAO order on app start
   useEffect(() => {
     const savedOrder = localStorage.getItem('icaoCustomOrder');
@@ -122,6 +212,44 @@ const App = () => {
       }
     }
   }, []);
+
+  // Enhanced card sizer control with auto mode toggle
+  const CardSizerControl = () => {
+    if (shouldHideCardSizer) return null;
+    
+    return (
+      <div className="card-sizer-control">
+        <span className="sizer-icon">↔️</span>
+        <button 
+          className={`auto-toggle-btn ${isAutoMode ? 'auto-enabled' : 'manual-enabled'}`}
+          onClick={handleToggleAutoMode}
+          title={isAutoMode ? 'Switch to manual sizing' : 'Switch to automatic sizing'}
+        >
+          {isAutoMode ? 'AUTO' : 'MANUAL'}
+        </button>
+        {!isAutoMode && (
+          <>
+            <input 
+              type="range" 
+              min="280" 
+              max="600" 
+              step="10" 
+              value={effectiveCardSize} 
+              onChange={(e) => handleCardSizeChange(e.target.value)} 
+              className="card-size-slider" 
+              title={`Adjust card width: ${effectiveCardSize}px`} 
+            />
+            <span className="sizer-value">{effectiveCardSize}px</span>
+          </>
+        )}
+        {isAutoMode && (
+          <span className="sizer-value auto-info">
+            {cardSize}px ({breakpoint.toUpperCase()})
+          </span>
+        )}
+      </div>
+    );
+  };
 
   // Handle ICAO reordering
   const handleIcaoReorder = useCallback((newOrder) => {
@@ -147,14 +275,6 @@ const App = () => {
       console.warn('Failed to save keyword categories:', error);
     }
   }, [keywordCategories]);
-  
-  useEffect(() => {
-    try {
-      localStorage.setItem('notamCardSize', JSON.stringify(cardSize));
-    } catch (error) {
-      console.warn('Failed to save card size:', error);
-    }
-  }, [cardSize]);
 
   useEffect(() => {
     try {
@@ -680,7 +800,7 @@ const App = () => {
   };
 
   return (
-    <div className="container" style={{ '--notam-card-size': `${cardSize}px` }}>
+    <div className="container" style={{ '--notam-card-size': `${effectiveCardSize}px` }}>
       <ModernHeader 
         timeToNextRefresh={timeToNextRefresh} 
         onRefresh={handleSmartRefresh}
@@ -717,11 +837,7 @@ const App = () => {
             <input type="text" placeholder="Filter current results by keyword..." className="search-input" value={keywordFilter} onChange={(e) => setKeywordFilter(e.target.value)} />
             {keywordFilter && (<button className="clear-search-btn" onClick={() => setKeywordFilter('')} title="Clear search">✕</button>)}
           </div>
-          <div className="card-sizer-control">
-            <span className="sizer-icon">↔️</span>
-            <input type="range" min="420" max="800" step="10" value={cardSize} onChange={(e) => setCardSize(e.target.value)} className="card-size-slider" title={`Adjust card width: ${cardSize}px`} />
-            <span className="sizer-value">{cardSize}px</span>
-          </div>
+          <CardSizerControl />
           {hasActiveFilters && (<button className="quick-clear-btn" onClick={clearAllFilters}>Clear All Filters</button>)}
         </div>
       </div>
@@ -737,13 +853,51 @@ const App = () => {
             );
           })}
         </div>
-        <NotamTabContent icao={activeTab} notams={filteredNotams} loading={activeNotamData.loading} error={activeNotamData.error} hasActiveFilters={hasActiveFilters} onClearFilters={clearAllFilters} filterOrder={filterOrder} keywordHighlightEnabled={keywordHighlightEnabled} keywordCategories={keywordCategories} />
+        <NotamTabContent 
+          icao={activeTab} 
+          notams={filteredNotams} 
+          loading={activeNotamData.loading} 
+          error={activeNotamData.error} 
+          hasActiveFilters={hasActiveFilters} 
+          onClearFilters={clearAllFilters} 
+          filterOrder={filterOrder} 
+          keywordHighlightEnabled={keywordHighlightEnabled} 
+          keywordCategories={keywordCategories} 
+        />
       </div>
 
-      <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} filters={filters} onFilterChange={handleFilterChange} typeCounts={typeCounts} onClearAll={clearAllFilters} filterOrder={filterOrder} setFilterOrder={setFilterOrder} dragState={dragState} setDragState={setDragState} />
-      <NotamKeywordHighlightManager isOpen={isHighlightModalOpen} onClose={() => setIsHighlightModalOpen(false)} keywordCategories={keywordCategories} setKeywordCategories={setKeywordCategories} keywordHighlightEnabled={keywordHighlightEnabled} setKeywordHighlightEnabled={setKeywordHighlightEnabled} />
-      <ICAOSortingModal isOpen={isSortModalOpen} onClose={() => setIsSortModalOpen(false)} icaos={icaos} onReorder={handleIcaoReorder} />
-      <NotamHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} history={notamHistory} onClearHistory={() => setNotamHistory([])}/>
+      <FilterModal 
+        isOpen={isFilterModalOpen} 
+        onClose={() => setIsFilterModalOpen(false)} 
+        filters={filters} 
+        onFilterChange={handleFilterChange} 
+        typeCounts={typeCounts} 
+        onClearAll={clearAllFilters} 
+        filterOrder={filterOrder} 
+        setFilterOrder={setFilterOrder} 
+        dragState={dragState} 
+        setDragState={setDragState} 
+      />
+      <NotamKeywordHighlightManager 
+        isOpen={isHighlightModalOpen} 
+        onClose={() => setIsHighlightModalOpen(false)} 
+        keywordCategories={keywordCategories} 
+        setKeywordCategories={setKeywordCategories} 
+        keywordHighlightEnabled={keywordHighlightEnabled} 
+        setKeywordHighlightEnabled={setKeywordHighlightEnabled} 
+      />
+      <ICAOSortingModal 
+        isOpen={isSortModalOpen} 
+        onClose={() => setIsSortModalOpen(false)} 
+        icaos={icaos} 
+        onReorder={handleIcaoReorder} 
+      />
+      <NotamHistoryModal 
+        isOpen={isHistoryModalOpen} 
+        onClose={() => setIsHistoryModalOpen(false)} 
+        history={notamHistory} 
+        onClearHistory={() => setNotamHistory([])}
+      />
     </div>
   );
 };
