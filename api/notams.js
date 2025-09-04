@@ -323,20 +323,7 @@ export default async function handler(request, response) {
         
         // PRIMARY SOURCE: Always try FAA first for ALL airports
         try {
-            const faaParams = new URLSearchParams({
-                icaoLocation: icao,
-                responseFormat: 'geoJson',
-                pageSize: '250'
-            });
-
-            // Append server-side filters if provided by the client
-            if (request.query.classification) faaParams.append('classification', request.query.classification);
-            if (request.query.notamType) faaParams.append('notamType', request.query.notamType);
-            if (request.query.featureType) faaParams.append('featureType', request.query.featureType);
-            
-            const faaUrl = `https://external-api.faa.gov/notamapi/v1/notams?${faaParams.toString()}`;
-            console.log(`🚀 Fetching FAA data from: ${faaUrl}`);
-            
+            const faaUrl = `https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${icao}&responseFormat=geoJson&pageSize=250`;
             const notamRes = await axios.get(faaUrl, {
                 headers: { 'client_id': CLIENT_ID, 'client_secret': CLIENT_SECRET },
                 timeout: 10000
@@ -387,7 +374,6 @@ export default async function handler(request, response) {
                 return {
                     id: core.id || `${core.number}-${core.icaoLocation}`,
                     number: core.number || 'N/A',
-                    classification: core.classification, // Pass the classification from the API
                     validFrom: parseNotamDateEnhanced(core.effectiveStart),
                     validTo: parseNotamDateEnhanced(core.effectiveEnd),
                     source: 'FAA',

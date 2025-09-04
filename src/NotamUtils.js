@@ -12,19 +12,11 @@ export const getNotamFlags = (notam) => {
   const rawText = (notam.rawText || '').toUpperCase();
   const combinedText = `${text} ${rawText}`;
   
-  // A NOTAM is domestic if its number starts with 'D' series, e.g., (D..../..)
-  // This is a fallback for non-FAA sources.
-  const isDomesticSeries = /\([D]\d{4}\/\d{2}\s+NOTAM/.test(rawText);
-
-  // Prioritize the classification from the FAA API if it exists.
-  const isDomesticFromAPI = notam.classification === 'DOMESTIC';
-
   return {
     isILS: /\bILS\b/.test(combinedText) || /\bLOCALIZER\b/.test(combinedText) || /\bGLIDESLOPE\b/.test(combinedText) || /\bGS\b/.test(combinedText) || /\bLOC\b/.test(combinedText),
     isRunway: /\bRWY\b/.test(combinedText) || /\bRUNWAY\b/.test(combinedText),
     isTaxiway: /\bTWY\b/.test(combinedText) || /\bTAXIWAY\b/.test(combinedText),
     isFuel: /\bFUEL\b/.test(combinedText),
-    isDomestic: isDomesticFromAPI || isDomesticSeries || /\bDOM\b/.test(combinedText) || /\bDOMESTIC\b/.test(combinedText),
     // Use the reliable `isCancellation` flag from the API first.
     isCancelled: notam.isCancellation || (notam.type === "C" || /\bCANCELLED\b/.test(combinedText) || /\bCNL\b/.test(combinedText)),
     isRSC: /\bRSC\b/.test(combinedText), // Runway Surface Condition
@@ -40,9 +32,6 @@ export const getNotamType = (notam) => {
 
   // Prioritize cancellation status
   if (flags.isCancelled) return 'cancelled';
-  
-  // Check for domestic classification early
-  if (flags.isDomestic) return 'dom';
   
   // Check for ILS/Nav aids FIRST (before runway check)
   // This handles cases like "ILS RWY 09" which should be classified as ILS, not runway
@@ -100,7 +89,6 @@ export const getHeadTitle = (notam) => {
     crfi: 'FRICTION INDEX',
     ils: 'ILS / NAV AID',
     fuel: 'FUEL SERVICES',
-    dom: 'DOMESTIC',
     cancelled: 'CANCELLED',
     other: 'GENERAL'
   };

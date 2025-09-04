@@ -62,26 +62,14 @@
   color: var(--text-muted);
   font-size: 1.8rem;
   cursor: pointer;
-  padding: 1rem;
-  border-radius: 12px;
+  padding: 0.75rem;
+  border-radius: 8px;
   transition: all 0.2s ease;
-  min-width: 48px;
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
 }
 
 .filter-modal-close:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
-  transform: scale(1.05);
-}
-
-.filter-modal-close:active {
-  transform: scale(0.95);
 }
 
 .filter-modal-content {
@@ -110,18 +98,11 @@
   font-size: 1rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-height: 48px;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
 }
 
 .apply-filters-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
-}
-
-.apply-filters-btn:active {
-  transform: translateY(0);
 }
 
 /* Filter system styles */
@@ -152,8 +133,8 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  border-radius: 16px;
+  padding: 0.75rem 1.25rem;
+  border-radius: 30px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -164,10 +145,7 @@
   backdrop-filter: blur(10px);
   position: relative;
   overflow: hidden;
-  min-height: 48px;
-  min-width: 120px;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
 }
 
 .filter-chip::before {
@@ -191,10 +169,6 @@
   border-color: var(--accent-blue);
 }
 
-.filter-chip:active {
-  transform: translateY(0);
-}
-
 .filter-chip.active {
   color: #ffffff;
   font-weight: 700;
@@ -206,7 +180,6 @@
 .chip-label {
   flex: 1;
   font-size: 0.9rem;
-  text-align: center;
 }
 
 .chip-count {
@@ -230,7 +203,6 @@
 .filter-chip-crfi.active { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
 .filter-chip-ils.active { background: linear-gradient(135deg, #3b82f6, #2563eb); }
 .filter-chip-fuel.active { background: linear-gradient(135deg, #ec4899, #db2777); }
-.filter-chip-dom.active { background: linear-gradient(135deg, #22c55e, #15803d); }
 .filter-chip-other.active { background: linear-gradient(135deg, #6b7280, #4b5563); }
 .filter-chip-cancelled.active { background: linear-gradient(135deg, #6b7280, #4b5563); }
 .filter-chip-current.active { background: linear-gradient(135deg, #10b981, #047857); }
@@ -248,7 +220,6 @@
   user-select: none;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1;
-  touch-action: none;
 }
 
 .draggable-chip:active {
@@ -257,7 +228,7 @@
 
 .draggable-chip.dragging {
   z-index: 1000;
-  transform: rotate(3deg) scale(1.05);
+  transform: rotate(5deg) scale(1.05);
   opacity: 0.8;
   box-shadow: 0 10px 30px rgba(0, 212, 255, 0.4);
   animation: dragPulse 0.6s ease-in-out infinite alternate;
@@ -271,19 +242,15 @@
 }
 
 .drag-handle {
-  font-size: 1.2rem;
+  font-size: 1rem;
   color: rgba(255, 255, 255, 0.4);
-  margin-right: 0.75rem;
+  margin-right: 0.5rem;
   cursor: grab;
   user-select: none;
   transition: all 0.2s ease;
   transform: rotate(90deg);
   font-weight: bold;
   line-height: 1;
-  padding: 0.5rem;
-  min-width: 32px;
-  text-align: center;
-  -webkit-tap-highlight-color: transparent;
 }
 
 .draggable-chip:hover .drag-handle {
@@ -318,9 +285,6 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-height: 48px;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
 }
 
 .clear-all-btn:hover {
@@ -328,11 +292,8 @@
   transform: scale(1.05);
 }
 
-.clear-all-btn:active {
-  transform: scale(0.98);
-}
 
-/* Mobile optimizations */
+/* Responsive design */
 @media (max-width: 768px) {
   .filter-modal {
     margin: 1rem;
@@ -350,54 +311,14 @@
     padding: 1.5rem 2rem;
   }
 
-  .filter-modal-close {
-    padding: 1.25rem;
-    min-width: 52px;
-    min-height: 52px;
-  }
-
-  .draggable-chip,
-  .filter-chip {
-    min-width: 140px;
-    min-height: 52px;
-    justify-content: center;
-    padding: 1.25rem;
-  }
-  
-  .drag-handle {
-    font-size: 1.4rem;
-    margin-right: 0.5rem;
-    padding: 0.75rem;
-  }
-
-  .apply-filters-btn,
-  .clear-all-btn {
-    min-height: 52px;
-    font-size: 1.1rem;
-  }
-}
-
-/* Touch devices - larger touch targets */
-@media (hover: none) and (pointer: coarse) {
-  .filter-chip,
   .draggable-chip {
-    min-height: 56px;
-    padding: 1.5rem;
+    min-width: 130px;
+    justify-content: center;
   }
   
   .drag-handle {
-    padding: 1rem;
-    min-width: 40px;
-  }
-  
-  .filter-modal-close {
-    min-width: 56px;
-    min-height: 56px;
-  }
-
-  .apply-filters-btn,
-  .clear-all-btn {
-    min-height: 56px;
+    font-size: 1rem;
+    margin-right: 0.4rem;
   }
 }
 
@@ -446,8 +367,7 @@
 }
 
 /* Focus states for accessibility */
-.draggable-chip:focus-visible,
-.filter-chip:focus-visible {
+.draggable-chip:focus-visible {
   outline: 2px solid var(--accent-blue);
   outline-offset: 2px;
 }

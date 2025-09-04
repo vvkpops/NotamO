@@ -43,16 +43,15 @@ const App = () => {
   const [newNotamIcaos, setNewNotamIcaos] = useState(new Set());
   const [timeToNextRefresh, setTimeToNextRefresh] = useState(AUTO_REFRESH_INTERVAL);
 
-  // Filter states - Updated to include DOM filter
+  // Filter states
   const [keywordFilter, setKeywordFilter] = useState('');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [filterOrder, setFilterOrder] = useState([
-    'rwy', 'twy', 'rsc', 'crfi', 'ils', 'fuel', 'dom', 'other', 'cancelled' // Add 'dom' here
+    'rwy', 'twy', 'rsc', 'crfi', 'ils', 'fuel', 'other', 'cancelled'
   ]);
   const [filters, setFilters] = useState({
     rwy: true, twy: true, rsc: true, crfi: true, ils: true,
-    fuel: true, dom: false, other: true, cancelled: false, // Add dom: false (OFF by default)
-    current: true, future: true,
+    fuel: true, other: true, cancelled: false, current: true, future: true,
   });
   const [dragState, setDragState] = useState({
     draggedItem: null,
@@ -306,43 +305,18 @@ const App = () => {
     setFetchQueue(prev => [...prev, icaoToRefresh]);
   }, [fetchQueue]);
 
-  // fetchNotams with smart incremental updates and server-side filtering
-  const fetchNotams = useCallback(async (icao, currentFilters) => {
-    console.log(`🚀 Fetching NOTAMs for ${icao} with filters:`, currentFilters);
+  // fetchNotams with smart incremental updates
+  const fetchNotams = useCallback(async (icao) => {
+    console.log(`🚀 Fetching NOTAMs for ${icao}`);
     
+    // Set loading state but preserve existing data
     setNotamDataStore(prev => ({ 
       ...prev, 
       [icao]: { ...prev[icao], loading: true, error: null } 
     }));
     
     try {
-      const params = new URLSearchParams({ icao });
-
-      // Map frontend filters to backend API parameters
-      const filterMap = {
-          dom: { classification: 'DOM' },
-          cancelled: { notamType: 'C' },
-          rwy: { featureType: 'RWY' },
-          twy: { featureType: 'TWY' },
-          ils: { featureType: 'NAV' }, // Using NAV for ILS/Nav aids
-          fuel: { featureType: 'SVC' }  // Using SVC for Fuel services
-      };
-      
-      // Since we can only send one value per parameter, we'll pick the first active one.
-      // A more advanced implementation might send multiple requests.
-      let filterApplied = false;
-      for (const key in filterMap) {
-          if (currentFilters[key] && !filterApplied) {
-              const apiParams = filterMap[key];
-              for (const paramKey in apiParams) {
-                  params.append(paramKey, apiParams[paramKey]);
-                  console.log(`  -> Applying server-side filter: ${paramKey}=${apiParams[paramKey]}`);
-                  filterApplied = true; // Apply only one main filter for simplicity
-              }
-          }
-      }
-
-      const response = await fetch(`/api/notams?${params.toString()}`);
+      const response = await fetch(`/api/notams?icao=${icao}`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -358,10 +332,13 @@ const App = () => {
         const oldData = prev[icao]?.data || [];
         const isInitialFetch = oldData.length === 0 && !prev[icao]?.lastUpdated;
         
+        // Use smart incremental merge
         const { processedData, hasNewNotams, newNotamsList, stats } = smartNotamMerge(oldData, data, isInitialFetch);
         
+        // Add ICAO to each NOTAM for consistency
         const notamsWithIcao = processedData.map(n => ({ ...n, icao }));
 
+        // Update new NOTAM indicators and history if there are new NOTAMs
         if (hasNewNotams) {
           console.log(`🆕 Found ${stats.new} new NOTAMs for ${icao}`);
           setNewNotamIcaos(prevSet => new Set(prevSet).add(icao));
@@ -478,8 +455,7 @@ const App = () => {
         
         console.log(`🔄 Processing queue item: ${icaoToFetch} (${currentQueue.length - 1} remaining)`);
         
-        // Pass current filters to fetchNotams
-        fetchNotams(icaoToFetch, filters).finally(() => {
+        fetchNotams(icaoToFetch).finally(() => {
           queueTimerRef.current = setTimeout(() => {
             isProcessingQueue.current = false;
             processQueueRef.current();
@@ -616,25 +592,15 @@ const App = () => {
     return { data: storeEntry?.data || [], loading: isLoading, error: storeEntry?.error || null };
   }, [activeTab, allNotamsData, notamDataStore]);
 
-  // Updated filtered NOTAMs to include DOM filter logic
   const { filteredNotams, typeCounts, hasActiveFilters, activeFilterCount } = useMemo(() => {
     const notams = activeNotamData.data;
     if (!notams) return { filteredNotams: [], typeCounts: {}, hasActiveFilters: false, activeFilterCount: 0 };
-    
-    // Initialize counts with DOM
-    const counts = { 
-      rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0, fuel: 0, 
-      dom: 0, other: 0, cancelled: 0, current: 0, future: 0 // Add dom: 0
-    };
-    
+    const counts = { rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0, fuel: 0, other: 0, cancelled: 0, current: 0, future: 0 };
     notams.forEach(notam => {
       if (notam.isIcaoHeader) return;
-      const type = getNotamType(notam); 
-      counts[type]++;
-      if (isNotamCurrent(notam)) counts.current++; 
-      if (isNotamFuture(notam)) counts.future++;
+      const type = getNotamType(notam); counts[type]++;
+      if (isNotamCurrent(notam)) counts.current++; if (isNotamFuture(notam)) counts.future++;
     });
-    
     const filterFunc = notam => {
       if (notam.isIcaoHeader) return true;
       const type = getNotamType(notam);
@@ -644,14 +610,12 @@ const App = () => {
       if (!filters.future && isNotamFuture(notam)) return false;
       return true;
     };
-    
     const sortFunc = (a, b) => {
       if (a.isIcaoHeader || b.isIcaoHeader) return 0;
       const aPrio = filterOrder.indexOf(getNotamType(a)), bPrio = filterOrder.indexOf(getNotamType(b));
       if (aPrio !== bPrio) return aPrio - bPrio;
       return new Date(b.validFrom) - new Date(a.validFrom);
     };
-    
     let results = notams.filter(filterFunc).sort(sortFunc);
     if (activeTab === 'ALL') {
         const icaoGroups = results.reduce((acc, item) => {
@@ -668,27 +632,15 @@ const App = () => {
             }
         });
     }
-    
-    // Update default filters to include DOM
-    const defaultFilters = { 
-      rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, 
-      dom: false, other: true, cancelled: false, current: true, future: true // Add dom: false
-    };
-    
+    const defaultFilters = { rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, other: true, cancelled: false, current: true, future: true };
     const hasFilters = keywordFilter || Object.keys(filters).some(key => filters[key] !== defaultFilters[key]);
     const filterCount = Object.keys(filters).filter(key => filters[key] !== defaultFilters[key]).length + (keywordFilter ? 1 : 0);
     return { filteredNotams: results, typeCounts: counts, hasActiveFilters: hasFilters, activeFilterCount: filterCount };
   }, [activeNotamData.data, keywordFilter, filters, activeTab, filterOrder]);
 
   const handleFilterChange = (filterKey) => setFilters(prev => ({ ...prev, [filterKey]: !prev[filterKey] }));
-  
-  // Update clearAllFilters to include DOM
   const clearAllFilters = () => {
-    setFilters({ 
-      rwy: true, twy: true, rsc: true, crfi: true, ils: true, 
-      fuel: true, dom: false, other: true, cancelled: false, // Add dom: false
-      current: true, future: true 
-    });
+    setFilters({ rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, other: true, cancelled: false, current: true, future: true });
     setKeywordFilter('');
   };
 

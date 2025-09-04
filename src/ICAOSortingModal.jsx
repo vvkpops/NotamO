@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 
 const ICAOSortingModal = ({ 
@@ -34,23 +34,11 @@ const ICAOSortingModal = ({
   }, [isOpen, icaos]);
 
   // Handle backdrop click to close
-  const handleBackdropClick = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
       onClose();
     }
-  }, [onClose]);
-
-  const handleModalClick = useCallback((e) => {
-    e.stopPropagation();
-  }, []);
-
-  const handleCloseClick = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onClose();
-  }, [onClose]);
+  };
 
   // Handle escape key
   useEffect(() => {
@@ -71,39 +59,34 @@ const ICAOSortingModal = ({
     };
   }, [isOpen, onClose]);
 
-  // Enhanced drag and drop handlers with touch support
-  const handleDragStart = useCallback((e, icao, index) => {
+  // Drag and drop handlers
+  const handleDragStart = (e, icao, index) => {
     setDraggedItem({ icao, index });
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', icao);
     
     // Add visual feedback
-    if (e.target) {
-      e.target.style.opacity = '0.7';
-    }
-  }, []);
+    e.target.style.opacity = '0.5';
+  };
 
-  const handleDragEnd = useCallback((e) => {
-    if (e.target) {
-      e.target.style.opacity = '1';
-    }
+  const handleDragEnd = (e) => {
+    e.target.style.opacity = '1';
     setDraggedItem(null);
     setDraggedOver(null);
-  }, []);
+  };
 
-  const handleDragOver = useCallback((e) => {
+  const handleDragOver = (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-  }, []);
+  };
 
-  const handleDragEnter = useCallback((e, index) => {
+  const handleDragEnter = (e, index) => {
     e.preventDefault();
     setDraggedOver(index);
-  }, []);
+  };
 
-  const handleDrop = useCallback((e, dropIndex) => {
+  const handleDrop = (e, dropIndex) => {
     e.preventDefault();
-    e.stopPropagation();
     
     if (!draggedItem || draggedItem.index === dropIndex) {
       return;
@@ -122,13 +105,10 @@ const ICAOSortingModal = ({
     setSortableIcaos(newOrder);
     setDraggedItem(null);
     setDraggedOver(null);
-  }, [draggedItem, sortableIcaos]);
+  };
 
   // Save the new order
-  const handleSaveOrder = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
+  const handleSaveOrder = () => {
     // Save to localStorage
     localStorage.setItem('icaoCustomOrder', JSON.stringify(sortableIcaos));
     
@@ -136,7 +116,7 @@ const ICAOSortingModal = ({
     onReorder(sortableIcaos);
     
     // Show success feedback
-    const saveBtn = e.target;
+    const saveBtn = document.querySelector('.sort-save-btn');
     if (saveBtn) {
       const originalText = saveBtn.textContent;
       saveBtn.textContent = '✅ Saved!';
@@ -152,15 +132,13 @@ const ICAOSortingModal = ({
     setTimeout(() => {
       onClose();
     }, 1000);
-  }, [sortableIcaos, onReorder, onClose]);
+  };
 
   // Reset to default order
-  const handleResetOrder = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleResetOrder = () => {
     setSortableIcaos([...icaos]);
     localStorage.removeItem('icaoCustomOrder');
-  }, [icaos]);
+  };
 
   if (!isOpen) return null;
 
@@ -174,7 +152,7 @@ const ICAOSortingModal = ({
 
   return ReactDOM.createPortal(
     <div className="icao-sort-backdrop" onClick={handleBackdropClick}>
-      <div className="icao-sort-modal" ref={modalRef} onClick={handleModalClick}>
+      <div className="icao-sort-modal" ref={modalRef}>
         <div className="icao-sort-header">
           <div className="icao-sort-title">
             <span className="icao-sort-icon">↕️</span>
@@ -183,9 +161,7 @@ const ICAOSortingModal = ({
               <p>Drag to reorder your ICAO tabs as you prefer</p>
             </div>
           </div>
-          <button className="icao-sort-close" onClick={handleCloseClick} type="button">
-            ✕
-          </button>
+          <button className="icao-sort-close" onClick={onClose}>✕</button>
         </div>
 
         <div className="icao-sort-content">
@@ -232,14 +208,14 @@ const ICAOSortingModal = ({
         </div>
 
         <div className="icao-sort-footer">
-          <button className="icao-sort-reset" onClick={handleResetOrder} type="button">
+          <button className="icao-sort-reset" onClick={handleResetOrder}>
             🔄 Reset Order
           </button>
           <div className="icao-sort-actions">
-            <button className="icao-sort-cancel" onClick={handleCloseClick} type="button">
+            <button className="icao-sort-cancel" onClick={onClose}>
               Cancel
             </button>
-            <button className="icao-sort-save sort-save-btn" onClick={handleSaveOrder} type="button">
+            <button className="icao-sort-save sort-save-btn" onClick={handleSaveOrder}>
               💾 Save Order
             </button>
           </div>
