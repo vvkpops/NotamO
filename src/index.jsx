@@ -8,6 +8,7 @@ import './css/filter-modal.css';
 import './css/HighlightModal.css';
 import './css/icao-sorting-modal.css';
 import './css/notam-history-modal.css';
+import './css/icao-subtabs.css';
 import App from './App';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

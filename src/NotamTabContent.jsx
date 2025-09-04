@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import NotamCard from './NotamCard';
+import ICAOTabPanel from './ICAOTabPanel';
 import { getNotamType } from './NotamUtils';
 
 export const FilterModal = ({ 
@@ -254,55 +255,70 @@ const NotamTabContent = ({
   keywordHighlightEnabled = false,
   keywordCategories = {}
 }) => {
-  if (loading) {
-    return <LoadingState />;
-  }
+  // For ALL tab, keep existing behavior (aerodrome only)
+  if (icao === 'ALL') {
+    if (loading) {
+      return <LoadingState />;
+    }
 
-  if (error) {
-    return <ErrorState error={error} />;
-  }
+    if (error) {
+      return <ErrorState error={error} />;
+    }
 
-  const renderNotamItem = (notam) => {
-    if (notam.isIcaoHeader) {
-      return (
-        <div key={`header-${notam.icao}`} className="icao-header-card">
-          <div className="icao-header-content">
-            <h3>{notam.icao}</h3>
-            <div className="icao-header-stats">
-              <span className="header-stat">
-                {notams.filter(n => n.icao === notam.icao && !n.isIcaoHeader).length} NOTAMs
-              </span>
+    const renderNotamItem = (notam) => {
+      if (notam.isIcaoHeader) {
+        return (
+          <div key={`header-${notam.icao}`} className="icao-header-card">
+            <div className="icao-header-content">
+              <h3>{notam.icao}</h3>
+              <div className="icao-header-stats">
+                <span className="header-stat">
+                  {notams.filter(n => n.icao === notam.icao && !n.isIcaoHeader).length} NOTAMs
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        );
+      }
+      
+      return (
+        <NotamCard 
+          key={notam.id} 
+          notam={notam} 
+          keywordHighlightEnabled={keywordHighlightEnabled}
+          keywordCategories={keywordCategories}
+        />
       );
-    }
-    
-    return (
-      <NotamCard 
-        key={notam.id} 
-        notam={notam} 
-        keywordHighlightEnabled={keywordHighlightEnabled}
-        keywordCategories={keywordCategories}
-      />
-    );
-  };
+    };
 
-  return (
-    <div className="notam-tab-content">
-      <div className="notam-results">
-        {notams.length > 0 ? (
-          <div className="notam-grid">
-            {notams.map((item) => renderNotamItem(item))}
-          </div>
-        ) : (
-          <EmptyState 
-            hasFilters={hasActiveFilters}
-            onClearFilters={onClearFilters}
-          />
-        )}
+    return (
+      <div className="notam-tab-content">
+        <div className="notam-results">
+          {notams.length > 0 ? (
+            <div className="notam-grid">
+              {notams.map((item) => renderNotamItem(item))}
+            </div>
+          ) : (
+            <EmptyState 
+              hasFilters={hasActiveFilters}
+              onClearFilters={onClearFilters}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    );
+  }
+
+  // For individual ICAO tabs, use the new panel with FIR support
+  return (
+    <ICAOTabPanel
+      icao={icao}
+      notamData={notams}
+      loading={loading}
+      error={error}
+      keywordHighlightEnabled={keywordHighlightEnabled}
+      keywordCategories={keywordCategories}
+    />
   );
 };
 
