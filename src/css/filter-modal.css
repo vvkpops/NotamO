@@ -230,6 +230,7 @@
 .filter-chip-crfi.active { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
 .filter-chip-ils.active { background: linear-gradient(135deg, #3b82f6, #2563eb); }
 .filter-chip-fuel.active { background: linear-gradient(135deg, #ec4899, #db2777); }
+.filter-chip-dom.active { background: linear-gradient(135deg, #22c55e, #15803d); }
 .filter-chip-other.active { background: linear-gradient(135deg, #6b7280, #4b5563); }
 .filter-chip-cancelled.active { background: linear-gradient(135deg, #6b7280, #4b5563); }
 .filter-chip-current.active { background: linear-gradient(135deg, #10b981, #047857); }
