@@ -316,7 +316,7 @@ const App = () => {
     }));
     
     try {
-      const response = await fetch(`/api/notams?icao=${icao}`);
+      const response = await fetch(`/api/notam-card?icao=${icao}`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
