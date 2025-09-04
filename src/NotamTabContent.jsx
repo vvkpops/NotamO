@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useCallback } from 'react';
 import NotamCard from './NotamCard';
 import { getNotamType } from './NotamUtils';
 
@@ -16,27 +16,39 @@ export const FilterModal = ({
 }) => {
   const modalRef = useRef(null);
 
-  const handleBackdropClick = (e) => {
+  const handleBackdropClick = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (e.target === e.currentTarget) {
       onClose();
     }
-  };
+  }, [onClose]);
 
-  const handleDragStart = (type) => {
+  const handleModalClick = useCallback((e) => {
+    e.stopPropagation();
+  }, []);
+
+  const handleCloseClick = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClose();
+  }, [onClose]);
+
+  const handleDragStart = useCallback((type) => {
     setDragState(prev => ({ ...prev, draggedItem: type }));
-  };
+  }, [setDragState]);
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     setDragState({ draggedItem: null, draggedOver: null });
-  };
+  }, [setDragState]);
 
-  const handleDragOver = (type) => {
+  const handleDragOver = useCallback((type) => {
     if (dragState.draggedItem && dragState.draggedItem !== type) {
       setDragState(prev => ({ ...prev, draggedOver: type }));
     }
-  };
+  }, [dragState.draggedItem, setDragState]);
 
-  const handleDrop = (draggedType, dropTargetType) => {
+  const handleDrop = useCallback((draggedType, dropTargetType) => {
     if (draggedType === dropTargetType) return;
 
     setFilterOrder(prev => {
@@ -53,8 +65,9 @@ export const FilterModal = ({
     });
     
     setDragState({ draggedItem: null, draggedOver: null });
-  };
+  }, [setFilterOrder, setDragState]);
 
+  // Enhanced touch support for mobile devices
   const DraggableFilterChip = ({ 
     label, 
     type, 
@@ -63,50 +76,95 @@ export const FilterModal = ({
     count = 0
   }) => {
     const chipRef = useRef(null);
+    const touchStartRef = useRef(null);
+    const dragStartTimeRef = useRef(null);
 
-    const handleDragStartInternal = (e) => {
+    const handleClick = useCallback((e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Only trigger click if it wasn't a drag operation
+      const now = Date.now();
+      if (!dragStartTimeRef.current || (now - dragStartTimeRef.current) < 200) {
+        onClick();
+      }
+    }, [onClick]);
+
+    const handleDragStartInternal = useCallback((e) => {
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', type);
+      dragStartTimeRef.current = Date.now();
       handleDragStart(type);
       
       if (chipRef.current) {
-        chipRef.current.style.transform = 'rotate(5deg) scale(1.05)';
-        chipRef.current.style.opacity = '0.7';
+        chipRef.current.style.transform = 'rotate(3deg) scale(1.05)';
+        chipRef.current.style.opacity = '0.8';
       }
-    };
+    }, [type, handleDragStart]);
 
-    const handleDragEndInternal = () => {
+    const handleDragEndInternal = useCallback(() => {
       handleDragEnd();
       
       if (chipRef.current) {
         chipRef.current.style.transform = '';
         chipRef.current.style.opacity = '';
       }
-    };
+    }, [handleDragEnd]);
 
-    const handleDragOverInternal = (e) => {
+    const handleDragOverInternal = useCallback((e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       handleDragOver(type);
-    };
+    }, [type, handleDragOver]);
 
-    const handleDropInternal = (e) => {
+    const handleDropInternal = useCallback((e) => {
       e.preventDefault();
+      e.stopPropagation();
       const draggedType = e.dataTransfer.getData('text/plain');
       handleDrop(draggedType, type);
-    };
+    }, [type, handleDrop]);
+
+    // Touch event handlers for mobile devices
+    const handleTouchStart = useCallback((e) => {
+      touchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        time: Date.now()
+      };
+    }, []);
+
+    const handleTouchMove = useCallback((e) => {
+      if (!touchStartRef.current) return;
+      
+      const touch = e.touches[0];
+      const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+      
+      // If significant movement, prevent click
+      if (deltaX > 10 || deltaY > 10) {
+        dragStartTimeRef.current = Date.now();
+      }
+    }, []);
+
+    const handleTouchEnd = useCallback(() => {
+      touchStartRef.current = null;
+    }, []);
 
     return (
       <button
         ref={chipRef}
         className={`filter-chip filter-chip-${type} ${isActive ? 'active' : ''} ${dragState.draggedItem === type ? 'dragging' : ''} ${dragState.draggedOver === type ? 'drag-over' : ''} draggable-chip`}
-        onClick={onClick}
+        onClick={handleClick}
         draggable={true}
         onDragStart={handleDragStartInternal}
         onDragEnd={handleDragEndInternal}
         onDragOver={handleDragOverInternal}
         onDrop={handleDropInternal}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         title={`Drag to reorder | ${label}: ${count} NOTAMs`}
+        type="button"
       >
         <span className="drag-handle">⋮⋮</span>
         <span className="chip-label">{label}</span>
@@ -115,15 +173,24 @@ export const FilterModal = ({
     );
   };
 
-  const FilterChip = ({ label, type, isActive, onClick, count = 0 }) => (
-    <button
-      className={`filter-chip filter-chip-${type} ${isActive ? 'active' : ''}`}
-      onClick={onClick}
-    >
-      <span className="chip-label">{label}</span>
-      {count > 0 && <span className="chip-count">{count}</span>}
-    </button>
-  );
+  const FilterChip = ({ label, type, isActive, onClick, count = 0 }) => {
+    const handleClick = useCallback((e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onClick();
+    }, [onClick]);
+
+    return (
+      <button
+        className={`filter-chip filter-chip-${type} ${isActive ? 'active' : ''}`}
+        onClick={handleClick}
+        type="button"
+      >
+        <span className="chip-label">{label}</span>
+        {count > 0 && <span className="chip-count">{count}</span>}
+      </button>
+    );
+  };
 
   const filterConfig = [
     { key: 'rwy', label: 'Runway' }, 
@@ -149,10 +216,12 @@ export const FilterModal = ({
 
   return (
     <div className="filter-modal-backdrop" onClick={handleBackdropClick}>
-      <div className="filter-modal" ref={modalRef}>
+      <div className="filter-modal" ref={modalRef} onClick={handleModalClick}>
         <div className="filter-modal-header">
           <h3>🎯 Filter & Sort NOTAMs</h3>
-          <button className="filter-modal-close" onClick={onClose}>✕</button>
+          <button className="filter-modal-close" onClick={handleCloseClick} type="button">
+            ✕
+          </button>
         </div>
 
         <div className="filter-modal-content">
@@ -190,10 +259,10 @@ export const FilterModal = ({
         </div>
 
         <div className="filter-modal-footer">
-          <button className="clear-all-btn" onClick={onClearAll}>
+          <button className="clear-all-btn" onClick={onClearAll} type="button">
             Clear All Selections
           </button>
-          <button className="apply-filters-btn" onClick={onClose}>
+          <button className="apply-filters-btn" onClick={handleCloseClick} type="button">
             Apply & Close
           </button>
         </div>
@@ -216,7 +285,7 @@ const ErrorState = ({ error, onRetry }) => (
     <h3>Failed to Load NOTAMs</h3>
     <p>{error}</p>
     {onRetry && (
-      <button className="retry-btn" onClick={onRetry}>
+      <button className="retry-btn" onClick={onRetry} type="button">
         🔄 Retry
       </button>
     )}
@@ -236,7 +305,7 @@ const EmptyState = ({ hasFilters, onClearFilters }) => (
       }
     </p>
     {hasFilters && (
-      <button className="clear-filters-btn" onClick={onClearFilters}>
+      <button className="clear-filters-btn" onClick={onClearFilters} type="button">
         Clear All Filters
       </button>
     )}

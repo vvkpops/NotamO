@@ -58,6 +58,8 @@
   text-transform: uppercase;
   transition: all 0.3s ease;
   outline: none;
+  min-height: 48px;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .icao-input.compact {
@@ -89,11 +91,14 @@
   position: relative;
   overflow: hidden;
   min-width: 140px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
   white-space: nowrap;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .add-button::before {
@@ -114,6 +119,10 @@
 .add-button:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(0, 212, 255, 0.4);
+}
+
+.add-button:active {
+  transform: translateY(0);
 }
 
 .add-button:disabled {
@@ -146,7 +155,7 @@
 
 .icao-tab {
   position: relative;
-  padding: 1rem 1.25rem 1rem 1.75rem; /* Adjusted padding for actions */
+  padding: 1rem 1.25rem 1rem 1.75rem;
   border-radius: 14px;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -163,6 +172,8 @@
   gap: 0.75rem;
   min-height: 48px;
   letter-spacing: 0.025em;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .icao-tab::before {
@@ -180,447 +191,9 @@
 .icao-tab span {
   position: relative;
   z-index: 2;
-  margin-right: auto; /* Push actions to the right */
+  margin-right: auto;
 }
 
 .icao-tab.active {
   background: rgba(0, 212, 255, 0.15);
   border-color: var(--accent-blue);
-  color: var(--accent-blue);
-  box-shadow: 0 0 25px rgba(0, 212, 255, 0.25);
-  transform: translateY(-2px);
-}
-
-.icao-tab.active::before {
-  opacity: 0.1;
-}
-
-.icao-tab:hover:not(.active) {
-  background: rgba(139, 92, 246, 0.1);
-  border-color: var(--accent-purple);
-  color: var(--accent-purple);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.15);
-}
-
-.tab-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid transparent;
-  border-top-color: var(--accent-blue);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-left: 0.5rem;
-}
-
-.tab-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-left: 0.75rem;
-}
-
-.refresh-btn,
-.remove-btn {
-  color: var(--text-muted);
-  font-weight: 700;
-  font-size: 1.3rem;
-  transition: all 0.2s ease;
-  z-index: 3;
-  position: relative;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.35rem;
-  line-height: 1;
-  border-radius: 8px;
-}
-
-.refresh-btn {
-  font-size: 1.1rem;
-}
-
-.refresh-btn:hover {
-  color: var(--accent-blue);
-  transform: scale(1.1) rotate(360deg);
-  background: rgba(0, 212, 255, 0.1);
-}
-
-.remove-btn:hover {
-  color: #ffffff;
-  transform: scale(1.3);
-  background: rgba(239, 68, 68, 0.2);
-}
-
-/* Enhanced New NOTAM indicator for tabs */
-.icao-tab.has-new-notams {
-  position: relative;
-  overflow: visible;
-}
-
-.icao-tab.has-new-notams:not(.active) {
-  border-color: var(--accent-green);
-  color: var(--accent-green);
-  background: rgba(16, 185, 129, 0.1);
-  animation: newNotamTabGlow 2s ease-in-out infinite alternate;
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
-}
-
-.icao-tab.has-new-notams::after {
-  content: '';
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  width: 12px;
-  height: 12px;
-  background: radial-gradient(circle, #10b981 0%, #059669 100%);
-  border-radius: 50%;
-  border: 2px solid var(--primary-bg);
-  animation: newNotamDot 1.5s ease-in-out infinite;
-  z-index: 5;
-}
-
-@keyframes newNotamTabGlow {
-  from {
-    border-color: var(--accent-green);
-    box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
-    color: var(--accent-green);
-  }
-  to {
-    border-color: rgba(16, 185, 129, 0.8);
-    box-shadow: 0 0 25px rgba(16, 185, 129, 0.5);
-    color: rgba(16, 185, 129, 0.9);
-  }
-}
-
-@keyframes newNotamDot {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.3);
-    opacity: 0.7;
-  }
-}
-
-/* Clear the new indicator when tab becomes active */
-.icao-tab.has-new-notams.active {
-  animation: none;
-  background: rgba(0, 212, 255, 0.15);
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-  box-shadow: 0 0 25px rgba(0, 212, 255, 0.25);
-}
-
-.icao-tab.has-new-notams.active::after {
-  animation: fadeOut 0.5s ease-out forwards;
-}
-
-@keyframes fadeOut {
-  from {
-    opacity: 1;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(0);
-  }
-}
-
-/* Enhanced Filter System */
-.filter-toggle-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem 1.75rem;
-  background: var(--gradient-accent);
-  border: none;
-  border-radius: 14px;
-  color: white;
-  font-weight: 600;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
-  position: relative;
-  overflow: hidden;
-  min-width: 160px;
-  white-space: nowrap;
-}
-
-.filter-toggle-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.filter-toggle-btn:hover::before {
-  left: 100%;
-}
-
-.filter-toggle-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 212, 255, 0.4);
-}
-
-.filter-icon {
-  font-size: 1.2rem;
-}
-
-.filter-text {
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.05em;
-}
-
-.filter-badge {
-  background: rgba(255, 255, 255, 0.3);
-  color: white;
-  border-radius: 12px;
-  padding: 0.25rem 0.6rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  min-width: 1.8rem;
-  text-align: center;
-  animation: pulse-badge 2s ease-in-out infinite;
-}
-
-@keyframes pulse-badge {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-.quick-clear-btn {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--accent-red);
-  padding: 1rem 1.5rem;
-  border-radius: 12px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  white-space: nowrap;
-}
-
-.quick-clear-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
-}
-
-/* Enhanced search input */
-.search-input-wrapper {
-  position: relative;
-  width: 100%;
-  flex-grow: 1;
-  max-width: 500px;
-}
-
-.search-icon {
-  position: absolute;
-  left: 1.25rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 1rem;
-  opacity: 0.6;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.search-input {
-  width: 100%;
-  padding: 1rem 1.25rem 1rem 3.25rem;
-  background: rgba(0, 0, 0, 0.3);
-  border: 2px solid var(--border-primary);
-  border-radius: 14px;
-  color: var(--text-primary);
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  outline: none;
-  font-family: 'Inter', sans-serif;
-}
-
-.search-input:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.search-input::placeholder {
-  color: var(--text-muted);
-  opacity: 0.7;
-}
-
-.clear-search-btn {
-  position: absolute;
-  right: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 1.3rem;
-  padding: 0.5rem;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  z-index: 1;
-}
-
-.clear-search-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
-}
-
-/* Card Sizer Control */
-.card-sizer-control {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 0.5rem 1.5rem;
-  border-radius: 14px;
-  border: 2px solid var(--border-primary);
-  transition: all 0.3s ease;
-}
-.card-sizer-control:hover {
-  border-color: var(--accent-blue);
-}
-.sizer-icon {
-  font-size: 1.2rem;
-  color: var(--text-muted);
-}
-.sizer-value {
-  font-family: 'JetBrains Mono', monospace;
-  color: var(--accent-blue);
-  font-weight: 600;
-  font-size: 0.9rem;
-  min-width: 50px;
-}
-.card-size-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 150px;
-  height: 6px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 3px;
-  outline: none;
-  transition: opacity 0.2s;
-  cursor: pointer;
-}
-.card-size-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  background: var(--accent-blue);
-  border-radius: 50%;
-  border: 3px solid var(--primary-bg);
-  box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-  transition: transform 0.2s ease;
-}
-.card-size-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
-}
-.card-size-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
-  background: var(--accent-blue);
-  border-radius: 50%;
-  border: 3px solid var(--primary-bg);
-  box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-.card-size-slider::-moz-range-thumb:hover {
-  transform: scale(1.1);
-}
-
-/* Enhanced filter toggle button for highlight feature */
-.filter-toggle-btn.highlight-enabled {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-}
-  
-.filter-toggle-btn.highlight-disabled {
-    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-  .icao-input-wrapper {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .top-controls {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1.25rem;
-  }
-
-  .filter-controls {
-    justify-content: center;
-  }
-  
-  .icao-input {
-    min-width: 100%;
-  }
-  
-  .icao-input-container {
-    padding: 1.5rem;
-  }
-
-  .icao-tabs {
-    padding: 1.25rem 1.5rem;
-    gap: 0.75rem;
-  }
-
-  .icao-tab {
-    padding: 0.875rem 1.5rem;
-    font-size: 0.9rem;
-  }
-  
-  .icao-tab.has-new-notams::after {
-    top: -2px;
-    right: -2px;
-    width: 10px;
-    height: 10px;
-  }
-}
-
-/* Reduced motion accessibility */
-@media (prefers-reduced-motion: reduce) {
-  .icao-tab,
-  .add-button,
-  .filter-toggle-btn,
-  .loading-spinner,
-  .tab-spinner {
-    transition: none;
-    animation: none;
-  }
-  
-  .icao-tab.has-new-notams {
-    animation: none;
-    border-color: var(--accent-green);
-    color: var(--accent-green);
-    background: rgba(16, 185, 129, 0.15);
-  }
-  
-  .icao-tab.has-new-notams::after {
-    animation: none;
-  }
-}
-
-/* Focus states for accessibility */
-.filter-toggle-btn:focus-visible,
-.add-button:focus-visible,
-.icao-tab:focus-visible {
-  outline: 2px solid var(--accent-blue);
-  outline-offset: 2px;
-}
