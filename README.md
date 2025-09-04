@@ -1,2 +1,0 @@
-# NotamO
-Vite in Vercel
