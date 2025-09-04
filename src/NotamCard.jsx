@@ -11,38 +11,21 @@ const NotamCard = ({
   const [copyStatus, setCopyStatus] = useState('📋');
 
   useEffect(() => {
+    // Trigger entrance animation
     const timer = setTimeout(() => setIsVisible(true), 100);
     return () => clearTimeout(timer);
   }, []);
 
   const headClass = getHeadClass(notam);
   const headTitle = getHeadTitle(notam);
+  
+  // Use rawText for runway extraction to be consistent
   const runways = extractRunways(notam.rawText);
-
-  // Formats a date string, prioritizing the raw value from the NOTAM text.
-  const formatDisplayDate = (rawDate, fallbackDate) => {
-    if (rawDate) {
-      const upperRawDate = rawDate.toUpperCase();
-      // Check if a known timezone is already in the string
-      const hasTimeZone = /\b(UTC|GMT|Z|ZULU|EST|EDT|CST|CDT|MST|MDT|PST|PDT)\b/.test(upperRawDate);
-      if (upperRawDate === 'PERM' || upperRawDate === 'PERMANENT') {
-        return 'PERM';
-      }
-      // If it's just the 10 digits, it's Zulu. Append 'ZULU'.
-      if (/^\d{10}$/.test(rawDate)) {
-        return `${rawDate} ZULU`;
-      }
-      // If no explicit timezone, assume Zulu.
-      if (!hasTimeZone) {
-        return `${rawDate} ZULU`;
-      }
-      return rawDate;
-    }
-
-    // Fallback for FAA NOTAMs or if raw parsing fails
-    if (!fallbackDate || fallbackDate === 'PERMANENT' || fallbackDate === 'PERM') return 'PERM';
+  
+  const formatDate = (dateStr) => {
+    if (!dateStr || dateStr === 'PERMANENT' || dateStr === 'PERM') return 'PERM';
     try {
-      const date = new Date(fallbackDate);
+      const date = new Date(dateStr);
       return date.toLocaleString('en-GB', { 
         timeZone: 'UTC', 
         year: 'numeric', 
@@ -52,53 +35,66 @@ const NotamCard = ({
         minute: '2-digit' 
       }) + 'Z';
     } catch { 
-      return fallbackDate; 
+      return dateStr; 
     }
   };
 
   const getTimeStatus = () => {
     const now = new Date();
-
-    // Treat PERM/missing validTo as non-expiring
-    if (!notam.validTo || notam.validTo === 'PERMANENT' || notam.validTo === 'PERM') {
-      const vf = new Date(notam.validFrom);
-      if (!notam.validFrom || isNaN(vf.getTime())) return 'active';
-      return vf > now ? 'future' : 'active';
+    
+    // Handle PERM dates properly
+    if (notam.validTo === 'PERMANENT' || notam.validTo === 'PERM') {
+      const validFrom = new Date(notam.validFrom);
+      return validFrom > now ? 'future' : 'active';
     }
-
+    
     const validFrom = new Date(notam.validFrom);
     const validTo = new Date(notam.validTo);
-
-    if (!isNaN(validFrom.getTime()) && validFrom > now) return 'future';
-    // If validTo is invalid/missing, don't mark as expired
-    if (isNaN(validTo.getTime())) return 'active';
+    
+    if (validFrom > now) return 'future';
     if (validTo < now) return 'expired';
     return 'active';
   };
 
   const timeStatus = getTimeStatus();
+  
+  // Enhanced card classes with new NOTAM detection
   const cardClasses = `notam-card ${isVisible ? 'visible' : ''} ${notam.isNew ? 'is-new' : ''} auto-sized`;
 
   const copyToClipboard = async (e) => {
     e.stopPropagation();
     setCopyStatus('⏳');
+    
     try {
+      // Always copy the rawText which should now be in ICAO format
       const textToCopy = notam.rawText || notam.summary || 'NOTAM text not available';
       await navigator.clipboard.writeText(textToCopy);
+      
       setCopyStatus('✅');
-      setTimeout(() => setCopyStatus('📋'), 2000);
+      console.log(`📋 Copied NOTAM ${notam.number} to clipboard`);
+      
+      setTimeout(() => {
+        setCopyStatus('📋');
+      }, 2000);
     } catch (err) {
       console.error('❌ Failed to copy NOTAM to clipboard:', err);
       setCopyStatus('❌');
-      setTimeout(() => setCopyStatus('📋'), 2000);
+      
+      setTimeout(() => {
+        setCopyStatus('📋');
+      }, 2000);
     }
   };
 
+  // Ensure we have the ICAO formatted text to display
   const displayText = notam.rawText || notam.summary || 'NOTAM text not available';
+  
+  // Apply keyword highlighting if enabled
   const highlightedText = keywordHighlightEnabled 
     ? highlightNotamKeywords(displayText, keywordCategories, true)
     : displayText;
 
+  // Enhanced new NOTAM indicator with better animation
   const newNotamIndicator = notam.isNew && (
     <div className="new-notam-indicator">
       <span className="new-badge-text">NEW</span>
@@ -137,6 +133,7 @@ const NotamCard = ({
       </div>
 
       <div className="notam-card-content">
+        {/* Display the ICAO formatted text with keyword highlighting */}
         {keywordHighlightEnabled ? (
           <pre 
             className="notam-raw-text"
@@ -152,11 +149,11 @@ const NotamCard = ({
           <div className="validity-info">
             <div className="validity-row">
               <span className="validity-label">From:</span>
-              <span className="validity-value">{formatDisplayDate(notam.validFromRaw, notam.validFrom)}</span>
+              <span className="validity-value">{formatDate(notam.validFrom)}</span>
             </div>
             <div className="validity-row">
               <span className="validity-label">To:</span>
-              <span className="validity-value">{formatDisplayDate(notam.validToRaw, notam.validTo)}</span>
+              <span className="validity-value">{formatDate(notam.validTo)}</span>
             </div>
             <div className="validity-row">
               <span className="validity-label">Source:</span>

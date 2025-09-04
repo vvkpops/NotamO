@@ -1,4 +1,3 @@
-// parser.js
 /**
  * NOTAM Parser Utility
  * 
@@ -28,45 +27,37 @@ export function parseRawNotam(rawText) {
   
   const result = {
     isCancellation: false,
-    isReplacement: false, // New field
     cancelsNotam: null,
-    replacesNotam: null, // New field
     qLine: '',
     aerodrome: '',
     validFromRaw: '',
     validToRaw: '',
     schedule: '',
     body: '',
-    frenchBody: '', // New field for French content
     notamNumber: ''
   };
 
   // Check for NOTAM number and cancellation in the first line
   const firstLine = lines[0] || '';
   
-  // Extract NOTAM number (e.g., C3734/25, A1234/25, H4517/25, etc.)
+  // Extract NOTAM number (e.g., C3734/25, A1234/25, etc.)
   const notamNumberMatch = firstLine.match(/([A-Z]\d{4}\/\d{2})/);
   if (notamNumberMatch) {
     result.notamNumber = notamNumberMatch[1];
   }
 
-  // Check for NOTAMC (Cancellation) or NOTAMR (Replacement)
-  const notamcMatch = firstLine.match(/NOTAM[CR]\s+([A-Z0-9]+\/[0-9]{2})/);
+  // Check for NOTAMC (Cancellation)
+  const notamcMatch = firstLine.match(/NOTAMC\s+([A-Z0-9]+\/[0-9]{2})/);
   if (notamcMatch) {
-    if (firstLine.includes('NOTAMC')) {
-      result.isCancellation = true;
-      result.cancelsNotam = notamcMatch[1];
-    } else if (firstLine.includes('NOTAMR')) {
-      result.isReplacement = true;
-      result.replacesNotam = notamcMatch[1];
-    }
+    result.isCancellation = true;
+    result.cancelsNotam = notamcMatch[1];
   }
 
   // Look for ICAO field structure (Q), A), B), C), D), E), F), G))
   const fieldRegex = /^([A-G])\)\s*(.*)/;
   let currentField = null;
   let eLineStarted = false;
-  let hasELine = lines.some(line => line.match(/^E\)/));
+  let hasELine = lines.some(line => line.startsWith('E)'));
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -76,30 +67,27 @@ export function parseRawNotam(rawText) {
       continue;
     }
 
-    // Check if this line starts a new field
-    const match = line.match(fieldRegex);
-    
-    if (!match && eLineStarted) {
+    if (eLineStarted && !fieldRegex.test(line)) {
       // Continue collecting E line content
-      result.body += `\n${line.trim()}`; // Ensure proper trimming
+      result.body += `\n${line}`;
       continue;
     }
 
-    if (!match && currentField && !eLineStarted) {
-      // This is a continuation of the current field
-      switch (currentField) {
-        case 'Q': result.qLine += ` ${line}`; break;
-        case 'A': result.aerodrome += ` ${line}`; break;
-        case 'B': result.validFromRaw += ` ${line}`; break;
-        case 'C': result.validToRaw += ` ${line}`; break;
-        case 'D': result.schedule += ` ${line}`; break;
-      }
-      continue;
-    }
-
+    const match = line.match(fieldRegex);
     if (!match) {
-      // If we've passed C) and there's no E) field, everything else is body
-      if (!hasELine && currentField === 'C') {
+      // If we're inside a field continuation, add to current field
+      if (currentField && !eLineStarted) {
+        switch (currentField) {
+          case 'Q': result.qLine += ` ${line}`; break;
+          case 'A': result.aerodrome += ` ${line}`; break;
+          case 'B': result.validFromRaw += ` ${line}`; break;
+          case 'C': result.validToRaw += ` ${line}`; break;
+          case 'D': result.schedule += ` ${line}`; break;
+        }
+      } else if (eLineStarted) {
+        result.body += `\n${line}`;
+      } else if (!hasELine && currentField === 'C') {
+        // If there's no E) line, anything after C) is the body
         result.body += `${line}\n`;
         eLineStarted = true;
       }
@@ -123,10 +111,11 @@ export function parseRawNotam(rawText) {
         eLineStarted = false;
         break;
       case 'C':
-        // FIX: Store the full C) line value without trying to extract date here
-        // The date extraction should happen in the parseNotamDate function
-        const cValue = value.trim();
-        result.validToRaw = cValue;
+        result.validToRaw = value.trim();
+        // Handle PERM variations
+        if (result.validToRaw.toUpperCase().includes('PERM')) {
+          result.validToRaw = 'PERM';
+        }
         eLineStarted = false;
         break;
       case 'D':
@@ -139,7 +128,7 @@ export function parseRawNotam(rawText) {
         break;
       case 'F':
       case 'G':
-        // F and G lines are part of the body
+        // F and G lines are part of the body in practice
         if (result.body) {
           result.body += `\n${field}) ${value.trim()}`;
         } else {
@@ -157,18 +146,6 @@ export function parseRawNotam(rawText) {
   result.validToRaw = result.validToRaw.trim();
   result.schedule = result.schedule.trim();
   result.body = result.body.trim();
-
-  // Handle multi-language text in E) line
-  if (result.body.includes('\nFR:\n')) {
-    const [english, french] = result.body.split('\nFR:\n');
-    result.body = english.trim();
-    result.frenchBody = french.trim();
-  }
-  
-  // Log extracted dates for debugging
-  if (result.validFromRaw || result.validToRaw) {
-    console.log(`📋 Parsed NOTAM ${result.notamNumber}: From="${result.validFromRaw}", To="${result.validToRaw}"`);
-  }
   
   return result;
 }
