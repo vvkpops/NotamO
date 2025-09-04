@@ -1,15 +1,10 @@
+// FIXED api/parser.js
 /**
- * NOTAM Parser Utility
- * 
- * This module contains functions to parse raw ICAO-formatted NOTAM text
- * into a structured JavaScript object. It can handle standard fields (Q, A, B, C, E)
- * and identify cancellation NOTAMs (NOTAMC).
+ * Enhanced NOTAM Parser with better C) line handling
  */
 
 /**
- * Parses a raw NOTAM string into a structured object.
- * @param {string} rawText The full raw NOTAM text.
- * @returns {object|null} A structured NOTAM object or null if parsing fails.
+ * Parses a raw NOTAM string into a structured object with enhanced date parsing.
  */
 export function parseRawNotam(rawText) {
   if (!rawText || typeof rawText !== 'string') {
@@ -18,9 +13,9 @@ export function parseRawNotam(rawText) {
 
   // Clean up the raw text - handle different line endings and escape sequences
   const cleanText = rawText
-    .replace(/\\n/g, '\n')           // Convert escaped newlines
-    .replace(/\r\n/g, '\n')          // Normalize Windows line endings
-    .replace(/\r/g, '\n')            // Normalize old Mac line endings
+    .replace(/\\n/g, '\n')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
     .trim();
 
   const lines = cleanText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
@@ -108,10 +103,14 @@ export function parseRawNotam(rawText) {
         break;
       case 'B':
         result.validFromRaw = value.trim();
+        // Enhanced B) line parsing - handle "EST 2511051800" format
+        result.validFromRaw = normalizeTimezoneFormat(result.validFromRaw);
         eLineStarted = false;
         break;
       case 'C':
         result.validToRaw = value.trim();
+        // Enhanced C) line parsing - handle "EST 2511301800" and "PERM" formats
+        result.validToRaw = normalizeTimezoneFormat(result.validToRaw);
         // Handle PERM variations
         if (result.validToRaw.toUpperCase().includes('PERM')) {
           result.validToRaw = 'PERM';
@@ -151,25 +150,29 @@ export function parseRawNotam(rawText) {
 }
 
 /**
- * Checks if a NOTAM text appears to be in ICAO format
- * @param {string} text The NOTAM text to check
- * @returns {boolean} True if the text appears to be in ICAO format
+ * NEW: Normalizes timezone format in date strings
+ * Converts "EST 2511051800" to "2511051800EST"
  */
+function normalizeTimezoneFormat(dateStr) {
+  if (!dateStr) return dateStr;
+  
+  // Handle "TIMEZONE YYMMDDHHMM" format -> "YYMMDDHHMMTIMEZONE"
+  const tzMatch = dateStr.match(/^(EST|EDT|PST|PDT|MST|MDT|CST|CDT|AST|ADT|NST|NDT|UTC|GMT|Z)\s+(\d{10})$/i);
+  if (tzMatch) {
+    return `${tzMatch[2]}${tzMatch[1].toUpperCase()}`;
+  }
+  
+  return dateStr;
+}
+
+// ... rest of the parser functions remain the same ...
 export function isIcaoFormat(text) {
   if (!text) return false;
-  
-  // Look for the characteristic ICAO field markers
   const hasQLine = /Q\)\s*/.test(text);
   const hasALine = /A\)\s*/.test(text);
-  // E line is not always present, so A and Q are better indicators
   return hasQLine && hasALine;
 }
 
-/**
- * Extracts just the body text (E line content) from an ICAO NOTAM
- * @param {string} rawText The full ICAO NOTAM text
- * @returns {string} The body text content
- */
 export function extractBodyText(rawText) {
   const parsed = parseRawNotam(rawText);
   return parsed ? parsed.body : rawText;
