@@ -236,3 +236,301 @@ body::before {
     gap: 1rem;
   }
 }
+/* Enhanced Auto-Responsive Display System for NOTAM Console */
+
+/* 1. SMART CONTAINER SIZING */
+.container {
+  max-width: 100%;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 clamp(1rem, 3vw, 2rem);
+  transition: all 0.3s ease;
+}
+
+/* Responsive breakpoints for container */
+@media (min-width: 768px) {
+  .container { max-width: 95%; }
+}
+
+@media (min-width: 1024px) {
+  .container { max-width: 90%; }
+}
+
+@media (min-width: 1280px) {
+  .container { max-width: 85%; }
+}
+
+@media (min-width: 1920px) {
+  .container { max-width: 80%; }
+}
+
+/* 2. DYNAMIC CARD SIZING SYSTEM */
+:root {
+  /* Responsive card sizes based on viewport */
+  --card-min-width: clamp(280px, 35vw, 380px);
+  --card-max-width: clamp(380px, 45vw, 520px);
+  --card-optimal-width: clamp(320px, 40vw, 450px);
+  
+  /* Dynamic gaps */
+  --grid-gap: clamp(1rem, 2.5vw, 1.75rem);
+  --section-spacing: clamp(1.5rem, 3vw, 2.5rem);
+  --element-spacing: clamp(1rem, 2vw, 1.5rem);
+}
+
+/* 3. INTELLIGENT GRID SYSTEM */
+.notam-grid {
+  display: grid;
+  gap: var(--grid-gap);
+  margin-top: 1.5rem;
+  
+  /* Auto-fit with intelligent sizing */
+  grid-template-columns: repeat(
+    auto-fit, 
+    minmax(var(--card-min-width), 1fr)
+  );
+  
+  /* Ensure cards don't get too wide on large screens */
+  grid-auto-columns: minmax(var(--card-min-width), var(--card-max-width));
+  
+  transition: all 0.3s ease;
+}
+
+/* Responsive grid adjustments */
+@media (max-width: 768px) {
+  .notam-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .notam-grid {
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1440px) {
+  .notam-grid {
+    grid-template-columns: repeat(auto-fit, minmax(380px, 420px));
+  }
+}
+
+@media (min-width: 1441px) {
+  .notam-grid {
+    grid-template-columns: repeat(auto-fit, minmax(400px, 450px));
+    max-width: none;
+  }
+}
+
+/* 4. ADAPTIVE CARD HEIGHTS */
+.notam-card {
+  /* Remove fixed heights, let content determine */
+  height: auto;
+  min-height: clamp(240px, 30vh, 320px);
+  max-height: 80vh;
+  
+  /* Ensure proper aspect ratio on very wide screens */
+  aspect-ratio: auto;
+}
+
+/* 5. RESPONSIVE CONTROL PANELS */
+.icao-input-container {
+  padding: clamp(1.5rem, 3vw, 2rem);
+  margin-bottom: var(--section-spacing);
+}
+
+.top-controls, .bottom-controls {
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.top-controls {
+  flex-direction: row;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .top-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-controls {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+/* 6. SMART INPUT SIZING */
+.icao-input-wrapper {
+  flex: 1 1 auto;
+  min-width: 280px;
+  max-width: 100%;
+}
+
+.icao-input.compact {
+  width: 100%;
+  max-width: clamp(300px, 50vw, 500px);
+}
+
+/* 7. ADAPTIVE BUTTON SIZING */
+.add-button, .filter-toggle-btn {
+  padding: clamp(0.75rem, 2vw, 1rem) clamp(1.5rem, 3vw, 2rem);
+  font-size: clamp(0.9rem, 2vw, 1rem);
+  min-width: clamp(120px, 20vw, 160px);
+  white-space: nowrap;
+}
+
+/* 8. RESPONSIVE TAB SYSTEM */
+.icao-tabs {
+  padding: clamp(1.25rem, 2.5vw, 1.5rem) clamp(1.5rem, 3vw, 2rem);
+  gap: clamp(0.75rem, 1.5vw, 1rem);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.icao-tab {
+  padding: clamp(0.75rem, 1.5vw, 1rem) clamp(1rem, 2vw, 1.25rem);
+  font-size: clamp(0.85rem, 1.5vw, 0.95rem);
+  min-width: fit-content;
+  white-space: nowrap;
+}
+
+/* 9. CONTENT PADDING ADJUSTMENTS */
+.notam-tab-content {
+  padding: clamp(1.25rem, 2.5vw, 1.5rem) clamp(1.5rem, 3vw, 2.5rem) clamp(2rem, 4vw, 2.5rem);
+}
+
+.notam-card-content {
+  padding: clamp(1.5rem, 3vw, 2rem);
+  gap: clamp(1.25rem, 2vw, 1.5rem);
+}
+
+.card-head {
+  padding: clamp(1.25rem, 2.5vw, 1.5rem) clamp(1.5rem, 3vw, 2rem);
+  min-height: clamp(60px, 10vw, 80px);
+}
+
+/* 10. RESPONSIVE TYPOGRAPHY */
+.modern-header h1 {
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+}
+
+.head-title {
+  font-size: clamp(1rem, 2.5vw, 1.15rem);
+}
+
+.runway-numbers {
+  font-size: clamp(1rem, 2vw, 1.15rem);
+}
+
+.notam-raw-text {
+  font-size: clamp(0.85rem, 1.5vw, 0.95rem);
+  line-height: clamp(1.5, 0.1vw + 1.4, 1.6);
+}
+
+/* 11. SEARCH AND SIZER CONTROLS */
+.search-input-wrapper {
+  flex: 1 1 auto;
+  min-width: 200px;
+  max-width: 100%;
+}
+
+.card-sizer-control {
+  min-width: fit-content;
+  white-space: nowrap;
+}
+
+/* Hide card sizer on small screens where it's less relevant */
+@media (max-width: 768px) {
+  .card-sizer-control {
+    display: none;
+  }
+}
+
+/* 12. MODAL RESPONSIVE SIZING */
+.filter-modal, .hm-modal, .icao-sort-modal, .nh-modal {
+  width: clamp(90vw, 900px, 95vw);
+  max-width: min(900px, 95vw);
+  max-height: min(90vh, 800px);
+  margin: clamp(1rem, 3vw, 2rem);
+}
+
+/* 13. ULTRA-WIDE SCREEN OPTIMIZATIONS */
+@media (min-width: 1920px) {
+  .container {
+    max-width: 1600px;
+  }
+  
+  .notam-grid {
+    grid-template-columns: repeat(auto-fit, minmax(420px, 480px));
+    justify-content: center;
+  }
+}
+
+/* 14. HIGH DPI DISPLAY ADJUSTMENTS */
+@media (min-resolution: 192dpi), (min-resolution: 2dppx) {
+  .notam-raw-text {
+    font-size: clamp(0.9rem, 1.5vw, 1rem);
+  }
+  
+  .head-title {
+    font-size: clamp(1.1rem, 2.5vw, 1.25rem);
+  }
+}
+
+/* 15. VIEWPORT HEIGHT CONSIDERATIONS */
+@media (max-height: 600px) {
+  .notam-card {
+    min-height: 200px;
+  }
+  
+  .modern-header {
+    padding: 1rem 0;
+  }
+}
+
+/* 16. CONTAINER QUERIES FOR FINE-TUNED CONTROL */
+@container notam-card (max-width: 350px) {
+  .card-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .head-actions {
+    align-self: flex-end;
+  }
+}
+
+@container notam-card (min-width: 500px) {
+  .notam-raw-text {
+    font-size: 1rem;
+    padding: 1.5rem;
+  }
+}
+
+/* 17. ACCESSIBILITY AND REDUCED MOTION */
+@media (prefers-reduced-motion: reduce) {
+  .container, .notam-grid, .notam-card {
+    transition: none;
+  }
+}
+
+/* 18. PRINT STYLES */
+@media print {
+  .container {
+    max-width: 100%;
+    padding: 0;
+  }
+  
+  .notam-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .notam-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
