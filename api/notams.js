@@ -360,7 +360,7 @@ export default async function handler(request, response) {
                 if (a.validFrom === 'PERMANENT') return 1;
                 if (b.validFrom === 'PERMANENT') return -1;
                 const dateA = new Date(a.validFrom || 0);
-                const dateB = new Date(b.validFrom || 0);
+                const dateB = new Date(b.validFrom || 0); // Corrected from b.from
                 if (isNaN(dateA.getTime())) return 1;
                 if (isNaN(dateB.getTime())) return -1;
                 return dateB - dateA;
