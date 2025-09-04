@@ -1,4 +1,4 @@
-// src/useAutoResponsiveSize.js
+// src/useAutoResponsiveSize.jsx
 // Smart auto-sizing hook for NOTAM Console - Save this as a separate file
 
 import { useState, useEffect, useCallback } from 'react';
