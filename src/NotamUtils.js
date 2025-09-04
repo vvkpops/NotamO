@@ -4,7 +4,6 @@
  * Contains advanced utility functions for parsing, classifying, and handling NOTAM data,
  * adapted from expert-level examples.
  */
-import { parseRawNotam } from '../api/parser.js';
 
 // --- Classification and Type Extraction ---
 
@@ -151,29 +150,3 @@ export const isNotamFuture = (notam) => {
   const now = new Date();
   return from && from > now;
 };
-
-// --- Parsing for Display ---
-/**
- * A wrapper around the core NOTAM parser specifically for UI display.
- * @param {string} rawText The raw NOTAM text.
- * @returns {object} A structured NOTAM object suitable for display.
- */
-export function parseNotamForDisplay(rawText) {
-  // Use the robust parser from the api directory
-  const parsed = parseRawNotam(rawText);
-  
-  if (parsed) {
-    return parsed;
-  }
-  
-  // Fallback for text that doesn't parse well
-  return {
-    qLine: '',
-    aerodrome: '',
-    validFromRaw: '',
-    validToRaw: '',
-    schedule: '',
-    body: rawText || 'Could not parse NOTAM content.',
-    notamNumber: ''
-  };
-}
