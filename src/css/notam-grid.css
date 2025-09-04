@@ -428,7 +428,7 @@
   overflow: hidden;
 }
 
-/* NOTAM text display */
+/* NOTAM text display with stylish scrollbar */
 .notam-raw-text {
   font-family: 'JetBrains Mono', monospace;
   white-space: pre-wrap;
@@ -438,18 +438,111 @@
   color: var(--text-primary);
   background-color: rgba(0, 0, 0, 0.25);
   padding: 1.25rem;
+  padding-right: 0.75rem; /* Add padding for scrollbar space */
   border-radius: 12px;
   flex-grow: 1;
-  overflow-x: auto;
+  overflow-y: auto; /* Changed from overflow-x: auto */
+  overflow-x: hidden; /* Hide horizontal scroll */
   border: 1px solid rgba(255, 255, 255, 0.05);
   transition: all 0.2s ease;
+  max-height: 400px; /* Add max height to trigger scrollbar */
+  min-height: 150px; /* Minimum height */
+  position: relative;
+  
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  
+  /* Firefox scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 212, 255, 0.3) transparent;
 }
 
+/* Webkit-based browsers (Chrome, Safari, Edge) - Stylish Scrollbar */
+.notam-raw-text::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+}
+
+.notam-raw-text::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+  margin: 4px 0;
+}
+
+.notam-raw-text::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 212, 255, 0.4) 0%,
+    rgba(139, 92, 246, 0.4) 100%
+  );
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.notam-raw-text::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 212, 255, 0.6) 0%,
+    rgba(139, 92, 246, 0.6) 100%
+  );
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+}
+
+.notam-raw-text::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 212, 255, 0.8) 0%,
+    rgba(139, 92, 246, 0.8) 100%
+  );
+}
+
+/* Scrollbar corner for when both scrollbars appear */
+.notam-raw-text::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Enhanced hover state for better visibility */
+.notam-raw-text:hover::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 212, 255, 0.5) 0%,
+    rgba(139, 92, 246, 0.5) 100%
+  );
+}
+
+/* Add a subtle inner shadow for depth when scrollable */
+.notam-raw-text::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.2) 100%
+  );
+  pointer-events: none;
+  border-radius: 0 0 12px 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Show shadow when content is scrollable */
+.notam-raw-text:hover::after {
+  opacity: 1;
+}
+
+/* Enhanced hover state */
 .notam-raw-text:hover {
   background-color: rgba(0, 0, 0, 0.35);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
+/* Apply stylish scrollbar to other scrollable areas */
 .notam-meta {
   margin-top: auto;
   font-size: 0.9rem;
@@ -460,6 +553,28 @@
   border-left: 4px solid var(--accent-blue);
   border: 1px solid rgba(255, 255, 255, 0.05);
   transition: all 0.2s ease;
+  
+  /* Firefox scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 212, 255, 0.3) transparent;
+}
+
+.notam-meta::-webkit-scrollbar {
+  width: 6px;
+  background: transparent;
+}
+
+.notam-meta::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.notam-meta::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 255, 0.3);
+  border-radius: 6px;
+}
+
+.notam-meta::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 255, 0.5);
 }
 
 .notam-meta:hover {
@@ -471,6 +586,24 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  
+  /* Firefox scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 212, 255, 0.3) transparent;
+}
+
+.validity-info::-webkit-scrollbar {
+  width: 6px;
+  background: transparent;
+}
+
+.validity-info::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.validity-info::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 255, 0.3);
+  border-radius: 6px;
 }
 
 .validity-row {
@@ -563,6 +696,54 @@
     color: #fff !important;
 }
 
+/* Glass morphism effect to scrollbar on certain card states */
+.notam-card.is-new .notam-raw-text::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(16, 185, 129, 0.4) 0%,
+    rgba(5, 150, 105, 0.4) 100%
+  );
+}
+
+.notam-card.is-new .notam-raw-text::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(16, 185, 129, 0.6) 0%,
+    rgba(5, 150, 105, 0.6) 100%
+  );
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+/* Dark mode optimization - ensure visibility */
+@media (prefers-color-scheme: dark) {
+  .notam-raw-text::-webkit-scrollbar-thumb {
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .notam-raw-text::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  .notam-raw-text::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 255, 1);
+  }
+}
+
+/* Mobile touch devices - slightly wider for better touch targets */
+@media (pointer: coarse) {
+  .notam-raw-text::-webkit-scrollbar {
+    width: 10px;
+  }
+  
+  .notam-raw-text::-webkit-scrollbar-thumb {
+    min-height: 40px; /* Minimum thumb size for touch */
+  }
+}
+
 /* Container query for scaling card content */
 @container notam-card (min-width: 550px) {
     .head-title {
@@ -604,7 +785,8 @@
     .notam-card,
     .new-notam-indicator,
     .status-dot,
-    .copy-btn {
+    .copy-btn,
+    .notam-raw-text::-webkit-scrollbar-thumb {
       transition: none;
       animation: none;
     }
