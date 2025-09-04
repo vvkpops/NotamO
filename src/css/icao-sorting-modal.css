@@ -1,0 +1,446 @@
+/* ICAO Sorting Modal Styles */
+
+.icao-sort-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 2rem;
+  animation: sortBackdropFade 0.3s ease;
+}
+
+@keyframes sortBackdropFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.icao-sort-modal {
+  background: rgba(17, 24, 39, 0.95);
+  backdrop-filter: blur(30px) saturate(200%);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  box-shadow: 
+    0 25px 50px rgba(0, 0, 0, 0.6),
+    0 0 100px rgba(0, 212, 255, 0.1);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: sortModalSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes sortModalSlide {
+  from { 
+    transform: translateY(50px) scale(0.9); 
+    opacity: 0; 
+  }
+  to { 
+    transform: translateY(0) scale(1); 
+    opacity: 1; 
+  }
+}
+
+/* Subtle gradient overlay */
+.icao-sort-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.6), transparent);
+}
+
+/* Header */
+.icao-sort-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem 2.5rem;
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.icao-sort-title {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.icao-sort-icon {
+  font-size: 2rem;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--gradient-accent);
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.4);
+}
+
+.icao-sort-title h3 {
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.icao-sort-title p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin: 0;
+  opacity: 0.9;
+}
+
+.icao-sort-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.8rem;
+  cursor: pointer;
+  padding: 0.75rem;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.icao-sort-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+/* Content */
+.icao-sort-content {
+  padding: 2.5rem;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.icao-sort-instructions {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.instruction-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.instruction-icon {
+  font-size: 1.2rem;
+  width: 32px;
+  text-align: center;
+}
+
+/* Sortable List */
+.icao-sort-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 200px;
+}
+
+.icao-sort-item {
+  background: rgba(17, 24, 39, 0.8);
+  border: 2px solid var(--border-primary);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  cursor: grab;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+  position: relative;
+  user-select: none;
+}
+
+.icao-sort-item:hover {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: var(--accent-blue);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 25px rgba(0, 0, 0, 0.2),
+    0 0 20px rgba(0, 212, 255, 0.15);
+}
+
+.icao-sort-item:active {
+  cursor: grabbing;
+}
+
+.icao-sort-item.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg) scale(1.02);
+  z-index: 1000;
+  box-shadow: 
+    0 15px 40px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(0, 212, 255, 0.3);
+}
+
+.icao-sort-item.drag-over {
+  border-color: var(--accent-green) !important;
+  background: rgba(16, 185, 129, 0.1) !important;
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.3),
+    0 0 30px rgba(16, 185, 129, 0.3);
+}
+
+/* Drag Handle */
+.icao-drag-handle {
+  color: var(--text-muted);
+  cursor: grab;
+  transition: all 0.2s ease;
+  padding: 0.5rem;
+  border-radius: 8px;
+}
+
+.icao-sort-item:hover .icao-drag-handle {
+  color: var(--accent-blue);
+  background: rgba(0, 212, 255, 0.1);
+}
+
+.icao-sort-item:active .icao-drag-handle {
+  cursor: grabbing;
+}
+
+.drag-dots {
+  font-size: 1.2rem;
+  font-weight: bold;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+/* ICAO Display */
+.icao-code-display {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.icao-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.1em;
+}
+
+.icao-position {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Drag Indicator */
+.icao-drag-indicator {
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+}
+
+.icao-sort-item:hover .icao-drag-indicator {
+  color: var(--accent-blue);
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+/* Footer */
+.icao-sort-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem 2.5rem;
+  border-top: 1px solid var(--border-primary);
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.2);
+  gap: 1rem;
+}
+
+.icao-sort-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.icao-sort-reset,
+.icao-sort-cancel,
+.icao-sort-save {
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.icao-sort-reset {
+  background: rgba(107, 114, 128, 0.2);
+  color: var(--text-secondary);
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+.icao-sort-reset:hover {
+  background: rgba(107, 114, 128, 0.3);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.icao-sort-cancel {
+  background: rgba(75, 85, 99, 0.3);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+}
+
+.icao-sort-cancel:hover {
+  background: rgba(75, 85, 99, 0.5);
+  color: var(--text-primary);
+}
+
+.icao-sort-save {
+  background: var(--gradient-accent);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.icao-sort-save::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.icao-sort-save:hover::before {
+  left: 100%;
+}
+
+.icao-sort-save:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 212, 255, 0.4);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .icao-sort-modal {
+    margin: 1rem;
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100vh - 2rem);
+  }
+
+  .icao-sort-header,
+  .icao-sort-content,
+  .icao-sort-footer {
+    padding: 1.5rem;
+  }
+
+  .icao-sort-title {
+    gap: 1rem;
+  }
+
+  .icao-sort-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 1.5rem;
+  }
+
+  .icao-sort-title h3 {
+    font-size: 1.25rem;
+  }
+
+  .icao-sort-footer {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .icao-sort-actions {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .icao-sort-item {
+    padding: 1rem 1.25rem;
+    gap: 1rem;
+  }
+
+  .icao-code {
+    font-size: 1.1rem;
+  }
+}
+
+/* Touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .icao-sort-item {
+    padding: 1.5rem;
+  }
+  
+  .icao-drag-handle {
+    padding: 1rem;
+  }
+  
+  .drag-dots {
+    font-size: 1.5rem;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .icao-sort-modal,
+  .icao-sort-item,
+  .icao-sort-save,
+  .icao-drag-handle {
+    transition: none;
+    animation: none;
+  }
+  
+  .icao-sort-item.dragging {
+    transform: scale(1.02);
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .icao-sort-item {
+    border: 2px solid var(--text-primary);
+  }
+  
+  .icao-sort-item.drag-over {
+    border: 3px solid var(--accent-green) !important;
+    background: var(--accent-green) !important;
+    color: black !important;
+  }
+}
