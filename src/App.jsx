@@ -1,14 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import NotamTabContent, { FilterModal } from './NotamTabContent';
-import { 
-  getNotamType, 
-  isNotamCurrent, 
-  isNotamFuture, 
-  parseDate,
-  formatDateForDisplay,
-  getNotamTimeStatus,
-  validateNotam
-} from './NotamUtils';
+import { getNotamType, isNotamCurrent, isNotamFuture } from './NotamUtils';
 import NotamKeywordHighlightManager, { DEFAULT_NOTAM_KEYWORDS } from './NotamKeywordHighlight.jsx';
 import ICAOSortingModal from './ICAOSortingModal.jsx';
 import NotamHistoryModal from './NotamHistoryModal.jsx';
@@ -46,8 +38,7 @@ const App = () => {
     }
   });
 
-  // Enhanced time tracking for better status updates
-  const [currentTime, setCurrentTime] = useState(new Date());
+  // Batching, new NOTAM detection, and auto-refresh states
   const [fetchQueue, setFetchQueue] = useState([]);
   const [newNotamIcaos, setNewNotamIcaos] = useState(new Set());
   const [timeToNextRefresh, setTimeToNextRefresh] = useState(AUTO_REFRESH_INTERVAL);
@@ -105,15 +96,6 @@ const App = () => {
   const isProcessingQueue = useRef(false);
   const queueTimerRef = useRef(null);
   const icaoInputRef = useRef(null);
-
-  // Update current time every minute for accurate status displays
-  useEffect(() => {
-    const timeUpdateInterval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000); // Update every minute
-
-    return () => clearInterval(timeUpdateInterval);
-  }, []);
 
   // Update ref whenever icaos changes
   useEffect(() => {
@@ -200,43 +182,12 @@ const App = () => {
     return `${number}-${validFrom}-${validTo}-${source}-${contentHash}`;
   }, []);
 
-  // Enhanced NOTAM processing with validation and time status
-  const processNotamData = useCallback((rawNotams, isInitialFetch = false) => {
-    const processedNotams = rawNotams.map(notam => {
-      // Validate NOTAM structure
-      const validation = validateNotam(notam);
-      if (!validation.isValid) {
-        console.warn(`Invalid NOTAM structure:`, validation.errors, notam);
-      }
-
-      // Determine time status using current time
-      const timeStatus = getNotamTimeStatus(notam, currentTime);
-
-      return {
-        ...notam,
-        timeStatus,
-        isValid: validation.isValid,
-        validationErrors: validation.errors,
-        processedAt: currentTime.toISOString()
-      };
-    });
-
-    return processedNotams;
-  }, [currentTime]);
-
-  // Smart incremental NOTAM detection and merging with enhanced time handling
+  // Smart incremental NOTAM detection and merging
   const smartNotamMerge = useCallback((oldData, newData, isInitialFetch) => {
     if (isInitialFetch || oldData.length === 0) {
       console.log(`📋 Initial fetch: ${newData.length} NOTAMs loaded`);
-      const processedData = processNotamData(newData, true).map(n => ({ 
-        ...n, 
-        isNew: false, 
-        userViewed: false,
-        firstSeenAt: currentTime.toISOString()
-      }));
-      
       return { 
-        processedData, 
+        processedData: newData.map(n => ({ ...n, isNew: false, userViewed: false })), 
         hasNewNotams: false,
         newNotamsList: [],
         stats: {
@@ -258,24 +209,27 @@ const App = () => {
       oldSignatures.add(signature);
     });
 
-    // Process new data with enhanced time status
-    const processedNewData = processNotamData(newData);
+    // Process new data
     const newNotamMap = new Map();
     const newSignatures = new Set();
     
-    processedNewData.forEach(notam => {
+    newData.forEach(notam => {
       const signature = createNotamSignature(notam);
       newNotamMap.set(signature, notam);
       newSignatures.add(signature);
     });
 
-    // Find genuinely new NOTAMs
+    // Find truly new NOTAMs
     const genuinelyNewSignatures = [...newSignatures].filter(sig => !oldSignatures.has(sig));
+    
+    // Find expired NOTAMs (removed from source)
     const expiredSignatures = [...oldSignatures].filter(sig => !newSignatures.has(sig));
+    
+    // Find updated NOTAMs (same signature but potentially different content)
     const existingSignatures = [...newSignatures].filter(sig => oldSignatures.has(sig));
 
     console.log(`🔄 NOTAM Analysis:`, {
-      total: processedNewData.length,
+      total: newData.length,
       new: genuinelyNewSignatures.length,
       expired: expiredSignatures.length,
       existing: existingSignatures.length
@@ -286,18 +240,17 @@ const App = () => {
     const newNotamsList = [];
     let hasNewNotams = false;
 
-    // 1. Add existing NOTAMs (preserve user state, update time status)
+    // 1. Add existing NOTAMs (preserve user state)
     existingSignatures.forEach(signature => {
       const existingNotam = oldNotamMap.get(signature);
       const updatedNotam = newNotamMap.get(signature);
       
-      // Update time status but preserve user interaction state
+      // Preserve user state from existing NOTAM
       mergedNotams.push({
-        ...updatedNotam,
-        isNew: existingNotam.isNew,
-        userViewed: existingNotam.userViewed,
-        firstSeenAt: existingNotam.firstSeenAt,
-        timeStatus: getNotamTimeStatus(updatedNotam, currentTime), // Update status
+        ...updatedNotam, // Use updated content
+        isNew: existingNotam.isNew, // Preserve new status
+        userViewed: existingNotam.userViewed, // Preserve viewed status
+        firstSeenAt: existingNotam.firstSeenAt, // Preserve first seen timestamp
       });
     });
 
@@ -306,42 +259,31 @@ const App = () => {
       const newNotam = newNotamMap.get(signature);
       hasNewNotams = true;
       
-      console.log(`🆕 New NOTAM detected: ${newNotam.number} (${newNotam.timeStatus})`);
+      console.log(`🆕 New NOTAM detected: ${newNotam.number}`);
       
       const newNotamObject = {
         ...newNotam,
         isNew: true,
         userViewed: false,
-        firstSeenAt: currentTime.toISOString(),
-        timeStatus: getNotamTimeStatus(newNotam, currentTime),
+        firstSeenAt: Date.now(),
       };
       mergedNotams.push(newNotamObject);
       newNotamsList.push(newNotamObject);
     });
 
-    // 3. Log expired NOTAMs
+    // 3. Log expired NOTAMs but don't include them
     if (expiredSignatures.length > 0) {
       console.log(`🗑️ Expired NOTAMs removed: ${expiredSignatures.length}`);
       expiredSignatures.forEach(signature => {
         const expiredNotam = oldNotamMap.get(signature);
-        console.log(`   - ${expiredNotam.number} (was ${expiredNotam.timeStatus || 'unknown'})`);
+        console.log(`   - ${expiredNotam.number}`);
       });
     }
 
-    // Sort merged NOTAMs by validity date and status priority
+    // Sort merged NOTAMs by validity date (newest first)
     mergedNotams.sort((a, b) => {
-      // Prioritize by time status (active > future > expired)
-      const statusPriority = { active: 3, future: 2, expired: 1, unknown: 0 };
-      const aStatus = statusPriority[a.timeStatus] || 0;
-      const bStatus = statusPriority[b.timeStatus] || 0;
-      
-      if (aStatus !== bStatus) {
-        return bStatus - aStatus;
-      }
-      
-      // Then by validity date (newest first)
-      const dateA = parseDate(a.validFrom) || new Date(0);
-      const dateB = parseDate(b.validFrom) || new Date(0);
+      const dateA = new Date(a.validFrom || 0);
+      const dateB = new Date(b.validFrom || 0);
       return dateB - dateA;
     });
 
@@ -356,7 +298,7 @@ const App = () => {
         total: mergedNotams.length
       }
     };
-  }, [createNotamSignature, processNotamData, currentTime]);
+  }, [createNotamSignature]);
 
   const handleRefreshIcao = useCallback((icaoToRefresh) => {
     if (fetchQueue.includes(icaoToRefresh)) return;
@@ -622,9 +564,9 @@ const App = () => {
     if (e.key === "Enter") handleAddIcao();
   };
 
-  // Enhanced allNotamsData with time status awareness
   const allNotamsData = useMemo(() => {
     let combined = [];
+    // Show loading only if there's no data for ANY ICAO yet.
     let hasAnyData = icaos.some(icao => notamDataStore[icao]?.data?.length > 0);
     let isLoading = icaos.some(icao => notamDataStore[icao]?.loading) && !hasAnyData;
     let anyError = null;
@@ -635,20 +577,12 @@ const App = () => {
         if (storeEntry.error) anyError = anyError || storeEntry.error;
         if (storeEntry.data && storeEntry.data.length > 0) {
           combined.push({ isIcaoHeader: true, icao: icao, id: `header-${icao}` });
-          
-          // Update time status for all NOTAMs when displaying
-          const updatedData = storeEntry.data.map(notam => ({
-            ...notam,
-            timeStatus: getNotamTimeStatus(notam, currentTime)
-          }));
-          
-          combined = combined.concat(updatedData);
+          combined = combined.concat(storeEntry.data);
         }
       }
     });
-    
     return { data: combined, loading: isLoading, error: anyError };
-  }, [notamDataStore, icaos, currentTime]);
+  }, [notamDataStore, icaos]);
 
   const activeNotamData = useMemo(() => {
     if (activeTab === 'ALL') return allNotamsData;
@@ -658,115 +592,51 @@ const App = () => {
     return { data: storeEntry?.data || [], loading: isLoading, error: storeEntry?.error || null };
   }, [activeTab, allNotamsData, notamDataStore]);
 
-  // Enhanced filtering with time status awareness
   const { filteredNotams, typeCounts, hasActiveFilters, activeFilterCount } = useMemo(() => {
-    const notams = activeTab === 'ALL' ? 
-      allNotamsData.data : 
-      (notamDataStore[activeTab]?.data || []);
-
-    if (!notams) return { 
-      filteredNotams: [], 
-      typeCounts: {}, 
-      hasActiveFilters: false, 
-      activeFilterCount: 0 
-    };
-
-    // Count NOTAMs by type and time status
-    const counts = { 
-      rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0, fuel: 0, 
-      other: 0, cancelled: 0, current: 0, future: 0, expired: 0 
-    };
-
+    const notams = activeNotamData.data;
+    if (!notams) return { filteredNotams: [], typeCounts: {}, hasActiveFilters: false, activeFilterCount: 0 };
+    const counts = { rwy: 0, twy: 0, rsc: 0, crfi: 0, ils: 0, fuel: 0, other: 0, cancelled: 0, current: 0, future: 0 };
     notams.forEach(notam => {
       if (notam.isIcaoHeader) return;
-      
-      const type = getNotamType(notam);
-      counts[type]++;
-      
-      // Update time status counts using current time
-      const timeStatus = getNotamTimeStatus(notam, currentTime);
-      if (timeStatus === 'active') counts.current++;
-      if (timeStatus === 'future') counts.future++;
-      if (timeStatus === 'expired') counts.expired++;
+      const type = getNotamType(notam); counts[type]++;
+      if (isNotamCurrent(notam)) counts.current++; if (isNotamFuture(notam)) counts.future++;
     });
-
-    // Enhanced filtering function
     const filterFunc = notam => {
       if (notam.isIcaoHeader) return true;
-      
-      // Keyword filter
-      if (keywordFilter && !(notam.summary || '').toLowerCase().includes(keywordFilter.toLowerCase())) {
-        return false;
-      }
-      
-      // Type filter
       const type = getNotamType(notam);
+      if (keywordFilter && !(notam.summary || '').toLowerCase().includes(keywordFilter.toLowerCase())) return false;
       if (filters[type] === false) return false;
-      
-      // Time status filters with current time
-      const timeStatus = getNotamTimeStatus(notam, currentTime);
-      if (!filters.current && timeStatus === 'active') return false;
-      if (!filters.future && timeStatus === 'future') return false;
-      
+      if (!filters.current && isNotamCurrent(notam)) return false;
+      if (!filters.future && isNotamFuture(notam)) return false;
       return true;
     };
-
-    // Enhanced sorting function with time status priority
     const sortFunc = (a, b) => {
       if (a.isIcaoHeader || b.isIcaoHeader) return 0;
-      
-      // First, sort by filter order priority
-      const aPrio = filterOrder.indexOf(getNotamType(a));
-      const bPrio = filterOrder.indexOf(getNotamType(b));
+      const aPrio = filterOrder.indexOf(getNotamType(a)), bPrio = filterOrder.indexOf(getNotamType(b));
       if (aPrio !== bPrio) return aPrio - bPrio;
-      
-      // Then by time status priority
-      const statusPriority = { active: 3, future: 2, expired: 1, unknown: 0 };
-      const aStatus = statusPriority[getNotamTimeStatus(a, currentTime)] || 0;
-      const bStatus = statusPriority[getNotamTimeStatus(b, currentTime)] || 0;
-      if (aStatus !== bStatus) return bStatus - aStatus;
-      
-      // Finally by date
-      const dateA = parseDate(a.validFrom) || new Date(0);
-      const dateB = parseDate(b.validFrom) || new Date(0);
-      return dateB - dateA;
+      return new Date(b.validFrom) - new Date(a.validFrom);
     };
-
     let results = notams.filter(filterFunc).sort(sortFunc);
-
-    // Group by ICAO for ALL tab
     if (activeTab === 'ALL') {
-      const icaoGroups = results.reduce((acc, item) => {
-        if (item.isIcaoHeader) return acc;
-        acc[item.icao] = acc[item.icao] || [];
-        acc[item.icao].push(item);
-        return acc;
-      }, {});
-      
-      results = [];
-      Object.keys(icaoGroups).sort().forEach(icao => {
-        if (icaoGroups[icao].length > 0) {
-          results.push({ isIcaoHeader: true, icao: icao, id: `header-${icao}` });
-          results.push(...icaoGroups[icao]);
-        }
-      });
+        const icaoGroups = results.reduce((acc, item) => {
+            if (item.isIcaoHeader) return acc;
+            acc[item.icao] = acc[item.icao] || [];
+            acc[item.icao].push(item);
+            return acc;
+        }, {});
+        results = [];
+        Object.keys(icaoGroups).sort().forEach(icao => {
+            if (icaoGroups[icao].length > 0) {
+                results.push({ isIcaoHeader: true, icao: icao, id: `header-${icao}` });
+                results.push(...icaoGroups[icao]);
+            }
+        });
     }
-
-    // Calculate active filter status
-    const defaultFilters = { 
-      rwy: true, twy: true, rsc: true, crfi: true, ils: true, 
-      fuel: true, other: true, cancelled: false, current: true, future: true 
-    };
+    const defaultFilters = { rwy: true, twy: true, rsc: true, crfi: true, ils: true, fuel: true, other: true, cancelled: false, current: true, future: true };
     const hasFilters = keywordFilter || Object.keys(filters).some(key => filters[key] !== defaultFilters[key]);
     const filterCount = Object.keys(filters).filter(key => filters[key] !== defaultFilters[key]).length + (keywordFilter ? 1 : 0);
-
-    return { 
-      filteredNotams: results, 
-      typeCounts: counts, 
-      hasActiveFilters: hasFilters, 
-      activeFilterCount: filterCount 
-    };
-  }, [activeTab, notamDataStore, keywordFilter, filters, filterOrder, currentTime]);
+    return { filteredNotams: results, typeCounts: counts, hasActiveFilters: hasFilters, activeFilterCount: filterCount };
+  }, [activeNotamData.data, keywordFilter, filters, activeTab, filterOrder]);
 
   const handleFilterChange = (filterKey) => setFilters(prev => ({ ...prev, [filterKey]: !prev[filterKey] }));
   const clearAllFilters = () => {
@@ -817,7 +687,6 @@ const App = () => {
         onHistoryClick={() => setIsHistoryModalOpen(true)}
         activeTab={activeTab}
         autoRefreshAll={handleRefreshAll}
-        currentTime={currentTime}
       />
       
       <div className="glass icao-input-container">
@@ -879,21 +748,20 @@ const App = () => {
   );
 };
 
-// Enhanced ModernHeader with better time display
-const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab, autoRefreshAll, currentTime }) => {
+const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab, autoRefreshAll }) => {
   const [utcTime, setUtcTime] = useState('');
   const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
     setMounted(true);
     const tick = () => {
-      const now = currentTime || new Date();
-      setUtcTime(formatDateForDisplay(now, { showSeconds: true, format: 'compact' }));
+      const now = new Date();
+      setUtcTime(now.toUTCString().slice(5, -4) + ' UTC');
     };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [currentTime]);
+  }, []);
 
   const minutes = Math.floor(timeToNextRefresh / 60000);
   const seconds = Math.floor((timeToNextRefresh % 60000) / 1000).toString().padStart(2, '0');
@@ -914,13 +782,9 @@ const ModernHeader = ({ timeToNextRefresh, onRefresh, onHistoryClick, activeTab,
           <button onClick={onRefresh} className="refresh-all-btn" title={buttonTitle}>
             {buttonText}
           </button>
-          <span className="global-countdown" onClick={autoRefreshAll} title="Click to refresh all now">
-            {minutes}:{seconds}
-          </span>
+          <span className="global-countdown" onClick={autoRefreshAll} title="Click to refresh all now">{minutes}:{seconds}</span>
         </div>
-        <p className="utc-time" title={`Current UTC time: ${utcTime}`}>
-          {utcTime}
-        </p>
+        <p className="utc-time">{utcTime}</p>
       </div>
     </header>
   );

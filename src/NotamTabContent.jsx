@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import NotamCardWithTranslation from './components/NotamCardWithTranslation';
+import NotamCard from './NotamCard';
 import { getNotamType } from './NotamUtils';
 
 export const FilterModal = ({ 
@@ -279,12 +279,11 @@ const NotamTabContent = ({
     }
     
     return (
-      <NotamCardWithTranslation 
+      <NotamCard 
         key={notam.id} 
         notam={notam} 
         keywordHighlightEnabled={keywordHighlightEnabled}
         keywordCategories={keywordCategories}
-        enableTranslation={true}
       />
     );
   };
