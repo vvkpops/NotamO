@@ -247,15 +247,39 @@ export default async function handler(request, response) {
                 
                 notamsFromSource = navNotams.map(notam => {
                     let originalRawText = 'Full NOTAM text not available from source.';
-                    // Safely parse the nested JSON in the 'text' field
+                    
+                    // Enhanced parsing for NAV CANADA nested JSON structure
                     try {
-                        const parsedText = JSON.parse(notam.text);
-                        originalRawText = parsedText.raw?.replace(/\\n/g, '\n') || originalRawText;
+                        if (typeof notam.text === 'string') {
+                            // First, try to parse as JSON
+                            try {
+                                const parsedText = JSON.parse(notam.text);
+                                originalRawText = parsedText.raw || parsedText.icao || originalRawText;
+                            } catch {
+                                // If not JSON, use as-is
+                                originalRawText = notam.text;
+                            }
+                        } else if (typeof notam.text === 'object' && notam.text) {
+                            // Already an object
+                            originalRawText = notam.text.raw || notam.text.icao || JSON.stringify(notam.text);
+                        }
+                        
+                        // Clean up the text - remove extra escaping
+                        originalRawText = originalRawText
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\r/g, '\r')
+                            .replace(/\\t/g, '\t')
+                            .replace(/\\"/g, '"')
+                            .replace(/\\\(/g, '(')
+                            .replace(/\\\)/g, ')')
+                            .trim();
+                            
                     } catch (e) {
+                        console.warn(`Could not parse NAV CANADA NOTAM text for PK ${notam.pk}: ${e.message}`);
+                        // Fallback: use whatever text we have
                         if (typeof notam.text === 'string') {
                             originalRawText = notam.text;
                         }
-                        console.warn(`Could not parse nested JSON in NAV CANADA NOTAM text for PK ${notam.pk}. Fallback to raw text field.`);
                     }
 
                     // Parse the raw text to extract structured data
@@ -275,7 +299,7 @@ export default async function handler(request, response) {
                     let validTo = parseNotamDate(notam.endValidity);
                     
                     if (!validTo && parsed?.validToRaw) {
-                        console.log(`NAV CANADA endValidity is null for ${parsed.notamNumber}. Using C) line: "${parsed.validToRaw}"`);
+                        console.log(`NAV CANADA endValidity is null for ${parsed.notamNumber || notam.pk}. Using C) line: "${parsed.validToRaw}"`);
                         validTo = parseNotamDate(parsed.validToRaw);
                     }
                     
