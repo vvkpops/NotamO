@@ -340,7 +340,7 @@ const formatNotamToIcao = (notam, originalRawText) => {
         return originalRawText;
     }
 
-    const parsed = parseRawNotam(originalRawText) || {};
+    const parsed = parseRawNotamInline(originalRawText) || {};
     
     let icaoFormatted = '';
     
